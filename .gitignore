@@ -1,0 +1,6 @@
+*.o
+*.so*
+.*.swp
+libproc.dylib*
+.DS_Store
+.vscode

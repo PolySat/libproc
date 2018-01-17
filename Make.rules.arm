@@ -1,0 +1,21 @@
+ifeq ($(TARGET),arm)
+	CC=$(ARM_TOOLCHAIN_PATH)/$(ARM_BIN_SUBPATH)cc
+	STRIP=$(ARM_TOOLCHAIN_PATH)/$(ARM_BIN_SUBPATH)strip
+	LIB_PATH=$(ARM_TOOLCHAIN_PATH)/lib
+	INC_PATH=$(ARM_TOOLCHAIN_PATH)/include
+	BIN_PATH=$(ARM_TOOLCHAIN_PATH)/bin
+	SBIN_PATH=$(ARM_TOOLCHAIN_PATH)/sbin
+	ETC_PATH=$(ARM_TOOLCHAIN_PATH)/etc
+	LOCAL_BIN_PATH=$(ARM_TOOLCHAIN_PATH)/etc
+	INST_STRIP=$(STRIP)
+	SYMBOLS=
+else
+	LIB_PATH=/usr/local/lib
+	INC_PATH=/usr/local/include
+	BIN_PATH=/usr/local/bin
+	SBIN_PATH=/usr/local/sbin
+	ETC_PATH=/usr/local/etc
+	STRIP=strip
+	INST_STRIP=echo
+	SYMBOLS=-g
+endif
