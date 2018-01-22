@@ -237,8 +237,6 @@ struct CFG_CommandDesc {
    uint32_t cmdNum;
    char *funcName;
    CMD_handler_t cmdHandler;
-
-   uint32_t cmdUid, cmdGroup, cmdProt;
 };
 
 static void CFG_CommandDesc_free(void *val)
@@ -271,10 +269,7 @@ CFG_NEWOBJ(CommandDesc,
       // FUNC string value put into the structure with strdup
       CFG_STRDUP("FUNC", struct CFG_CommandDesc, funcName),
       // NUM uint32 value put into the structure
-      CFG_UINT32("NUM", struct CFG_CommandDesc, cmdNum),
-      CFG_UINT32("CMDOID", struct CFG_CommandDesc, cmdUid),
-      CFG_UINT32("GRPOID", struct CFG_CommandDesc, cmdGroup),
-      CFG_UINT32("PROTECTION", struct CFG_CommandDesc, cmdProt)
+      CFG_UINT32("NUM", struct CFG_CommandDesc, cmdNum)
 );
 
 // Declare the configuration root structure.  In this case it just contains
@@ -344,9 +339,6 @@ int cmd_handler_init(const char * procName, struct CommandCbArg *cmds)
          statusCmdFound |= (cmd->cmdNum == 0x01);
          // Add command and related params to array
          (cmds->cmds + cmd->cmdNum)->cmd_cb = cmd->cmdHandler;
-         (cmds->cmds + cmd->cmdNum)->uid = cmd->cmdUid;
-         (cmds->cmds + cmd->cmdNum)->group = cmd->cmdGroup;
-         (cmds->cmds + cmd->cmdNum)->prot = cmd->cmdProt;
       }
    }
 
