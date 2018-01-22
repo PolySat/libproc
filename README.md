@@ -17,17 +17,23 @@ The event loop allows programs to react to specific events that happen in the op
 Some of the event types supported by libproc are:
 - File actions: file reading, writing, and errors
 - Scheduled events: schedule events to run at specific times
+- Incoming commands: React to incoming commands via UDP packets
+- Signals: Handle operating system signals, such as `SIGINT`
 - Pending power-off
 
 ## Inter-process communication
 
 libproc makes it easy to communicate with other processes.
-On startup, libproc reads the process comand file definition and binds to an UDP port.
+On start-up, libproc reads the process command file definition (`proc_name.cmd.cfg`) and binds to an UDP port.
 
-Using the command definition, other procecess can message this process.
+Using this command definition, other processes can message this process.
 
-In addition to process to process communition, libproc also supports multicast support,
+In addition to inter-process communication, libproc also supports multicasting,
 where multiple processes can subscribe to message streams.
+
+## Open-Source Programs Using libproc
+
+- [ADCS Sensor Reader](https://github.com/PolySat/adcs-sensor-reader): Used to read attitude determination sensors on PolySat missions without full ADCS.
 
 ## Hello World using libproc
 
@@ -72,4 +78,3 @@ int main(void)
    return 0;
 }
 ```
-
