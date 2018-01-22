@@ -1,0 +1,14 @@
+language: c
+dist: trusty
+sudo: false
+
+os:
+  - linux
+  # Re-enable MacOS builds when travis-ci Mac OS build queues improve
+  # - osx
+
+compiler:
+  - clang
+  - gcc
+
+script: make
