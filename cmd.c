@@ -301,7 +301,6 @@ int cmd_handler_init(const char * procName, struct CommandCbArg *cmds)
    struct CFG_Root *root = NULL;
    int i;
    char cfgFile[256];
-   char statusCmdFound = 0;
 
    if (procName) {
       sprintf(cfgFile, "./%s.cmd.cfg", procName);
@@ -340,19 +339,13 @@ int cmd_handler_init(const char * procName, struct CommandCbArg *cmds)
       } else {
          DBG_print(DBG_LEVEL_INFO, "%s registered cmd %s [%d]\n", procName,
                                                 cmd->funcName, cmd->cmdNum);
-         // Check if a status command was found
-         statusCmdFound |= (cmd->cmdNum == 0x01);
+
          // Add command and related params to array
          (cmds->cmds + cmd->cmdNum)->cmd_cb = cmd->cmdHandler;
          (cmds->cmds + cmd->cmdNum)->uid = cmd->cmdUid;
          (cmds->cmds + cmd->cmdNum)->group = cmd->cmdGroup;
          (cmds->cmds + cmd->cmdNum)->prot = cmd->cmdProt;
       }
-   }
-
-   if (procName && !statusCmdFound) {
-      DBG_print(DBG_LEVEL_WARN, "No status command found -- will not function "
-                                "correctly with full system!\n");
    }
 
    if (root) {
