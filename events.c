@@ -24,10 +24,12 @@
  */
 #include "events.h"
 #include "priorityQueue.h"
+#include "virtclk.h"
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <time.h>
 #include <sys/select.h>
 #include <signal.h>
 #include <assert.h>
@@ -41,6 +43,10 @@
 #include <fcntl.h>
 // #include <polysat_pkt/watchdog_cmd.h>
 #include "proclib.h"
+
+// Static global for virtual time
+static EVTHandler *global_evt = NULL;
+
 
 #ifndef timercmp
 # define timercmp(a, b, CMP)                                                  \
@@ -183,9 +189,24 @@ struct EventState
    int keepGoing;				    	                        // Whether the handler should loop or not
    struct GPIOInterruptDesc gpio_intrs[2];            // GPIO interrupt state
    pqueue_t *queue;                                   // The schedule queue
+   char enableVirtClk;                                //uses simulated time instead of system clock time for events
+   struct VirtClkState *virtClkState;
 
    EventCBPtr events[1];				                      // List of pointers to event callbacks
 };
+
+/**
+ * Private get time function. In virtual clock mode, monotonic time 
+ * becomes gmt time.
+ */
+static void get_time(struct EventState *ctx, struct timeval *tv)
+{
+   if (ctx->enableVirtClk) {
+      EVT_get_gmt_time(ctx, tv);
+   } else {
+      EVT_get_monotonic_time(ctx, tv);
+   }
+}
 
 /* Initializes an EventState with a given hash size.
  * @param hashSize The hash size of the event handler.
@@ -216,6 +237,7 @@ struct EventState *EVT_initWithSize(int hashSize)
       res->events[i] = NULL;
 
    res->queue = pqueue_init(hashSize, cmp_pri, get_pri, set_pri, get_pos, set_pos);
+   res->enableVirtClk = CLK_DISABLED;
 
    // Check if scheduler was created successfuly
    if (res->queue == NULL){
@@ -294,6 +316,13 @@ void EVT_free_handler(EVTHandler *ctx)
 
    if (!ctx)
       return;
+
+   if (ctx->enableVirtClk && ctx->virtClkState) {
+      CLK_cleanup(ctx->virtClkState);
+      ctx->virtClkState = NULL;
+   }
+   global_evt = NULL;
+
 
    for(i = 0; i < ctx->hashSize; i++){
       while(ctx->events[i]){
@@ -434,6 +463,76 @@ static int EVT_clean_fdsets(struct EventState *ctx)
    return foundOne;
 }
 
+char EVT_enable_virt(EVTHandler *ctx, struct timeval initTime)
+{
+   struct VirtClkState *sim;
+
+   if (!ctx) {
+      return -1;
+   }
+
+   global_evt = ctx;
+   
+   sim = CLK_init(&initTime);
+   if (!sim) {
+      return -1;
+   }
+   
+   ctx->enableVirtClk = CLK_ENABLED;
+   ctx->virtClkState = sim;
+   return 0;
+}
+
+struct VirtClkState *EVT_clk(EVTHandler *ctx)
+{
+   return ctx->virtClkState;
+}
+
+/**
+ * Get the system's current absolute GMT time.
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ *
+ */
+int EVT_get_gmt_time(EVTHandler *ctx, struct timeval *tv)
+{
+   if (ctx && ctx->enableVirtClk) {
+      // Handle simulation
+      *tv = CLK_get_time(ctx->virtClkState);
+   } else {
+      gettimeofday(tv, NULL);
+   }
+
+   return 0;
+}
+
+int EVT_get_gmt_time_virt(struct timeval *tv)
+{
+   if (global_evt && global_evt->enableVirtClk) {
+      // Handle simulation
+      *tv = CLK_get_time(global_evt->virtClkState);
+      return 0;
+   }
+
+   return -1;
+}
+
+#ifndef __APPLE__
+int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv)
+{
+   int res;
+   struct timespec tp;
+
+   res = clock_gettime(CLOCK_MONOTONIC, &tp);
+
+   tv->tv_sec = tp.tv_sec;
+   tv->tv_usec = (tp.tv_nsec + 500 ) / 1000;
+
+   return res;
+}
+#endif
+
+
 char EVT_start_loop(EVTHandler *ctx)
 {
    fd_set eventSets[EVENT_MAX];
@@ -461,46 +560,57 @@ char EVT_start_loop(EVTHandler *ctx)
 
       maxFd = ctx->maxFd + 1;
       curProc = pqueue_peek(ctx->queue);
-      EVT_get_monotonic_time(&curTime);
+      get_time(ctx, &curTime);
       blockTime = NULL;
-
+      
+      // Set amount of time to block on select.
+      // If no events block indefinetly. 
       if (curProc) {
-           timersub(&(curProc->nextAwake), &curTime, &diffTime);
-
-           if (diffTime.tv_sec < 0 || diffTime.tv_usec < 0) {
-              diffTime.tv_sec = 0;
-              diffTime.tv_usec = 0;
-           }
-           blockTime = &diffTime;
+         if (ctx->enableVirtClk) {
+            if (CLK_follow_event(ctx->virtClkState, &curProc->nextAwake) != CLK_PAUSED) {
+               // If virt clk isn't paused, don't block on select.
+               memset(&diffTime, 0, sizeof(struct timeval));
+               blockTime = &diffTime;
+            }
+         } else {
+            timersub(&(curProc->nextAwake), &curTime, &diffTime);
+            if (diffTime.tv_sec < 0 || diffTime.tv_usec < 0) {
+               memset(&diffTime, 0, sizeof(struct timeval));
+            }
+            blockTime = &diffTime;
+         }
       }
 
       retval = select(maxFd, eventSetPtrs[EVENT_FD_READ],
          eventSetPtrs[EVENT_FD_WRITE], eventSetPtrs[EVENT_FD_ERROR],
          blockTime);
 
-      /* Process Timed Events */
-      while ((curProc = pqueue_peek(ctx->queue)))
-      {
-	     EVT_get_monotonic_time(&curTime);
+      // Process Timed Events
+      while ((curProc = pqueue_peek(ctx->queue))) {
+         get_time(ctx, &curTime);
 
-        // Check if the next event is ready
-        if (timercmp(&curProc->nextAwake, &curTime, <=))
-        {
-          // Pop it from the queue
-          pqueue_pop(ctx->queue);
+         if (timercmp(&curProc->nextAwake, &curTime, >)) {
+            // Event is not yet ready
+            break;
+         }
 
-          // Call the callback and see if it wants to be kept
-	  if (curProc->callback(curProc->arg) == EVENT_KEEP) {
-             curProc->scheduleTime = curTime;
-             timeradd(&curProc->nextAwake,
-                   &curProc->timeStep, &curProc->nextAwake);
-             pqueue_insert(ctx->queue, curProc);
-          } else {
-             free(curProc);
-          }
-        }
-        else
-          break;
+         // Pop event from the queue
+         pqueue_pop(ctx->queue);
+
+         // Call the callback and see if it wants to be kept
+         if (curProc->callback(curProc->arg) == EVENT_KEEP) {
+            curProc->scheduleTime = curTime;
+            timeradd(&curProc->nextAwake,
+               &curProc->timeStep, &curProc->nextAwake);
+            pqueue_insert(ctx->queue, curProc);
+         } else {
+            free(curProc);
+         }
+
+         if (ctx->enableVirtClk) {
+            // Only run one event at once in virt clk mode
+            break;
+         }
       }
 
       /* Process FD events */
@@ -582,7 +692,7 @@ void *EVT_sched_add(EVTHandler *handler, struct timeval time,
      return NULL;
    }
 
-   EVT_get_monotonic_time(&newSchedCB->scheduleTime);
+   get_time(handler, &newSchedCB->scheduleTime);
    newSchedCB->timeStep = time;
    timeradd(&newSchedCB->scheduleTime, &time, &newSchedCB->nextAwake);
    newSchedCB->callback = cb;
@@ -617,7 +727,7 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
    if (!newSchedCB)
       return NULL;
 
-   EVT_get_monotonic_time(&newSchedCB->scheduleTime);
+   get_time(handler, &newSchedCB->scheduleTime);
    newSchedCB->timeStep = timestep;
    timeradd(&newSchedCB->scheduleTime, &time, &newSchedCB->nextAwake);
    newSchedCB->callback = cb;
@@ -669,7 +779,7 @@ char EVT_sched_update(EVTHandler *handler, void *eventId, struct timeval time)
       return 1;
    }
 
-   EVT_get_monotonic_time(&evt->scheduleTime);
+   get_time(handler, &evt->scheduleTime);
    timeradd(&evt->scheduleTime, &time, &evt->nextAwake);
    evt->timeStep = time;
    pqueue_change_priority(handler->queue, evt->nextAwake, evt);
@@ -698,7 +808,7 @@ char EVT_sched_update_partial_credit(EVTHandler *handler, void *eventId,
 
    timeradd(&evt->scheduleTime, &time, &evt->nextAwake);
 
-   EVT_get_monotonic_time(&now);
+   get_time(handler, &now);
    if (timercmp(&evt->nextAwake, &now, <=))
       evt->nextAwake = now;
 
