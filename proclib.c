@@ -159,21 +159,6 @@ static int validate_watch_registration(void *arg)
    return EVENT_KEEP;
 }
 
-#ifndef __APPLE__
-int EVT_get_monotonic_time(struct timeval *tv)
-{
-   int res;
-   struct timespec tp;
-
-   res = clock_gettime(CLOCK_MONOTONIC, &tp);
-
-   tv->tv_sec = tp.tv_sec;
-   tv->tv_usec = (tp.tv_nsec + 500 ) / 1000;
-
-   return res;
-}
-#endif
-
 void PROC_set_context(ProcessData *proc, void *ctx)
 {
    proc->callbackContext = ctx;
@@ -201,7 +186,7 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
    struct timeval endTime;
    struct timeval totalTime;
 
-   EVT_get_monotonic_time(&startTime);
+   EVT_get_monotonic_time(NULL, &startTime);
 #endif //TIME_TEST
    // Allocate our internal state structure
    proc = (ProcessData*)malloc(sizeof(ProcessData));
@@ -315,7 +300,7 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
 
    critical_state_init(&proc->criticalState, proc->name);
 #if TIME_TEST
-   EVT_get_monotonic_time(&endTime);
+   EVT_get_monotonic_time(NULL, &endTime);
    timersub(&endTime, &startTime, &totalTime);
    DBG_print(DBG_LEVEL_WARN, "Process initialization time: %d.%06d\n", totalTime.tv_sec, totalTime.tv_usec);
 #endif //TIME_TEST
@@ -342,7 +327,7 @@ int event_gmt_to_rel_time(struct timeval *gmt_time)
 {
    struct timeval now, diff;
 
-   EVT_get_gmt_time(&now);
+   EVT_get_gmt_time(NULL, &now);
 	ERRNO_WARN("EVT_get_gmt_time error: ");
 
    timeval_subtract(&diff, gmt_time, &now);      //??
@@ -361,7 +346,7 @@ int event_monotonic_to_rel_time(struct timeval *monotonic_time)
 {
    struct timeval now, diff;
 
-   EVT_get_monotonic_time(&now);
+   EVT_get_monotonic_time(NULL, &now);
 	ERRNO_WARN("EVT_get_monotonic_time error: ");
 
    timeval_subtract(&diff, monotonic_time, &now);      //??
@@ -391,6 +376,7 @@ void PROC_cleanup(ProcessData *proc)
    ERRNO_WARN("close cmdFd error: ");
    close(proc->txFd);
    ERRNO_WARN("close txFd error: ");
+   signalWriteFD = -1;
 
    if (proc->name) {
       //** Remove the .pid and .proc files **

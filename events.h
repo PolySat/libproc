@@ -202,6 +202,32 @@ char EVT_start_loop(EVTHandler *handler);
  */
 void EVT_exit_loop(EVTHandler *handler);
 
+char EVT_enable_virt(EVTHandler *ctx, struct timeval initTime);
+
+struct VirtClkState *EVT_clk(EVTHandler *ctx);
+
+/**
+ * Get the system's current absolute GMT time.
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ *
+ */
+int EVT_get_gmt_time(EVTHandler *ctx, struct timeval *tv);
+int EVT_get_gmt_time_virt(struct timeval *tv);
+
+/**
+ * Get the system's current time since an unknown reference point.  This
+ *  increases monotonically despite any changes to the system's current
+ *  understanding of GMT.
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ *
+ */
+#ifdef __APPLE__
+#define EVT_get_monotonic_time(ctx, tv) gettimeofday(tv, NULL)
+#else
+int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv);
+#endif
 
 /**
  * Subracts one timeval struct from another and stores the result.
@@ -271,16 +297,16 @@ class EventManager
       struct EventState *state() { return ctx; }
 
       void AddEvent(int fd, EVT_fd_cb cb, void *p, int event,
-            EVT_fd_cb cleanup = NULL)
+            EVT_fd_cb cleanup = nullptr)
          { EVT_fd_add_with_cleanup(ctx, fd, event, cb, cleanup, p); }
       void AddReadEvent(int fd, EVT_fd_cb cb, void *p,
-            EVT_fd_cb cleanup = NULL)
+            EVT_fd_cb cleanup = nullptr)
          { AddEvent(fd, cb, p, EVENT_FD_READ, cleanup); }
       void AddWriteEvent(int fd, EVT_fd_cb cb, void *p,
-            EVT_fd_cb cleanup = NULL)
+            EVT_fd_cb cleanup = nullptr)
          { AddEvent(fd, cb, p, EVENT_FD_WRITE, cleanup); }
       void AddErrorEvent(int fd, EVT_fd_cb cb, void *p,
-            EVT_fd_cb cleanup = NULL)
+            EVT_fd_cb cleanup = nullptr)
          { AddEvent(fd, cb, p, EVENT_FD_ERROR, cleanup); }
 
       template<class T>
