@@ -8,7 +8,7 @@ include Make.rules.arm
 SOURCES=priorityQueue.c events.c proclib.c ipc.c debug.c cmd.c config.c hashtable.c util.c md5.c critical.c virtclk.c
 LIBRARY_NAME=proc
 MAJOR_VERS=2
-MINOR_VERS=0.00
+MINOR_VERS=0.0
 
 # Install Variables
 INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h virtclk.h
