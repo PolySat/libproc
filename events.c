@@ -233,7 +233,8 @@ struct EventState *EVT_initWithSize(int hashSize)
       free(res);
       return NULL;
    }
-
+   
+   global_evt = res;
    return res;
 }
 
@@ -451,18 +452,15 @@ static int EVT_clean_fdsets(struct EventState *ctx)
 
 char EVT_enable_virt(EVTHandler *ctx, struct timeval *initTime)
 {
-   if (!ctx)
+   struct EventTimer *et;
+
+   assert(ctx);
+ 
+   et = ET_virt_init(initTime);
+   if (!et)
       return -1;
 
-   global_evt = ctx;
-   
-   if (ctx->evt_timer)
-      ctx->evt_timer->cleanup(ctx->evt_timer);
-   
-   ctx->evt_timer = ET_virt_init(initTime);
-   if (!ctx->evt_timer)
-      return -1;
-
+   EVT_set_evt_timer(ctx, et);
    return 0;
 }
 
@@ -473,6 +471,9 @@ struct EventTimer *EVT_get_evt_timer(EVTHandler *ctx)
 
 void EVT_set_evt_timer(EVTHandler *ctx, struct EventTimer *et)
 {
+   assert(ctx);
+   assert(et);
+
    if (ctx->evt_timer)
       ctx->evt_timer->cleanup(ctx->evt_timer);
    
