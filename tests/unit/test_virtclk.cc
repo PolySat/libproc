@@ -1,7 +1,7 @@
 #include <sys/time.h>
 #include <signal.h>
 #include "../../events.h"
-#include "../../virtclk.h"
+#include "../../eventTimer.h"
 #include "../../proclib.h"
 #include "gtest/gtest.h"
 
@@ -18,20 +18,20 @@ class TestVirtClk : public ::testing::Test {
          struct timeval t1, t2;
 
          t1 = EVT_ms2tv(20000);
-         state = CLK_init(&t1);
+         state = ET_virt_init(&t1);
          ASSERT_TRUE(state != NULL);
 
-         t2 = CLK_get_time(state);
+         ET_virt_get_time(state, &t2);
          EXPECT_EQ(t1.tv_sec, t2.tv_sec);
          EXPECT_EQ(t1.tv_usec, t2.tv_usec);
-         EXPECT_EQ(CLK_ACTIVE, CLK_get_pause(state));
+         EXPECT_EQ(VIRT_CLK_ACTIVE, ET_virt_get_pause(state));
       }
 
       virtual void TearDown() {
-         CLK_cleanup(state);
+         state->cleanup(state);
       }
 
-      struct VirtClkState *state;
+      struct EventTimer *state;
 };
 
 // Test set function
@@ -39,26 +39,26 @@ TEST_F(TestVirtClk, Set) {
    struct timeval t1, t2;
 
    t1 = EVT_ms2tv(20000);
-   CLK_set_time(state, &t1);
-   t2 = CLK_get_time(state);
+   ET_virt_set_time(state, &t1);
+   ET_virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t1 = EVT_ms2tv(-200);
-   CLK_set_time(state, &t1);
-   t2 = CLK_get_time(state);
+   ET_virt_set_time(state, &t1);
+   ET_virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t1 = EVT_ms2tv(130);
-   CLK_set_time(state, &t1);
-   t2 = CLK_get_time(state);
+   ET_virt_set_time(state, &t1);
+   ET_virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t1 = EVT_ms2tv(0);
-   CLK_set_time(state, &t1);
-   t2 = CLK_get_time(state);
+   ET_virt_set_time(state, &t1);
+   ET_virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
 }
@@ -67,26 +67,26 @@ TEST_F(TestVirtClk, Set) {
 TEST_F(TestVirtClk, Increment) {
    struct timeval t1, t2, t3;
 
-   t1 = CLK_get_time(state);
+   ET_virt_get_time(state, &t1);
 
    t3 = EVT_ms2tv(33213);
    timeradd(&t1, &t3, &t1);
-   CLK_inc_time(state, &t3);
-   t2 = CLK_get_time(state);
+   ET_virt_inc_time(state, &t3);
+   ET_virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t3 = EVT_ms2tv(200);
    timeradd(&t1, &t3, &t1);
-   CLK_inc_time(state, &t3);
-   t2 = CLK_get_time(state);
+   ET_virt_inc_time(state, &t3);
+   ET_virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t3 = EVT_ms2tv(40000);
    timeradd(&t1, &t3, &t1);
-   CLK_inc_time(state, &t3);
-   t2 = CLK_get_time(state);
+   ET_virt_inc_time(state, &t3);
+   ET_virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);   
 }
@@ -94,11 +94,11 @@ TEST_F(TestVirtClk, Increment) {
 // Test pause function
 TEST_F(TestVirtClk, Pause) {
 
-   CLK_set_pause(state, CLK_PAUSED);
-   EXPECT_EQ(CLK_PAUSED, CLK_get_pause(state));
+   ET_virt_set_pause(state, VIRT_CLK_PAUSED);
+   EXPECT_EQ(VIRT_CLK_PAUSED, ET_virt_get_pause(state));
    
-   CLK_set_pause(state, CLK_ACTIVE);
-   EXPECT_EQ(CLK_ACTIVE, CLK_get_pause(state));
+   ET_virt_set_pause(state, VIRT_CLK_ACTIVE);
+   EXPECT_EQ(VIRT_CLK_ACTIVE, ET_virt_get_pause(state));
 }
 
 /**
@@ -114,7 +114,8 @@ class TestVirtClkEvt : public ::testing::Test {
          proc = PROC_init(NULL, WD_DISABLED);
          ASSERT_TRUE(proc != NULL);
          
-         EVT_enable_virt(PROC_evt(proc), EVT_ms2tv(0));
+         t = EVT_ms2tv(0); 
+         EVT_enable_virt(PROC_evt(proc), &t);
          EVT_get_gmt_time(PROC_evt(proc), &t);
          EXPECT_EQ(t.tv_sec, 0);
          EXPECT_EQ(t.tv_usec, 0);
@@ -208,7 +209,7 @@ int start_pause(void *arg) {
    struct EventState *evt = PROC_evt(proc);
    struct itimerval itv;
 
-   CLK_set_pause(EVT_clk(evt), CLK_PAUSED);
+   ET_virt_set_pause(EVT_get_evt_timer(evt), VIRT_CLK_PAUSED);
 
    // Create timer to trigger end of pause after 1 second
    memset(&itv, 0, sizeof(struct itimerval));

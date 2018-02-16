@@ -24,6 +24,8 @@
 #ifndef EVENTS_H
 #define EVENTS_H
 
+#include <time.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,6 +49,17 @@ typedef int (*EVT_fd_cb)(int fd, char type, void *arg);
 
 // A callback for a scheduled event
 typedef int (*EVT_sched_cb)(void *arg);
+
+// Structure representing a schedule callback
+typedef struct _ScheduleCB
+{
+	struct timeval scheduleTime;
+	struct timeval nextAwake;
+	EVT_sched_cb callback;
+	void *arg;
+	size_t pos;
+	struct timeval timeStep;
+} ScheduleCB;
 
 /**
  * Create an event handler.
@@ -202,7 +215,7 @@ char EVT_start_loop(EVTHandler *handler);
  */
 void EVT_exit_loop(EVTHandler *handler);
 
-char EVT_enable_virt(EVTHandler *ctx, struct timeval initTime);
+char EVT_enable_virt(EVTHandler *ctx, struct timeval *initTime);
 
 struct VirtClkState *EVT_clk(EVTHandler *ctx);
 
@@ -228,6 +241,10 @@ int EVT_get_gmt_time_virt(struct timeval *tv);
 #else
 int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv);
 #endif
+
+struct EventTimer *EVT_get_evt_timer(EVTHandler *ctx);
+
+void EVT_set_evt_timer(EVTHandler *ctx, struct EventTimer *et);
 
 /**
  * Subracts one timeval struct from another and stores the result.
