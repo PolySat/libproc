@@ -20,7 +20,6 @@
 #define _EVENT_TIMER_H_
 
 #include <sys/time.h>
-#include "eventTimer.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,10 +44,26 @@ extern "C" {
  * of fd events is the same as the default EventTimer.
  */
 struct EventTimer {
-   int (*block)(struct EventTimer *et, ScheduleCB *tevt,
+   /**
+    * Block the event loop until either a file event occurs or the time stored 
+    * in nextAwake elapses.
+    */
+   int (*block)(struct EventTimer *et, struct timeval *nextAwake,
           int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds);
+
+   /**
+    * Return the current gmt time.
+    */
    int (*get_gmt_time)(struct EventTimer *et, struct timeval *tv);
+
+   /**
+    * Return the current monotonic time.
+    */
    int (*get_monotonic_time)(struct EventTimer *et, struct timeval *tv);
+
+   /**
+    * Cleanup the event timer.
+    */
    void (*cleanup)(struct EventTimer *et);
 };
 

@@ -24,7 +24,7 @@
 #include <sys/select.h>
 #include <time.h>
 
-int ET_default_block(struct EventTimer *et, ScheduleCB *tevt, int nfds,
+int ET_default_block(struct EventTimer *et, struct timeval *nextAwake, int nfds,
       fd_set *readfds, fd_set *writefds, fd_set *exceptfds)
 {
    struct timeval diffTime, curTime, *blockTime = NULL;
@@ -33,8 +33,8 @@ int ET_default_block(struct EventTimer *et, ScheduleCB *tevt, int nfds,
    
    // Set amount of time to block on select.
    // If no events, block indefinetly. 
-   if (tevt) {
-      timersub(&(tevt->nextAwake), &curTime, &diffTime);
+   if (nextAwake) {
+      timersub(nextAwake, &curTime, &diffTime);
       if (diffTime.tv_sec < 0 || diffTime.tv_usec < 0) {
          memset(&diffTime, 0, sizeof(struct timeval));
       }
@@ -92,19 +92,17 @@ struct VirtualEventTimer {
    char paused;
 };
 
-int ET_virt_block(struct EventTimer *et, ScheduleCB *tevt, int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds)
+int ET_virt_block(struct EventTimer *et, struct timeval *nextAwake, int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds)
 {
    struct timeval diffTime, *blockTime = NULL;
    
    // Set amount of time to block on select.
    // Block on select indefinetly id virtual clock is paused
-   if (tevt) {
-      if (ET_virt_get_pause(et) == VIRT_CLK_ACTIVE) {
-         ET_virt_set_time(et, &tevt->nextAwake);
-         // If virt clk is active, don't block on select.
-         memset(&diffTime, 0, sizeof(struct timeval));
-         blockTime = &diffTime;
-      }
+   if (nextAwake && ET_virt_get_pause(et) == VIRT_CLK_ACTIVE) {
+      ET_virt_set_time(et, nextAwake);
+      // If virt clk is active, don't block on select.
+      memset(&diffTime, 0, sizeof(struct timeval));
+      blockTime = &diffTime;
    }
 
    return select(nfds, readfds, writefds, exceptfds, blockTime);

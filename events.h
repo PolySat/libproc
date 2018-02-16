@@ -50,17 +50,6 @@ typedef int (*EVT_fd_cb)(int fd, char type, void *arg);
 // A callback for a scheduled event
 typedef int (*EVT_sched_cb)(void *arg);
 
-// Structure representing a schedule callback
-typedef struct _ScheduleCB
-{
-	struct timeval scheduleTime;
-	struct timeval nextAwake;
-	EVT_sched_cb callback;
-	void *arg;
-	size_t pos;
-	struct timeval timeStep;
-} ScheduleCB;
-
 /**
  * Create an event handler.
  *

@@ -79,10 +79,20 @@ static EVTHandler *global_evt = NULL;
    } while (0)
 #endif
 
-
 #ifndef FD_COPY
 #define	FD_COPY(f, t)	bcopy(f, t, sizeof(*(f)))
 #endif
+
+// Structure representing a schedule callback
+typedef struct _ScheduleCB
+{
+	struct timeval scheduleTime;
+	struct timeval nextAwake;
+	EVT_sched_cb callback;
+	void *arg;
+	size_t pos;
+	struct timeval timeStep;
+} ScheduleCB;
 
 // Subracts y timeval struct from x timeval struct and stores the result.
 int timeval_subtract(struct timeval *result, struct timeval *x,
@@ -504,7 +514,7 @@ char EVT_start_loop(EVTHandler *ctx)
    int keep;
    int startEvent = EVENT_FD_READ;
    int startFd = 0;
-   struct timeval curTime;
+   struct timeval curTime, *nextAwake;
    ScheduleCB *curProc;
 
    while(ctx->keepGoing) {
@@ -519,10 +529,15 @@ char EVT_start_loop(EVTHandler *ctx)
       }
 
       maxFd = ctx->maxFd + 1;
+
       curProc = pqueue_peek(ctx->queue);
+      if (curProc)
+         nextAwake = &curProc->nextAwake;
+      else
+         nextAwake = NULL;
       
       // Call blocking function of event timer
-      retval = ctx->evt_timer->block(ctx->evt_timer, curProc, maxFd,
+      retval = ctx->evt_timer->block(ctx->evt_timer, nextAwake, maxFd,
             eventSetPtrs[EVENT_FD_READ], eventSetPtrs[EVENT_FD_WRITE],
             eventSetPtrs[EVENT_FD_ERROR]);
 
