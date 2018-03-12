@@ -1419,6 +1419,7 @@ void *cb_arg)
    struct thread_data *data = malloc(sizeof(struct thread_data));
    data->cb_fcn = cb_fcn;
    data->cb_arg = cb_arg;
+   pthread_attr_t attr;
 
    //create pipe
    int fd[2];
@@ -1433,7 +1434,13 @@ void *cb_arg)
    data->fcn = fcn_ptr;
    data->fcn_arg = arg;
 
-   if(pthread_create(&data->thread, NULL, thread_main, data)){
+   if (pthread_attr_init(&attr) != 0)
+      goto cleanup;
+ 
+   if (pthread_attr_setstacksize(&attr, 0x80000) != 0)
+      goto cleanup;
+
+   if(pthread_create(&data->thread, &attr, thread_main, data)){
       //error creating thread
       goto cleanup;
    }
