@@ -64,8 +64,8 @@ EVTHandler *PROC_evt(ProcessData *proc);
  * be used by the process to register callbacks.
  *
  * The watchdog mode controls watchdog behavior:
- * - If WD_ENABLE is used, libproc will register the process with the software process
- * - If WD_DISABLE is used, libproc will skip process watchdog initialization.
+ * - If WD_ENABLED is used, libproc will register the process with the software process
+ * - If WD_DISABLED is used, libproc will skip process watchdog initialization.
  *
  * @param procName The unique process name.
  * @param wdMode Software watchdog mode.
