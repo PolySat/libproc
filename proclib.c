@@ -316,25 +316,6 @@ void PROC_wd_enable(ProcessData *proc) {
       &validate_watch_registration, proc);
 }
 
-/**
- * Get the relative time from an absolute time
- *
- * @param absolute_time The absolute time (time since the epoch)
- *
- * @return The relative time, in milliseconds
- */
-int event_gmt_to_rel_time(struct timeval *gmt_time)
-{
-   struct timeval now, diff;
-
-   EVT_get_gmt_time(NULL, &now);
-	ERRNO_WARN("EVT_get_gmt_time error: ");
-
-   timeval_subtract(&diff, gmt_time, &now);      //??
-
-   return (diff.tv_sec * 1000 + diff.tv_usec / 1000);
-}
-
 //Cleans the process up.
 void PROC_cleanup(ProcessData *proc)
 {
