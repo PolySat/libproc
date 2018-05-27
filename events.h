@@ -204,10 +204,6 @@ char EVT_start_loop(EVTHandler *handler);
  */
 void EVT_exit_loop(EVTHandler *handler);
 
-char EVT_enable_virt(EVTHandler *ctx, struct timeval *initTime);
-
-struct VirtClkState *EVT_clk(EVTHandler *ctx);
-
 /**
  * Get the system's current absolute GMT time.
  *
@@ -215,24 +211,50 @@ struct VirtClkState *EVT_clk(EVTHandler *ctx);
  *
  */
 int EVT_get_gmt_time(EVTHandler *ctx, struct timeval *tv);
+
+/**
+ * USE ONLY WHEN ABSOLUTELY NECESSARY!
+ *
+ * Stateless version of EVT_get_gmt_time. Get the system's current 
+ * absolute GMT time without passing a EvtHander context. Use 
+ * only when absolutely necessary!
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ */
 int EVT_get_gmt_time_virt(struct timeval *tv);
 
 /**
  * Get the system's current time since an unknown reference point.  This
- *  increases monotonically despite any changes to the system's current
- *  understanding of GMT.
+ * increases monotonically despite any changes to the system's current
+ * understanding of GMT.
  *
  * @param tv A pointer to the timeval structure where the time gets stored
- *
  */
-#ifdef __APPLE__
-#define EVT_get_monotonic_time(ctx, tv) gettimeofday(tv, NULL)
-#else
 int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv);
-#endif
 
+/**
+ * Enable libproc virtual clock. Sets EventTimer to a new
+ * instance of a VirtualEventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param tv   A pointer to the timeval with the desired initial time.
+ */
+char EVT_enable_virt(EVTHandler *ctx, struct timeval *initTime);
+
+/**
+ * Get current libproc EventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param et   The EventTimer instance.
+ */
 struct EventTimer *EVT_get_evt_timer(EVTHandler *ctx);
 
+/**
+ * Set libproc EventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param et   The EventTimer instance.
+ */
 void EVT_set_evt_timer(EVTHandler *ctx, struct EventTimer *et);
 
 /**

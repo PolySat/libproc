@@ -53,12 +53,20 @@ int ET_default_gmt(struct EventTimer *et, struct timeval *tv)
 int ET_default_monotonic(struct EventTimer *et, struct timeval *tv)
 {
    int res;
+
+   #ifdef __APPLE__
+
+   res = 0
+   gettimeofday(tv, NULL)
+
+   #else
+
    struct timespec tp;
-
    res = clock_gettime(CLOCK_MONOTONIC, &tp);
-
    tv->tv_sec = tp.tv_sec;
    tv->tv_usec = (tp.tv_nsec + 500 ) / 1000;
+
+   #endif
 
    return res;
 }
