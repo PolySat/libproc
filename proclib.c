@@ -186,7 +186,7 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
    struct timeval endTime;
    struct timeval totalTime;
 
-   EVT_get_monotonic_time(NULL, &startTime);
+   gettimeofday(&startTime, NULL);
 #endif //TIME_TEST
    // Allocate our internal state structure
    proc = (ProcessData*)malloc(sizeof(ProcessData));
@@ -300,7 +300,7 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
 
    critical_state_init(&proc->criticalState, proc->name);
 #if TIME_TEST
-   EVT_get_monotonic_time(NULL, &endTime);
+   gettimeofday(&endTime, NULL);
    timersub(&endTime, &startTime, &totalTime);
    DBG_print(DBG_LEVEL_WARN, "Process initialization time: %d.%06d\n", totalTime.tv_sec, totalTime.tv_usec);
 #endif //TIME_TEST
@@ -331,25 +331,6 @@ int event_gmt_to_rel_time(struct timeval *gmt_time)
 	ERRNO_WARN("EVT_get_gmt_time error: ");
 
    timeval_subtract(&diff, gmt_time, &now);      //??
-
-   return (diff.tv_sec * 1000 + diff.tv_usec / 1000);
-}
-
-/**
- * Get the relative time from an absolute monotonic time
- *
- * @param monotonic_time The absolute monotonic time (time since the epoch)
- *
- * @return The relative time, in milliseconds
- */
-int event_monotonic_to_rel_time(struct timeval *monotonic_time)
-{
-   struct timeval now, diff;
-
-   EVT_get_monotonic_time(NULL, &now);
-	ERRNO_WARN("EVT_get_monotonic_time error: ");
-
-   timeval_subtract(&diff, monotonic_time, &now);      //??
 
    return (diff.tv_sec * 1000 + diff.tv_usec / 1000);
 }
