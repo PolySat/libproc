@@ -1,4 +1,4 @@
-CFLAGS=-Wall -Werror -pedantic -std=gnu99
+CFLAGS=-Wall -Werror -std=gnu99
 LDFLAGS=-rdynamic -lproc -ldl -lm -L /usr/local/lib
 
 SRC=stopwatch.c

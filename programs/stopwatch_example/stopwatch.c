@@ -57,7 +57,7 @@ int signal_handler_end(int signal, void *arg)
 
 int main(void)
 {
-  // Where liproc stores its state
+  // Where libproc stores its state
   struct ProcessData *proc;
   time_t t;
   struct tm *tmp;
