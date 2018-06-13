@@ -47,7 +47,7 @@ where multiple processes can subscribe to message streams.
 int my_timed_event(void *arg)
 {
    printf("Hello World\n");
-   /* Returning EVENT_KEEP will resechedule the event to run again on the event loop */
+   /* Returning EVENT_KEEP will reschedule the event to run again on the event loop */
    return EVENT_KEEP;
 }
 
@@ -78,3 +78,6 @@ int main(void)
    return 0;
 }
 ```
+
+## Additional Examples
+[Stopwatch using libproc](https://github.com/PolySat/libproc/tree/master/programs/stopwatch_example)
