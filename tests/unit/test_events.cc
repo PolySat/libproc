@@ -1,7 +1,7 @@
 #include <sys/time.h>
 #include <signal.h>
 #include "../../events.h"
-#include "../../virtclk.h"
+#include "../../eventTimer.h"
 #include "../../proclib.h"
 #include "gtest/gtest.h"
 
