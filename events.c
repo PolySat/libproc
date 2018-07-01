@@ -536,13 +536,27 @@ int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv)
    return ctx->evt_timer->get_monotonic_time(ctx->evt_timer, tv);
 }
 
+struct EVT_select_cb_args {
+   fd_set *eventSetPtrs[EVENT_MAX];
+   int maxFd;
+};
+
+static int select_event_loop_cb(struct EventTimer *et,
+    struct timeval *nextAwake, void *opaque)
+{
+   struct EVT_select_cb_args *args = (struct EVT_select_cb_args*)opaque;
+
+   return select(args->maxFd, args->eventSetPtrs[EVENT_FD_READ],
+                  args->eventSetPtrs[EVENT_FD_WRITE],
+                  args->eventSetPtrs[EVENT_FD_ERROR], nextAwake);
+}
 
 char EVT_start_loop(EVTHandler *ctx)
 {
    fd_set eventSets[EVENT_MAX];
-   fd_set *eventSetPtrs[EVENT_MAX];
+   struct EVT_select_cb_args args;
    int i;
-   int retval, maxFd;
+   int retval;
    int event, fd;
    struct EventCB **evtCurr;
    int keep;
@@ -554,15 +568,15 @@ char EVT_start_loop(EVTHandler *ctx)
    while(ctx->keepGoing) {
       for (i = 0; i < EVENT_MAX; i++) {
          if (ctx->eventCnt[i] > 0) {
-            eventSetPtrs[i] = &eventSets[i];
-            //FD_COPY(&ctx->eventSet[i], eventSetPtrs[i]);
-				memcpy(eventSetPtrs[i], &ctx->eventSet[i], sizeof(*(&ctx->eventSet[i])));
+            args.eventSetPtrs[i] = &eventSets[i];
+            //FD_COPY(&ctx->eventSet[i], args.eventSetPtrs[i]);
+				memcpy(args.eventSetPtrs[i], &ctx->eventSet[i], sizeof(*(&ctx->eventSet[i])));
          }
          else
-            eventSetPtrs[i] = NULL;
+            args.eventSetPtrs[i] = NULL;
       }
 
-      maxFd = ctx->maxFd + 1;
+      args.maxFd = ctx->maxFd + 1;
 
       curProc = pqueue_peek(ctx->queue);
       if (curProc)
@@ -571,9 +585,8 @@ char EVT_start_loop(EVTHandler *ctx)
          nextAwake = NULL;
       
       // Call blocking function of event timer
-      retval = ctx->evt_timer->block(ctx->evt_timer, nextAwake, maxFd,
-            eventSetPtrs[EVENT_FD_READ], eventSetPtrs[EVENT_FD_WRITE],
-            eventSetPtrs[EVENT_FD_ERROR]);
+      retval = ctx->evt_timer->block(ctx->evt_timer, nextAwake,
+                     &select_event_loop_cb, &args);
 
       // Process Timed Events
       while ((curProc = pqueue_peek(ctx->queue))) {
@@ -601,13 +614,13 @@ char EVT_start_loop(EVTHandler *ctx)
       /* Process FD events */
       if (retval > 0) {
                event = startEvent;
-         startFd = (startFd + 1) % maxFd;
+         startFd = (startFd + 1) % args.maxFd;
 
          do {
-            if (eventSetPtrs[event]) {
+            if (args.eventSetPtrs[event]) {
                fd = startFd;
                do {
-                  if (FD_ISSET(fd, eventSetPtrs[event])) {
+                  if (FD_ISSET(fd, args.eventSetPtrs[event])) {
                      retval--;
                      keep = EVENT_KEEP;
                      for(evtCurr = &ctx->events[fd % ctx->hashSize];
@@ -625,7 +638,7 @@ char EVT_start_loop(EVTHandler *ctx)
                         EVT_remove_internal(ctx, evtCurr, event);
                      }
                   }
-                  fd = (fd + 1) % maxFd;
+                  fd = (fd + 1) % args.maxFd;
                } while (retval > 0 && fd != startFd);
             }
 

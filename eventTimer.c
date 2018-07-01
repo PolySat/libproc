@@ -24,8 +24,8 @@
 #include <sys/select.h>
 #include <time.h>
 
-int ET_default_block(struct EventTimer *et, struct timeval *nextAwake, int nfds,
-      fd_set *readfds, fd_set *writefds, fd_set *exceptfds)
+int ET_default_block(struct EventTimer *et, struct timeval *nextAwake,
+      ET_block_cb blockcb, void *arg)
 {
    struct timeval diffTime, curTime, *blockTime = NULL;
    
@@ -41,7 +41,7 @@ int ET_default_block(struct EventTimer *et, struct timeval *nextAwake, int nfds,
       blockTime = &diffTime;
    }
 
-   return select(nfds, readfds, writefds, exceptfds, blockTime);
+   return blockcb(et, blockTime, arg);
 }
 
 int ET_default_gmt(struct EventTimer *et, struct timeval *tv)
@@ -100,7 +100,8 @@ struct VirtualEventTimer {
    char paused;
 };
 
-int ET_virt_block(struct EventTimer *et, struct timeval *nextAwake, int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds)
+int ET_virt_block(struct EventTimer *et, struct timeval *nextAwake,
+      ET_block_cb blockcb, void *arg)
 {
    struct timeval diffTime, *blockTime = NULL;
    
@@ -113,7 +114,7 @@ int ET_virt_block(struct EventTimer *et, struct timeval *nextAwake, int nfds, fd
       blockTime = &diffTime;
    }
 
-   return select(nfds, readfds, writefds, exceptfds, blockTime);
+   return blockcb(et, blockTime, arg);
 }
 
 void ET_virt_cleanup(struct EventTimer *et)

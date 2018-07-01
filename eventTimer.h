@@ -31,6 +31,14 @@ extern "C" {
 #define VIRT_CLK_PAUSED 1
 #define VIRT_CLK_ACTIVE 0
 
+
+/**
+ * Function pointer callback to peform actual blocking operation (poll,
+ * select, etc).  This allows separation of the underlying event API
+ * from the EventTimer API.
+ */
+typedef int (*ET_block_cb)(struct EventTimer *et, struct timeval *nextAwake,
+		void *arg);
 /**
  * The EventTimer abstraction allows the libproc event loop to
  * be agnostic of time. This allows virtualization of the event
@@ -45,11 +53,11 @@ extern "C" {
  */
 struct EventTimer {
    /**
-    * Block the event loop until either a file event occurs or the time stored 
+    * Block the event loop until either an event occurs or the time stored 
     * in nextAwake elapses.
     */
    int (*block)(struct EventTimer *et, struct timeval *nextAwake,
-          int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds);
+          ET_block_cb blockcb, void *arg);
 
    /**
     * Return the current gmt time.
