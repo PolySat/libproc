@@ -159,21 +159,6 @@ static int validate_watch_registration(void *arg)
    return EVENT_KEEP;
 }
 
-#ifndef __APPLE__
-int EVT_get_monotonic_time(struct timeval *tv)
-{
-   int res;
-   struct timespec tp;
-
-   res = clock_gettime(CLOCK_MONOTONIC, &tp);
-
-   tv->tv_sec = tp.tv_sec;
-   tv->tv_usec = (tp.tv_nsec + 500 ) / 1000;
-
-   return res;
-}
-#endif
-
 void PROC_set_context(ProcessData *proc, void *ctx)
 {
    proc->callbackContext = ctx;
@@ -201,7 +186,7 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
    struct timeval endTime;
    struct timeval totalTime;
 
-   EVT_get_monotonic_time(&startTime);
+   gettimeofday(&startTime, NULL);
 #endif //TIME_TEST
    // Allocate our internal state structure
    proc = (ProcessData*)malloc(sizeof(ProcessData));
@@ -315,7 +300,7 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
 
    critical_state_init(&proc->criticalState, proc->name);
 #if TIME_TEST
-   EVT_get_monotonic_time(&endTime);
+   gettimeofday(&endTime, NULL);
    timersub(&endTime, &startTime, &totalTime);
    DBG_print(DBG_LEVEL_WARN, "Process initialization time: %d.%06d\n", totalTime.tv_sec, totalTime.tv_usec);
 #endif //TIME_TEST
@@ -329,44 +314,6 @@ void PROC_wd_enable(ProcessData *proc) {
    EVT_sched_add_with_timestep(PROC_evt(proc), EVT_ms2tv(0),
       EVT_ms2tv(WATCHDOG_VALIDATE_SECS * 1000),
       &validate_watch_registration, proc);
-}
-
-/**
- * Get the relative time from an absolute time
- *
- * @param absolute_time The absolute time (time since the epoch)
- *
- * @return The relative time, in milliseconds
- */
-int event_gmt_to_rel_time(struct timeval *gmt_time)
-{
-   struct timeval now, diff;
-
-   EVT_get_gmt_time(&now);
-	ERRNO_WARN("EVT_get_gmt_time error: ");
-
-   timeval_subtract(&diff, gmt_time, &now);      //??
-
-   return (diff.tv_sec * 1000 + diff.tv_usec / 1000);
-}
-
-/**
- * Get the relative time from an absolute monotonic time
- *
- * @param monotonic_time The absolute monotonic time (time since the epoch)
- *
- * @return The relative time, in milliseconds
- */
-int event_monotonic_to_rel_time(struct timeval *monotonic_time)
-{
-   struct timeval now, diff;
-
-   EVT_get_monotonic_time(&now);
-	ERRNO_WARN("EVT_get_monotonic_time error: ");
-
-   timeval_subtract(&diff, monotonic_time, &now);      //??
-
-   return (diff.tv_sec * 1000 + diff.tv_usec / 1000);
 }
 
 //Cleans the process up.
@@ -391,6 +338,7 @@ void PROC_cleanup(ProcessData *proc)
    ERRNO_WARN("close cmdFd error: ");
    close(proc->txFd);
    ERRNO_WARN("close txFd error: ");
+   signalWriteFD = -1;
 
    if (proc->name) {
       //** Remove the .pid and .proc files **

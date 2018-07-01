@@ -24,6 +24,8 @@
 #ifndef EVENTS_H
 #define EVENTS_H
 
+#include <time.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -202,6 +204,58 @@ char EVT_start_loop(EVTHandler *handler);
  */
 void EVT_exit_loop(EVTHandler *handler);
 
+/**
+ * Get the system's current absolute GMT time.
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ *
+ */
+int EVT_get_gmt_time(EVTHandler *ctx, struct timeval *tv);
+
+/**
+ * USE ONLY WHEN ABSOLUTELY NECESSARY!
+ *
+ * Stateless version of EVT_get_gmt_time. Get the system's current 
+ * absolute GMT time without passing a EvtHander context. Use 
+ * only when absolutely necessary!
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ */
+int EVT_get_gmt_time_virt(struct timeval *tv);
+
+/**
+ * Get the system's current time since an unknown reference point.  This
+ * increases monotonically despite any changes to the system's current
+ * understanding of GMT.
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ */
+int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv);
+
+/**
+ * Enable libproc virtual clock. Sets EventTimer to a new
+ * instance of a VirtualEventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param tv   A pointer to the timeval with the desired initial time.
+ */
+char EVT_enable_virt(EVTHandler *ctx, struct timeval *initTime);
+
+/**
+ * Get current libproc EventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param et   The EventTimer instance.
+ */
+struct EventTimer *EVT_get_evt_timer(EVTHandler *ctx);
+
+/**
+ * Set libproc EventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param et   The EventTimer instance.
+ */
+void EVT_set_evt_timer(EVTHandler *ctx, struct EventTimer *et);
 
 /**
  * Subracts one timeval struct from another and stores the result.
@@ -271,16 +325,16 @@ class EventManager
       struct EventState *state() { return ctx; }
 
       void AddEvent(int fd, EVT_fd_cb cb, void *p, int event,
-            EVT_fd_cb cleanup = NULL)
+            EVT_fd_cb cleanup = nullptr)
          { EVT_fd_add_with_cleanup(ctx, fd, event, cb, cleanup, p); }
       void AddReadEvent(int fd, EVT_fd_cb cb, void *p,
-            EVT_fd_cb cleanup = NULL)
+            EVT_fd_cb cleanup = nullptr)
          { AddEvent(fd, cb, p, EVENT_FD_READ, cleanup); }
       void AddWriteEvent(int fd, EVT_fd_cb cb, void *p,
-            EVT_fd_cb cleanup = NULL)
+            EVT_fd_cb cleanup = nullptr)
          { AddEvent(fd, cb, p, EVENT_FD_WRITE, cleanup); }
       void AddErrorEvent(int fd, EVT_fd_cb cb, void *p,
-            EVT_fd_cb cleanup = NULL)
+            EVT_fd_cb cleanup = nullptr)
          { AddEvent(fd, cb, p, EVENT_FD_ERROR, cleanup); }
 
       template<class T>
