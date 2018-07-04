@@ -33,7 +33,7 @@ std::string get_function_name(void *func_addr)
    return std::string(info.dli_sname);
 }
 
-void populate_fd_event(struct EventCB *data, json& js)
+json serialize_fd_event(struct EventCB *data)
 {
    const char *fd_path = "/proc/self/fd/";
    char fd_path_buff[32];
@@ -45,30 +45,35 @@ void populate_fd_event(struct EventCB *data, json& js)
       throw std::runtime_error("failed to get fd_event filename");
    filename[len] = 0;
 
-   js["id"]          = (uintptr_t)data;
-   js["filename"]    = std::string(filename);
-   js["fd"]          = data->fd;
-   js["arg_pointer"] = (uintptr_t)data->arg;    
+   json j;
+   j["id"]          = (uintptr_t)data;
+   j["filename"]    = std::string(filename);
+   j["fd"]          = data->fd;
+   j["arg_pointer"] = (uintptr_t)data->arg;    
 
    if (data->cb[EVENT_FD_READ])
-      js["read_handler"] = get_function_name((void *)data->cb[EVENT_FD_READ]);
+      j["read_handler"] = get_function_name((void *)data->cb[EVENT_FD_READ]);
 
    if (data->cb[EVENT_FD_WRITE])
-      js["write_handler"] = get_function_name((void *)data->cb[EVENT_FD_WRITE]);
+      j["write_handler"] = get_function_name((void *)data->cb[EVENT_FD_WRITE]);
 
    if (data->cb[EVENT_FD_ERROR])
-      js["error_handler"] = get_function_name((void *)data->cb[EVENT_FD_ERROR]);
+      j["error_handler"] = get_function_name((void *)data->cb[EVENT_FD_ERROR]);
+   
+   return j;
 }
 
-void populate_timed_event(ScheduleCB *data, json& js, struct timeval *cur_time)
+json serialize_timed_event(ScheduleCB *data, struct timeval *cur_time)
 {
-   js["id"]             = (uintptr_t)data;
-   js["function"]       = get_function_name((void *)data->callback);
-   js["time_remaining"] = data->nextAwake.tv_sec - cur_time->tv_sec;
-   js["awake_time"]     = data->nextAwake.tv_sec;
-   js["schedule_time"]  = data->scheduleTime.tv_sec;
-   js["event_length"]   = data->timeStep.tv_sec;
-   js["arg_pointer"]    = (uintptr_t)data->arg;
+   json j;
+   j["id"]             = (uintptr_t)data;
+   j["function"]       = get_function_name((void *)data->callback);
+   j["time_remaining"] = data->nextAwake.tv_sec - cur_time->tv_sec;
+   j["awake_time"]     = data->nextAwake.tv_sec;
+   j["schedule_time"]  = data->scheduleTime.tv_sec;
+   j["event_length"]   = data->timeStep.tv_sec;
+   j["arg_pointer"]    = (uintptr_t)data->arg;
+   return j;
 }
 
 void broadcast_debug_data(struct DebugEventTimer *et)
@@ -77,39 +82,31 @@ void broadcast_debug_data(struct DebugEventTimer *et)
    struct EventState *ctx = PROC_evt(et->proc);
    pqueue_t *q = ctx->queue;
    EventCB *ecurr;   
-   ScheduleCB *scurr;
-   json data, js;
-   std::string sdata;
 
    et->et.get_monotonic_time(&et->et, &cur_time);
 
+   json data;
    data["process_name"] = std::string(et->proc->name);
    data["port"]         = et->proc->cmdPort;
    data["current_time"] = cur_time.tv_sec;
    data["timed_events"] = json::array();
    data["fd_events"]    = json::array();   
    
-   // TODO: Make loop part of libproc pqueue
-   for (size_t i = 1; i <= pqueue_size(q); i++) {
-      scurr = (ScheduleCB *)q->d[i];
-      js.clear();  
-      populate_timed_event(scurr, js, &cur_time);
-      data["timed_events"].push_back(json(js));
-   }
+   // Populate timed events array
+   for (size_t i = 1; i <= pqueue_size(q); i++)
+      data["timed_events"].push_back(serialize_timed_event((ScheduleCB *)q->d[i], &cur_time));
    
+   // Populate fd events array
    for (int i = 0; i < ctx->hashSize; i++) {
       ecurr = ctx->events[i];
       if (!ecurr)
          continue;
 
-      for (; ecurr; ecurr = ecurr->next) {
-         js.clear();      
-         populate_fd_event(ecurr, js);
-         data["fd_events"].push_back(json(js));
-      }
+      for (; ecurr; ecurr = ecurr->next)
+         data["fd_events"].push_back(serialize_fd_event(ecurr));
    }
 
-   sdata = data.dump();
+   std::string sdata = data.dump();
    zmq::message_t message(sdata.size());
    memcpy(message.data(), sdata.data(), sdata.size());
 
