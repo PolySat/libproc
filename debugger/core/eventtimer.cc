@@ -23,79 +23,55 @@ struct DebugEventTimer {
    zmq::socket_t *pub;
 };
 
-int get_function_name(void *func_addr, std::string *name)
+std::string get_function_name(void *func_addr)
 {
    Dl_info info;
    
-   if (!dladdr(func_addr, &info) || !info.dli_sname) {
-      std::cout << "error: did not find function symbol\n";
-      return -1;
-   }
+   if (!dladdr(func_addr, &info) || !info.dli_sname)
+      throw std::runtime_error("could not find function symbol");
 
-   name->assign(info.dli_sname);
-   return 0;
+   return std::string(info.dli_sname);
 }
 
-int populate_fd_event(struct EventCB *data, json *js)
+void populate_fd_event(struct EventCB *data, json& js)
 {
    const char *fd_path = "/proc/self/fd/";
-   char fd_path_buff[20];
+   char fd_path_buff[32];
    char filename[1024];
-   std::string func_name;
    int len;
 
    sprintf(fd_path_buff, "%s%d", fd_path, data->fd);
-   if ((len = readlink(fd_path_buff, filename, 1023)) < 0) {
-      std::cout << "error: failed to get filename";
-      return -1;
-   }
+   if ((len = readlink(fd_path_buff, filename, 1023)) < 0)
+      throw std::runtime_error("failed to get fd_event filename");
    filename[len] = 0;
 
-   js->emplace("id", (uintptr_t)data);
-   js->emplace("filename", std::string(filename));
-   js->emplace("fd", data->fd);
-   js->emplace("arg_pointer", (uintptr_t)data->arg);    
+   js["id"]          = (uintptr_t)data;
+   js["filename"]    = std::string(filename);
+   js["fd"]          = data->fd;
+   js["arg_pointer"] = (uintptr_t)data->arg;    
 
-   if (data->cb[EVENT_FD_READ]) {
-      if (get_function_name((void *)data->cb[EVENT_FD_READ], &func_name) < 0)
-         return -1;
-      js->emplace("read_handler", func_name);
-   }
+   if (data->cb[EVENT_FD_READ])
+      js["read_handler"] = get_function_name((void *)data->cb[EVENT_FD_READ]);
 
-   if (data->cb[EVENT_FD_WRITE]) {
-      if (get_function_name((void *)data->cb[EVENT_FD_WRITE], &func_name) < 0)
-         return -1;
-      js->emplace("write_handler", func_name);
-   }
+   if (data->cb[EVENT_FD_WRITE])
+      js["write_handler"] = get_function_name((void *)data->cb[EVENT_FD_WRITE]);
 
-   if (data->cb[EVENT_FD_ERROR]) {
-      if (get_function_name((void *)data->cb[EVENT_FD_ERROR], &func_name) < 0)
-         return -1;
-      js->emplace("error_handler", func_name);
-   }
-
-   return 0;
+   if (data->cb[EVENT_FD_ERROR])
+      js["error_handler"] = get_function_name((void *)data->cb[EVENT_FD_ERROR]);
 }
 
-int populate_timed_event(ScheduleCB *data, json *js, struct timeval *cur_time)
+void populate_timed_event(ScheduleCB *data, json& js, struct timeval *cur_time)
 {
-   std::string func_name;
-
-   if (get_function_name((void *)data->callback, &func_name) < 0)
-      return -1;
-
-   js->emplace("id", (uintptr_t)data);
-   js->emplace("function", std::string(func_name));
-   js->emplace("time_remaining", data->nextAwake.tv_sec - cur_time->tv_sec);
-   js->emplace("awake_time", data->nextAwake.tv_sec);
-   js->emplace("schedule_time", data->scheduleTime.tv_sec);
-   js->emplace("event_length", data->timeStep.tv_sec);
-   js->emplace("arg_pointer", (uintptr_t)data->arg);
-
-   return 0;
+   js["id"]             = (uintptr_t)data;
+   js["function"]       = get_function_name((void *)data->callback);
+   js["time_remaining"] = data->nextAwake.tv_sec - cur_time->tv_sec;
+   js["awake_time"]     = data->nextAwake.tv_sec;
+   js["schedule_time"]  = data->scheduleTime.tv_sec;
+   js["event_length"]   = data->timeStep.tv_sec;
+   js["arg_pointer"]    = (uintptr_t)data->arg;
 }
 
-int broadcast_debug_data(struct DebugEventTimer *et)
+void broadcast_debug_data(struct DebugEventTimer *et)
 {
    struct timeval cur_time;
    struct EventState *ctx = PROC_evt(et->proc);
@@ -108,20 +84,17 @@ int broadcast_debug_data(struct DebugEventTimer *et)
    et->et.get_monotonic_time(&et->et, &cur_time);
 
    data["process_name"] = std::string(et->proc->name);
-   data["port"] = et->proc->cmdPort;
+   data["port"]         = et->proc->cmdPort;
    data["current_time"] = cur_time.tv_sec;
    data["timed_events"] = json::array();
-   data["fd_events"] = json::array();   
+   data["fd_events"]    = json::array();   
    
    // TODO: Make loop part of libproc pqueue
    for (size_t i = 1; i <= pqueue_size(q); i++) {
       scurr = (ScheduleCB *)q->d[i];
-      js = json({});      
-      if (populate_timed_event(scurr, &js, &cur_time) < 0) {
-         std::cout << "error: failed to create json structure for timed event\n";
-         return -1;
-      }
-      data["timed_events"].push_back(js);
+      js.clear();  
+      populate_timed_event(scurr, js, &cur_time);
+      data["timed_events"].push_back(json(js));
    }
    
    for (int i = 0; i < ctx->hashSize; i++) {
@@ -130,9 +103,9 @@ int broadcast_debug_data(struct DebugEventTimer *et)
          continue;
 
       for (; ecurr; ecurr = ecurr->next) {
-         js = json({});      
-         populate_fd_event(ecurr, &js);
-         data["fd_events"].push_back(js);
+         js.clear();      
+         populate_fd_event(ecurr, js);
+         data["fd_events"].push_back(json(js));
       }
    }
 
@@ -140,12 +113,8 @@ int broadcast_debug_data(struct DebugEventTimer *et)
    zmq::message_t message(sdata.size());
    memcpy(message.data(), sdata.data(), sdata.size());
 
-   if (!et->pub->send(message)) {
-      std::cout << "error: failed to send data over socker\n";
-      return -1;
-   }
-
-   return 0;
+   if (!et->pub->send(message))
+      throw std::runtime_error("failed to broadcast debug data");
 }
 
 int ET_debug_block(struct EventTimer *et, struct timeval *nextAwake,
@@ -155,8 +124,7 @@ int ET_debug_block(struct EventTimer *et, struct timeval *nextAwake,
    struct timeval diffTime, curTime, oneSec = EVT_ms2tv(1000), next;
    int ret; 
 
-   if (broadcast_debug_data((struct DebugEventTimer *)et) < 0)
-      std::cout << "error: failed to broadcast debug data\n";
+   broadcast_debug_data(det);
    
    et->get_monotonic_time(et, &curTime);
    timeradd(&oneSec, &curTime, &next);
@@ -171,8 +139,7 @@ int ET_debug_block(struct EventTimer *et, struct timeval *nextAwake,
    // Call the block function for libproc current EventTimer   
    ret = det->real_et->block(det->real_et, &next, blockcb, arg);
 
-   if (broadcast_debug_data((struct DebugEventTimer *)et) < 0)
-      std::cout << "error: failed to broadcast debug data\n";
+   broadcast_debug_data(det);
 
    return ret;
 }
