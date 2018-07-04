@@ -27,6 +27,7 @@
 #include "events.h"
 #include "ipc.h"
 #include "cmd.h"
+#include "critical.h"
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -43,6 +44,9 @@ extern "C" {
 /// Path where all of the .proc files are stored
 #define PROC_FILE_PATH "/var/run"
 
+#define SCHEDULE_KEY_MAX 128
+#define NOT_SCHEDULED -1
+
 
 enum WatchdogMode {
    /// Constant for enabling the watchdog when initializing a process.
@@ -52,7 +56,22 @@ enum WatchdogMode {
 };
 
 /** Type which contains event handler information **/
-typedef struct ProcessData ProcessData;
+typedef struct ProcessData {
+   EVTHandler *evtHandler;
+   int keyToIdMap[SCHEDULE_KEY_MAX];
+   //Socket
+   int cmdFd, txFd;
+   int sigPipe[2];
+   struct ProcSignalCB *signalCBHead;
+   struct ProcChild *childHead;
+   struct ProcWriteNode *writeListHead;
+   char *name;
+   int cmdPort;
+   void *callbackContext;
+   //cmds holds the parsed, .cmd.cfg file call backs along with other info
+   struct CommandCbArg cmds;
+   struct CSState criticalState;
+} ProcessData;
 
 /** Returns the EVTHandler context for the process.  Needed to directly call
   * EVT_* functions.

@@ -26,6 +26,7 @@ LIB_NAME=$(LIBRARY).$(SO_EXT).$(MAJOR_VERS).$(MINOR_VERS)
 LFLAGS=-shared -fPIC -Wl,-soname,$(SO_NAME)
 
 all: $(OBJECTS) $(LIBRARY)
+	make -C debugger/core
 
 $(LIBRARY): $(LIB_NAME)
 	 ln -sf $(LIB_NAME) $(LIBRARY).$(SO_EXT)
@@ -40,6 +41,7 @@ cleanup_test: cleanup_test.c util.c priorityQueue.c debug.c
 
 install: all
 	cp $(LIB_NAME) $(LIB_PATH)
+	cp debugger/core/libprocdebug.so $(LIB_PATH)
 	$(INST_STRIP) $(LIB_PATH)/$(LIB_NAME)
 	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY).$(SO_EXT)
 	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY).$(SO_EXT).$(MAJOR_VERS)
@@ -60,3 +62,4 @@ test:
 
 clean:
 	rm -rf *.o $(LIBRARY).$(SO_EXT)* $(LIBRARY) cleanup_test
+	make -C debugger/core clean

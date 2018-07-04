@@ -44,9 +44,6 @@
 #include "critical.h"
 #include <pthread.h>
 
-#define SCHEDULE_KEY_MAX 128
-#define NOT_SCHEDULED -1
-
 #define READ_BUFF_MIN 4096
 #define READ_BUFF_MAX (READ_BUFF_MIN * 4)
 #define WATCHDOG_VALIDATE_SECS 30
@@ -58,23 +55,6 @@ static int setup_signal_fd(ProcessData *proc);
 
 //When a socket is written to, this is the call back that is called
 static int socket_write_cb(int fd, char type, void * arg);
-
-struct ProcessData {
-   EVTHandler *evtHandler;
-   int keyToIdMap[SCHEDULE_KEY_MAX];
-   //Socket
-   int cmdFd, txFd;
-   int sigPipe[2];
-   struct ProcSignalCB *signalCBHead;
-   struct ProcChild *childHead;
-   struct ProcWriteNode *writeListHead;
-   char *name;
-   int cmdPort;
-   void *callbackContext;
-   //cmds holds the parsed, .cmd.cfg file call backs along with other info
-   struct CommandCbArg cmds;
-   struct CSState criticalState;
-};
 
 /* Structure which defines a signal callback */
 struct ProcSignalCB

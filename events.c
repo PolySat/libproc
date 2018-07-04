@@ -83,17 +83,6 @@ static EVTHandler *global_evt = NULL;
 #define	FD_COPY(f, t)	bcopy(f, t, sizeof(*(f)))
 #endif
 
-// Structure representing a schedule callback
-typedef struct _ScheduleCB
-{
-	struct timeval scheduleTime;
-	struct timeval nextAwake;
-	EVT_sched_cb callback;
-	void *arg;
-	size_t pos;
-	struct timeval timeStep;
-} ScheduleCB;
-
 // Subracts y timeval struct from x timeval struct and stores the result.
 int timeval_subtract(struct timeval *result, struct timeval *x,
 	struct timeval *y)
@@ -156,42 +145,6 @@ static void set_pos(void *a, size_t pos)
 {
 	((ScheduleCB *) a)->pos = pos;
 }
-
-// Structure which defines a file callback
-typedef struct EventCB
-{
-   EVT_fd_cb cb[EVENT_MAX];		  // An array of function callbacks to call
-   EVT_fd_cb cleanup[EVENT_MAX];	// An array of cleanup callback to call
-   void *arg[EVENT_MAX];			      // An array of arguments to pass to callbacks
-   int fd;				                // The file descriptor which will launch the event
-   struct EventCB *next;		      // The next signal callback
-} *EventCBPtr;
-
-struct GPIOInterruptCBList {
-   EVT_sched_cb cb;
-   void *arg;
-   struct GPIOInterruptCBList *next;
-};
-
-struct GPIOInterruptDesc {
-   const char *filename;
-   int fd, tripped;
-   struct GPIOInterruptCBList *callbacks;
-};
-
-// A structure which contains information regarding the state of the event handler
-struct EventState
-{
-   fd_set eventSet[EVENT_MAX];				                // File descriptor sets to watch
-   int maxFd, maxFds[EVENT_MAX], eventCnt[EVENT_MAX];	// fd information
-   int hashSize;				    	                        // The hash size of the event handler
-   int keepGoing;				    	                        // Whether the handler should loop or not
-   struct GPIOInterruptDesc gpio_intrs[2];            // GPIO interrupt state
-   pqueue_t *queue;                                   // The schedule queue
-   struct EventTimer *evt_timer;
-
-   EventCBPtr events[1];				                      // List of pointers to event callbacks
-};
 
 /* Initializes an EventState with a given hash size.
  * @param hashSize The hash size of the event handler.

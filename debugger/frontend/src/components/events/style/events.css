@@ -1,0 +1,48 @@
+
+.dbg-events-container {
+   background-color: #819ca9;
+   border-radius: 10px;
+   padding: 30px;     
+}
+
+.dbg-events-cards {
+   margin: 10px;
+   border-radius: 2px;
+   display: flex;
+   flex-direction: row;
+   overflow-x: auto;
+}
+
+.dbg-event-card {
+   /* background-color: #E1F5FE; */
+   background-color: #FFFFFF;
+   box-shadow: -2px 2px 10px #424242;
+   width: 200px;
+   height: 150px;
+   text-align: center;
+   border: 1px solid #757575;
+   border-radius: 5px;
+   margin: 5px;
+   padding: 10px;
+}
+
+.dbg-timedevent-body {
+   height: 100px;
+}
+
+.dbg-timedevent-time > h2 {
+   padding-bottom: 0;
+   line-height: 30px;
+}
+
+.dbg-timedevent-time > p {
+   padding-top: 0;
+}
+
+.dbg-timedevent-spacer {
+   height: 40%;
+}
+
+.length {
+   font-size: 15px;
+}

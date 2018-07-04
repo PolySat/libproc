@@ -25,6 +25,9 @@
 #define EVENTS_H
 
 #include <time.h>
+#include <sys/select.h>
+
+#include "priorityQueue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,15 +43,58 @@ extern "C" {
 #define EVENT_KEEP     1 // Keep an event
 #define EVENT_REMOVE   2 // Remove an event
 
-// Type which contains event handler information
-struct EventState;
-typedef struct EventState EVTHandler;
-
 // A callback for a file descriptor event
 typedef int (*EVT_fd_cb)(int fd, char type, void *arg);
 
 // A callback for a scheduled event
 typedef int (*EVT_sched_cb)(void *arg);
+
+// Structure representing a schedule callback
+typedef struct _ScheduleCB
+{
+	struct timeval scheduleTime;
+	struct timeval nextAwake;
+	EVT_sched_cb callback;
+	void *arg;
+	size_t pos;
+	struct timeval timeStep;
+} ScheduleCB;
+
+// Structure which defines a file callback
+typedef struct EventCB
+{
+   EVT_fd_cb cb[EVENT_MAX];		  // An array of function callbacks to call
+   EVT_fd_cb cleanup[EVENT_MAX];	// An array of cleanup callback to call
+   void *arg[EVENT_MAX];			      // An array of arguments to pass to callbacks
+   int fd;				                // The file descriptor which will launch the event
+   struct EventCB *next;		      // The next signal callback
+} *EventCBPtr;
+
+struct GPIOInterruptCBList {
+   EVT_sched_cb cb;
+   void *arg;
+   struct GPIOInterruptCBList *next;
+};
+
+struct GPIOInterruptDesc {
+   const char *filename;
+   int fd, tripped;
+   struct GPIOInterruptCBList *callbacks;
+};
+
+// A structure which contains information regarding the state of the event handler
+typedef struct EventState
+{
+   fd_set eventSet[EVENT_MAX];				                // File descriptor sets to watch
+   int maxFd, maxFds[EVENT_MAX], eventCnt[EVENT_MAX];	// fd information
+   int hashSize;				    	                        // The hash size of the event handler
+   int keepGoing;				    	                        // Whether the handler should loop or not
+   struct GPIOInterruptDesc gpio_intrs[2];            // GPIO interrupt state
+   pqueue_t *queue;                                   // The schedule queue
+   struct EventTimer *evt_timer;
+
+   EventCBPtr events[1];				                      // List of pointers to event callbacks
+} EVTHandler;
 
 /**
  * Create an event handler.

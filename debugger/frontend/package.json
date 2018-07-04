@@ -1,0 +1,33 @@
+{
+  "name": "debugger",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "webpack",
+    "serve": "python server.py",
+    "watch": "webpack --watch"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/react": "^16.0.38",
+    "@types/react-dom": "^16.0.4",
+    "@types/sockjs-client": "^1.1.0",
+    "@types/sprintf-js": "^1.1.0",
+    "react": "^16.2.0",
+    "react-dom": "^16.2.0",
+    "sockjs-client": "^1.1.4",
+    "sprintf-js": "^1.1.1"
+  },
+  "devDependencies": {
+    "awesome-typescript-loader": "^3.4.1",
+    "css-loader": "^0.28.9",
+    "extract-text-webpack-plugin": "^2.1.2",
+    "source-map-loader": "^0.2.3",
+    "style-loader": "^0.20.2",
+    "typescript": "^2.7.2",
+    "webpack": "^2.2.0"
+  }
+}
