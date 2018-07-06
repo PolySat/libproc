@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,6 +60,52 @@ extern int UTIL_ensure_dir(const char *dir);
  **/
 extern int UTIL_ensure_path(const char *dir);
 
+/** Support routines for generating telemetry dictionaries, datalogger
+ * configuration files, and other related telemetry info.  The basic idea is
+ * the developer fills out a set of static data structures containing the
+ * necessary metadata, and then calls the correct generation function
+ * passing in a pointer to the static structure
+ **/
+
+struct UTILBitfieldInfo {
+   uint32_t value;
+   const char *set_label;
+   const char *clear_label;
+};
+
+struct UTILTelemetryInfo {
+   const char *id;
+   const char *location;
+   const char *group;
+   const char *units;
+   uint32_t divisor;
+   int32_t offset;
+   const char *name;
+   const char *desc;
+   struct UTILBitfieldInfo *bitfields;
+   const char *computed_by;
+};
+
+struct UTILEventInfo {
+   const char *port_name;
+   uint16_t id;
+   const char *name;
+   const char *desc;
+};
+
+/*** Print the telemetry information in a format for datalogger ***/
+extern int UTIL_print_datalogger_info(struct UTILTelemetryInfo *points,
+   const char *dl_name, int argc, char **argv);
+
+/** Print the telemetry information in a format for use in
+ *  telemetry export process
+ **/
+extern int UTIL_print_sensor_metadata(struct UTILTelemetryInfo *points,
+   struct UTILEventInfo *events);
+
+/*** Print the telemetry in html format ***/
+extern int UTIL_print_html_telem_dict(struct UTILTelemetryInfo *points,
+   struct UTILEventInfo *events);
 
 #ifdef __cplusplus
 }

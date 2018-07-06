@@ -27,6 +27,7 @@
 #include <sys/time.h>
 
 #include "util.h"
+#include "ipc.h"
 #include "priorityQueue.h"
 #include "debug.h"
 
@@ -363,3 +364,137 @@ int UTIL_ensure_path(const char *toDir)
 
    return UTIL_ensure_dir(toDir);
 }
+
+int UTIL_print_datalogger_info(struct UTILTelemetryInfo *points,
+   const char *dfl_name, int argc, char **argv)
+{
+   int opt;
+   int mode = 0;
+   struct UTILTelemetryInfo *curr;
+   const char *name = dfl_name;
+   struct StringList {
+      const char *name;
+      struct StringList *next;
+   } *itr, *head = NULL;
+
+#ifdef __APPLE__
+   optind = 1;
+#else
+   optind = 0;
+#endif
+
+   while ((opt = getopt(argc, argv, "n:x:m:")) != -1) {
+      switch(opt) {
+         case 'n':
+            name = optarg;
+            break;
+         case 'x':
+            itr = malloc(sizeof(*itr));
+            itr->next = head;
+            itr->name = optarg;
+            head = itr;
+            break;
+         case 'm':
+            mode = atol(optarg);
+            break;
+         default:
+            goto usage;
+      }
+   }
+
+   if (optind < (argc))
+      goto usage;
+
+   for (curr = points; curr->id; curr++) {
+      int ignore = 0;
+      for (itr = head; itr; itr = itr->next) {
+         if (0 == strcasecmp(itr->name, curr->id)) {
+            ignore = 1;
+            break;
+         }
+      }
+
+      if (mode == 1) {
+         if (!ignore)
+            printf("%s\n", curr->id);
+      }
+      else {
+         if (!ignore) {
+            printf("   <SENSOR>\n");
+            printf("      NAME=%s\n", name);
+            printf("      SENSOR_KEY=%s\n", curr->id);
+            printf("      LOCATION=%s\n", curr->location);
+            printf("      GROUPS=%s\n", curr->group);
+            printf("   </SENSOR>\n");
+         }
+         else {
+            printf("   <IGNORE>\n");
+            printf("      SENSOR_KEY=%s\n", curr->id);
+            printf("   </IGNORE>\n");
+         }
+      }
+   }
+
+   return 0;
+
+usage:
+   printf("%s [-n <subprocess name>] [-x <exclude tlm id>] [-x <>] ...\n",
+      argv[0]);
+   return 0;
+
+}
+
+int UTIL_print_sensor_metadata(struct UTILTelemetryInfo *points,
+   struct UTILEventInfo *events)
+{
+   struct UTILTelemetryInfo *curr;
+   struct UTILBitfieldInfo *bitr;
+   struct UTILEventInfo *eitr;
+
+   for (curr = points; curr->id; curr++) {
+      if (curr->computed_by)
+         continue;
+
+      printf("<SENSOR>\n");
+      printf("   KEY=%s\n", curr->id);
+      printf("   UNITS=%s\n", curr->units);
+      printf("   DIVISOR=%u\n", curr->divisor);
+      printf("   OFFSET=%d\n", curr->offset);
+      printf("   NAME=%s\n", curr->name);
+      printf("   DESCRIPTION=%s\n", curr->desc);
+
+      if (curr->bitfields) {
+         printf("   <ENUMS>\n");
+         for (bitr = curr->bitfields; bitr->set_label; bitr++) {
+            printf("      <OPT>\n");
+            printf("         VALUE=%u\n", bitr->value);
+            printf("         LABEL=%s\n", bitr->set_label);
+            if (bitr->clear_label)
+               printf("         UNSET=%s\n", bitr->clear_label);
+            printf("      </OPT>\n");
+         }
+         printf("   </ENUMS>\n");
+      }
+
+      printf("</SENSOR>\n");
+   }
+
+   for (eitr = events; eitr->port_name; ++eitr) {
+      printf("<EVENT>\n");
+      printf("   PORT_NAME=%s\n", eitr->port_name);
+      printf("   PORT=%u\n", socket_get_addr_by_name(eitr->port_name));
+      printf("   ID=%u\n", eitr->id);
+      printf("   NAME=%s\n", eitr->name);
+      printf("   DESCRIPTION=%s\n", eitr->desc);
+      printf("</EVENT>\n");
+   }
+
+   return 0;
+}
+
+int UTIL_print_html_telem_dict(struct UTILTelemetryInfo *points,
+   struct UTILEventInfo *events)
+{
+   return 0;
+}
+
