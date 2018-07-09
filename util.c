@@ -366,12 +366,16 @@ int UTIL_ensure_path(const char *toDir)
 }
 
 int UTIL_print_datalogger_info(struct UTILTelemetryInfo *points,
-   const char *dfl_name, int argc, char **argv)
+   const char *dfl_name, const char *dfl_path, int argc, char **argv)
 {
    int opt;
+   int header = 0;
    int mode = 0;
+   int start_time = 5;
+   int period = 300;
    struct UTILTelemetryInfo *curr;
    const char *name = dfl_name;
+   const char *path = dfl_path;
    struct StringList {
       const char *name;
       struct StringList *next;
@@ -383,8 +387,20 @@ int UTIL_print_datalogger_info(struct UTILTelemetryInfo *points,
    optind = 0;
 #endif
 
-   while ((opt = getopt(argc, argv, "n:x:m:")) != -1) {
+   while ((opt = getopt(argc, argv, "s:n:x:m:t:p:H")) != -1) {
       switch(opt) {
+         case 'p':
+            period = atol(optarg);
+            break;
+         case 's':
+            start_time = atol(optarg);
+            break;
+         case 't':
+            path = optarg;
+            break;
+         case 'H':
+            header = 1;
+            break;
          case 'n':
             name = optarg;
             break;
@@ -404,6 +420,28 @@ int UTIL_print_datalogger_info(struct UTILTelemetryInfo *points,
 
    if (optind < (argc))
       goto usage;
+
+   if (mode == 2) {
+      printf("%s\n", name);
+      return 0;
+   }
+
+   if (header)
+      printf("<EVENT>\n"
+             "   NAME=%s\n"
+             "   PROC_NAME=%s\n"
+             "   NUM=0\n"
+             "   START_TIME=P+%d\n"
+             "   SCHED_TIME=%d\n"
+             "   DURATION=0\n"
+             "</EVENT>\n\n"
+             "<SUBPROCESS>\n"
+             "   NAME=%s\n"
+             "   PROC_PATH=%s\n"
+             "   POWER=1\n"
+             "   POWER_PROC=./none\n"
+             "   PARAM=\n\n",
+             name, name, start_time, period, name, path);
 
    for (curr = points; curr->id; curr++) {
       int ignore = 0;
@@ -435,10 +473,13 @@ int UTIL_print_datalogger_info(struct UTILTelemetryInfo *points,
       }
    }
 
+   if (header)
+      printf("</SUBPROCESS>\n");
+
    return 0;
 
 usage:
-   printf("%s [-n <subprocess name>] [-x <exclude tlm id>] [-x <>] ...\n",
+   printf("%s [-n <subprocess name>] [-H] [-p <period>] [-s <start time>] [-t <telemetry path] [-x <exclude tlm id>] [-x <>] ...\n",
       argv[0]);
    return 0;
 
@@ -450,33 +491,37 @@ int UTIL_print_sensor_metadata(struct UTILTelemetryInfo *points,
    struct UTILTelemetryInfo *curr;
    struct UTILBitfieldInfo *bitr;
    struct UTILEventInfo *eitr;
+   const char *type;
 
    for (curr = points; curr->id; curr++) {
+      type = "SENSOR";
       if (curr->computed_by)
-         continue;
+         type = "VSENSOR";
 
-      printf("<SENSOR>\n");
+      printf("<%s>\n", type);
       printf("   KEY=%s\n", curr->id);
+      printf("   LOCATION=%s\n", curr->location);
+      printf("   SUBSYSTEM=%s\n", curr->group);
       printf("   UNITS=%s\n", curr->units);
       printf("   DIVISOR=%u\n", curr->divisor);
       printf("   OFFSET=%d\n", curr->offset);
       printf("   NAME=%s\n", curr->name);
       printf("   DESCRIPTION=%s\n", curr->desc);
+      if (curr->computed_by)
+      printf("   FUNCTION=%s\n", curr->computed_by);
 
       if (curr->bitfields) {
-         printf("   <ENUMS>\n");
          for (bitr = curr->bitfields; bitr->set_label; bitr++) {
-            printf("      <OPT>\n");
-            printf("         VALUE=%u\n", bitr->value);
-            printf("         LABEL=%s\n", bitr->set_label);
+            printf("   <ENUM>\n");
+            printf("      VALUE=%u\n", bitr->value);
+            printf("      LABEL=%s\n", bitr->set_label);
             if (bitr->clear_label)
-               printf("         UNSET=%s\n", bitr->clear_label);
-            printf("      </OPT>\n");
+               printf("      UNSET=%s\n", bitr->clear_label);
+            printf("   </ENUM>\n");
          }
-         printf("   </ENUMS>\n");
       }
 
-      printf("</SENSOR>\n");
+      printf("</%s>\n", type);
    }
 
    for (eitr = events; eitr->port_name; ++eitr) {
@@ -493,8 +538,68 @@ int UTIL_print_sensor_metadata(struct UTILTelemetryInfo *points,
 }
 
 int UTIL_print_html_telem_dict(struct UTILTelemetryInfo *points,
-   struct UTILEventInfo *events)
+   struct UTILEventInfo *events, int argc, char **argv)
 {
+   int opt;
+   int mode = 0;
+   struct UTILTelemetryInfo *curr;
+   struct StringList {
+      const char *name;
+      struct StringList *next;
+   } *itr, *head = NULL;
+   struct UTILEventInfo *eitr;
+
+#ifdef __APPLE__
+   optind = 1;
+#else
+   optind = 0;
+#endif
+
+   while ((opt = getopt(argc, argv, "x:m:")) != -1) {
+      switch(opt) {
+         case 'x':
+            itr = malloc(sizeof(*itr));
+            itr->next = head;
+            itr->name = optarg;
+            head = itr;
+            break;
+         case 'm':
+            mode = atol(optarg);
+            break;
+         default:
+            goto usage;
+      }
+   }
+
+   if (optind < (argc))
+      goto usage;
+
+   for (curr = points; curr->id; curr++) {
+      int ignore = 0;
+
+      for (itr = head; itr; itr = itr->next) {
+         if (0 == strcasecmp(itr->name, curr->id)) {
+            ignore = 1;
+            break;
+         }
+      }
+      if (ignore)
+         continue;
+
+      if (mode == 1)
+         printf("<A HREF=\"#tlm_%s\">%s</A>\n", curr->id, curr->name);
+   }
+
+   for (eitr = events; eitr->id; eitr++) {
+      if (mode == 2)
+         printf("<A HREF=\"#evt_%u_%u\">%s</A>\n", 
+               socket_get_addr_by_name(eitr->port_name), eitr->id, eitr->name);
+   }
+
+   return 0;
+
+usage:
+   printf("%s [-m <mode>] [-x <exclude tlm id>] [-x <>] ...\n",
+      argv[0]);
    return 0;
 }
-
