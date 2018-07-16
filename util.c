@@ -503,8 +503,8 @@ int UTIL_print_sensor_metadata(struct UTILTelemetryInfo *points,
       printf("   LOCATION=%s\n", curr->location);
       printf("   SUBSYSTEM=%s\n", curr->group);
       printf("   UNITS=%s\n", curr->units);
-      printf("   DIVISOR=%u\n", curr->divisor);
-      printf("   OFFSET=%d\n", curr->offset);
+      printf("   DIVISOR=%lf\n", curr->divisor);
+      printf("   OFFSET=%lf\n", curr->offset);
       printf("   NAME=%s\n", curr->name);
       printf("   DESCRIPTION=%s\n", curr->desc);
       if (curr->computed_by)

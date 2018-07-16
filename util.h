@@ -78,8 +78,8 @@ struct UTILTelemetryInfo {
    const char *location;
    const char *group;
    const char *units;
-   uint32_t divisor;
-   int32_t offset;
+   double divisor;
+   double offset;
    const char *name;
    const char *desc;
    struct UTILBitfieldInfo *bitfields;
