@@ -537,10 +537,11 @@ int UTIL_print_sensor_metadata(struct UTILTelemetryInfo *points,
    return 0;
 }
 
-int UTIL_print_html_telem_dict(struct UTILTelemetryInfo *points,
+int UTIL_print_json_telem_dict(struct UTILTelemetryInfo *points,
    struct UTILEventInfo *events, int argc, char **argv)
 {
    int opt;
+   int first = 1;
    int mode = 0;
    struct UTILTelemetryInfo *curr;
    struct StringList {
@@ -548,6 +549,8 @@ int UTIL_print_html_telem_dict(struct UTILTelemetryInfo *points,
       struct StringList *next;
    } *itr, *head = NULL;
    struct UTILEventInfo *eitr;
+   struct UTILBitfieldInfo *bitr;
+   const char *type;
 
 #ifdef __APPLE__
    optind = 1;
@@ -574,6 +577,7 @@ int UTIL_print_html_telem_dict(struct UTILTelemetryInfo *points,
    if (optind < (argc))
       goto usage;
 
+   first = 1;
    for (curr = points; curr->id; curr++) {
       int ignore = 0;
 
@@ -586,15 +590,71 @@ int UTIL_print_html_telem_dict(struct UTILTelemetryInfo *points,
       if (ignore)
          continue;
 
-      if (mode == 1)
-         printf("<A HREF=\"#tlm_%s\">%s</A>\n", curr->id, curr->name);
-   }
+      if (mode == 1 && !curr->computed_by)
+         type = "sensor";
+      else if (mode == 3 && curr->computed_by)
+         type = "virtual_sensor";
+      else
+         continue;
 
-   for (eitr = events; eitr->id; eitr++) {
-      if (mode == 2)
-         printf("<A HREF=\"#evt_%u_%u\">%s</A>\n", 
-               socket_get_addr_by_name(eitr->port_name), eitr->id, eitr->name);
+      if (!first)
+         printf(",\n");
+      printf("{\n");
+      printf("   \"type\": \"%s\",\n", type);
+      printf("   \"key\": \"%s\",\n", curr->id);
+      printf("   \"location\": \"%s\",\n", curr->location);
+      printf("   \"subsystem\": \"%s\",\n", curr->group);
+      printf("   \"units\": \"%s\",\n", curr->units);
+      printf("   \"divisor\": %lf,\n", curr->divisor);
+      printf("   \"offset\": %lf,\n", curr->offset);
+      printf("   \"name\": \"%s\",\n", curr->name);
+      if (curr->computed_by)
+      printf("   \"function\": \"%s\",\n", curr->computed_by);
+
+      if (curr->bitfields) {
+         int efirst = 1;
+         printf("   \"enums\": [\n");
+         for (bitr = curr->bitfields; bitr->set_label; bitr++) {
+            if (!efirst)
+               printf(",\n");
+
+            printf("      {\n");
+            printf("         \"value\": %u,\n", bitr->value);
+            if (bitr->clear_label)
+               printf("         \"unset\": \"%s\",\n", bitr->clear_label);
+            printf("         \"label\": \"%s\"\n", bitr->set_label);
+            printf("   }");
+
+            efirst = 0;
+         }
+         printf("   ],\n");
+      }
+
+      printf("   \"description\": \"%s\"\n", curr->desc);
+
+      printf("}");
+      first = 0;
    }
+   if (!first)
+      printf("\n");
+
+   first = 1;
+   for (eitr = events; mode == 2 && eitr->id; eitr++) {
+      if (!first)
+         printf(",\n");
+      printf("{\n");
+
+      printf("   \"port_name\" : \"%s\",\n", eitr->port_name);
+      printf("   \"port\" : %u,\n", socket_get_addr_by_name(eitr->port_name));
+      printf("   \"id\" : =%u,\n", eitr->id);
+      printf("   \"name\" : \"%s\",\n", eitr->name);
+      printf("   \"description\" : \"%s\"\n", eitr->desc);
+
+      printf("}");
+      first = 0;
+   }
+   if (!first)
+      printf("\n");
 
    return 0;
 

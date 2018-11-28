@@ -97,14 +97,16 @@ struct UTILEventInfo {
 extern int UTIL_print_datalogger_info(struct UTILTelemetryInfo *points,
    const char *dl_name, const char *telem_path, int argc, char **argv);
 
-/** Print the telemetry information in a format for use in
+/** Print the telemetry information in a format for use in the
  *  telemetry export process
  **/
 extern int UTIL_print_sensor_metadata(struct UTILTelemetryInfo *points,
    struct UTILEventInfo *events);
 
-/*** Print the telemetry in html format ***/
-extern int UTIL_print_html_telem_dict(struct UTILTelemetryInfo *points,
+/*** Print the telemetry in JSON format, intended for use in 
+ *   auto-generated documentation and other programs.
+ ***/
+extern int UTIL_print_json_telem_dict(struct UTILTelemetryInfo *points,
    struct UTILEventInfo *events, int argc, char **argv);
 
 #ifdef __cplusplus
