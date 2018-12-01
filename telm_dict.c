@@ -301,10 +301,7 @@ int TELM_print_json_telem_dict(struct TELMTelemetryInfo *points,
       printf("}");
       first = 0;
    }
-   if (!first)
-      printf("\n");
 
-   first = 1;
    for (eitr = events; mode == 2 && eitr->id; eitr++) {
       if (!first)
          printf(",\n");
