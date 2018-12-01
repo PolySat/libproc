@@ -299,7 +299,7 @@ static int wait_for_packet(int sock, int ms_dur)
    fd_set read_set;
    int result;
 
-   EVT_get_monotonic_time(&now);
+   gettimeofday(&now, NULL);
    tmp_tv.tv_sec = ms_dur / 1000;
    tmp_tv.tv_usec = (ms_dur - tmp_tv.tv_sec * 1000) * 1000;
 
@@ -319,7 +319,7 @@ static int wait_for_packet(int sock, int ms_dur)
       if (result < 0 && errno != EINTR)
          return -1;
 
-      EVT_get_monotonic_time(&now);
+      gettimeofday(&now, NULL);
    }
 
    return 0;

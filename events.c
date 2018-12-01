@@ -24,10 +24,13 @@
  */
 #include "events.h"
 #include "priorityQueue.h"
+#include "eventTimer.h"
+#include "proclib.h"
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <time.h>
 #include <sys/select.h>
 #include <signal.h>
 #include <assert.h>
@@ -40,7 +43,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 // #include <polysat_pkt/watchdog_cmd.h>
-#include "proclib.h"
+
+// Static global for virtual time
+static EVTHandler *global_evt = NULL;
+
 
 #ifndef timercmp
 # define timercmp(a, b, CMP)                                                  \
@@ -72,7 +78,6 @@
       }                    \
    } while (0)
 #endif
-
 
 #ifndef FD_COPY
 #define	FD_COPY(f, t)	bcopy(f, t, sizeof(*(f)))
@@ -183,6 +188,7 @@ struct EventState
    int keepGoing;				    	                        // Whether the handler should loop or not
    struct GPIOInterruptDesc gpio_intrs[2];            // GPIO interrupt state
    pqueue_t *queue;                                   // The schedule queue
+   struct EventTimer *evt_timer;
 
    EventCBPtr events[1];				                      // List of pointers to event callbacks
 };
@@ -216,13 +222,19 @@ struct EventState *EVT_initWithSize(int hashSize)
       res->events[i] = NULL;
 
    res->queue = pqueue_init(hashSize, cmp_pri, get_pri, set_pri, get_pos, set_pos);
-
-   // Check if scheduler was created successfuly
    if (res->queue == NULL){
       free(res);
  	   return NULL;
    }
-
+   
+   res->evt_timer = ET_default_init();
+   if (!res->evt_timer) {
+      free(res->queue);
+      free(res);
+      return NULL;
+   }
+   
+   global_evt = res;
    return res;
 }
 
@@ -294,6 +306,10 @@ void EVT_free_handler(EVTHandler *ctx)
 
    if (!ctx)
       return;
+
+   if (ctx->evt_timer)
+      ctx->evt_timer->cleanup(ctx->evt_timer);
+   global_evt = NULL;
 
    for(i = 0; i < ctx->hashSize; i++){
       while(ctx->events[i]){
@@ -434,85 +450,177 @@ static int EVT_clean_fdsets(struct EventState *ctx)
    return foundOne;
 }
 
+/**
+ * Enable libproc virtual clock. Sets EventTimer to a new
+ * instance of a VirtualEventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param tv   A pointer to the timeval with the desired initial time.
+ */
+char EVT_enable_virt(EVTHandler *ctx, struct timeval *initTime)
+{
+   struct EventTimer *et;
+
+   assert(ctx);
+ 
+   et = ET_virt_init(initTime);
+   if (!et)
+      return -1;
+
+   EVT_set_evt_timer(ctx, et);
+   return 0;
+}
+
+/**
+ * Get current libproc EventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param et   The EventTimer instance.
+ */
+struct EventTimer *EVT_get_evt_timer(EVTHandler *ctx)
+{
+   return ctx->evt_timer;
+}
+
+/**
+ * Set libproc EventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param et   The EventTimer instance.
+ */
+void EVT_set_evt_timer(EVTHandler *ctx, struct EventTimer *et)
+{
+   assert(ctx);
+   assert(et);
+
+   if (ctx->evt_timer)
+      ctx->evt_timer->cleanup(ctx->evt_timer);
+   
+   ctx->evt_timer = et;
+}
+
+/**
+ * Get the system's current absolute GMT time.
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ *
+ */
+int EVT_get_gmt_time(EVTHandler *ctx, struct timeval *tv)
+{
+   return ctx->evt_timer->get_gmt_time(ctx->evt_timer, tv);
+}
+
+/**
+ * USE ONLY WHEN ABSOLUTELY NECESSARY!
+ *
+ * Stateless version of EVT_get_gmt_time. Get the system's current 
+ * absolute GMT time without passing a EvtHander context. Use 
+ * only when absolutely necessary!
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ */
+int EVT_get_gmt_time_virt(struct timeval *tv)
+{
+   return global_evt->evt_timer->get_gmt_time(global_evt->evt_timer, tv);
+}
+
+/**
+ * Get the system's current time since an unknown reference point.  This
+ * increases monotonically despite any changes to the system's current
+ * understanding of GMT.
+ *
+ * @param tv A pointer to the timeval structure where the time gets stored
+ */
+int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv)
+{
+   return ctx->evt_timer->get_monotonic_time(ctx->evt_timer, tv);
+}
+
+struct EVT_select_cb_args {
+   fd_set *eventSetPtrs[EVENT_MAX];
+   int maxFd;
+};
+
+static int select_event_loop_cb(struct EventTimer *et,
+    struct timeval *nextAwake, void *opaque)
+{
+   struct EVT_select_cb_args *args = (struct EVT_select_cb_args*)opaque;
+
+   return select(args->maxFd, args->eventSetPtrs[EVENT_FD_READ],
+                  args->eventSetPtrs[EVENT_FD_WRITE],
+                  args->eventSetPtrs[EVENT_FD_ERROR], nextAwake);
+}
+
 char EVT_start_loop(EVTHandler *ctx)
 {
    fd_set eventSets[EVENT_MAX];
-   fd_set *eventSetPtrs[EVENT_MAX];
+   struct EVT_select_cb_args args;
    int i;
-   int retval, maxFd;
+   int retval;
    int event, fd;
    struct EventCB **evtCurr;
    int keep;
    int startEvent = EVENT_FD_READ;
    int startFd = 0;
-   struct timeval diffTime, curTime, *blockTime;
+   struct timeval curTime, *nextAwake;
    ScheduleCB *curProc;
 
    while(ctx->keepGoing) {
       for (i = 0; i < EVENT_MAX; i++) {
          if (ctx->eventCnt[i] > 0) {
-            eventSetPtrs[i] = &eventSets[i];
-            //FD_COPY(&ctx->eventSet[i], eventSetPtrs[i]);
-				memcpy(eventSetPtrs[i], &ctx->eventSet[i], sizeof(*(&ctx->eventSet[i])));
+            args.eventSetPtrs[i] = &eventSets[i];
+            //FD_COPY(&ctx->eventSet[i], args.eventSetPtrs[i]);
+				memcpy(args.eventSetPtrs[i], &ctx->eventSet[i], sizeof(*(&ctx->eventSet[i])));
          }
          else
-            eventSetPtrs[i] = NULL;
+            args.eventSetPtrs[i] = NULL;
       }
 
-      maxFd = ctx->maxFd + 1;
+      args.maxFd = ctx->maxFd + 1;
+
       curProc = pqueue_peek(ctx->queue);
-      EVT_get_monotonic_time(&curTime);
-      blockTime = NULL;
+      if (curProc)
+         nextAwake = &curProc->nextAwake;
+      else
+         nextAwake = NULL;
+      
+      // Call blocking function of event timer
+      retval = ctx->evt_timer->block(ctx->evt_timer, nextAwake,
+                     &select_event_loop_cb, &args);
 
-      if (curProc) {
-           timersub(&(curProc->nextAwake), &curTime, &diffTime);
+      // Process Timed Events
+      while ((curProc = pqueue_peek(ctx->queue))) {
+         ctx->evt_timer->get_monotonic_time(ctx->evt_timer, &curTime);
 
-           if (diffTime.tv_sec < 0 || diffTime.tv_usec < 0) {
-              diffTime.tv_sec = 0;
-              diffTime.tv_usec = 0;
-           }
-           blockTime = &diffTime;
-      }
+         if (timercmp(&curProc->nextAwake, &curTime, >)) {
+            // Event is not yet ready
+            break;
+         }
 
-      retval = select(maxFd, eventSetPtrs[EVENT_FD_READ],
-         eventSetPtrs[EVENT_FD_WRITE], eventSetPtrs[EVENT_FD_ERROR],
-         blockTime);
+         // Pop event from the queue
+         pqueue_pop(ctx->queue);
 
-      /* Process Timed Events */
-      while ((curProc = pqueue_peek(ctx->queue)))
-      {
-	     EVT_get_monotonic_time(&curTime);
-
-        // Check if the next event is ready
-        if (timercmp(&curProc->nextAwake, &curTime, <=))
-        {
-          // Pop it from the queue
-          pqueue_pop(ctx->queue);
-
-          // Call the callback and see if it wants to be kept
-	  if (curProc->callback(curProc->arg) == EVENT_KEEP) {
-             curProc->scheduleTime = curTime;
-             timeradd(&curProc->nextAwake,
-                   &curProc->timeStep, &curProc->nextAwake);
-             pqueue_insert(ctx->queue, curProc);
-          } else {
-             free(curProc);
-          }
-        }
-        else
-          break;
+         // Call the callback and see if it wants to be kept
+         if (curProc->callback(curProc->arg) == EVENT_KEEP) {
+            curProc->scheduleTime = curTime;
+            timeradd(&curProc->nextAwake,
+               &curProc->timeStep, &curProc->nextAwake);
+            pqueue_insert(ctx->queue, curProc);
+         } else {
+            free(curProc);
+         }
       }
 
       /* Process FD events */
       if (retval > 0) {
                event = startEvent;
-         startFd = (startFd + 1) % maxFd;
+         startFd = (startFd + 1) % args.maxFd;
 
          do {
-            if (eventSetPtrs[event]) {
+            if (args.eventSetPtrs[event]) {
                fd = startFd;
                do {
-                  if (FD_ISSET(fd, eventSetPtrs[event])) {
+                  if (FD_ISSET(fd, args.eventSetPtrs[event])) {
                      retval--;
                      keep = EVENT_KEEP;
                      for(evtCurr = &ctx->events[fd % ctx->hashSize];
@@ -530,7 +638,7 @@ char EVT_start_loop(EVTHandler *ctx)
                         EVT_remove_internal(ctx, evtCurr, event);
                      }
                   }
-                  fd = (fd + 1) % maxFd;
+                  fd = (fd + 1) % args.maxFd;
                } while (retval > 0 && fd != startFd);
             }
 
@@ -582,7 +690,7 @@ void *EVT_sched_add(EVTHandler *handler, struct timeval time,
      return NULL;
    }
 
-   EVT_get_monotonic_time(&newSchedCB->scheduleTime);
+   handler->evt_timer->get_monotonic_time(handler->evt_timer, &newSchedCB->scheduleTime);
    newSchedCB->timeStep = time;
    timeradd(&newSchedCB->scheduleTime, &time, &newSchedCB->nextAwake);
    newSchedCB->callback = cb;
@@ -617,7 +725,7 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
    if (!newSchedCB)
       return NULL;
 
-   EVT_get_monotonic_time(&newSchedCB->scheduleTime);
+   handler->evt_timer->get_monotonic_time(handler->evt_timer, &newSchedCB->scheduleTime);
    newSchedCB->timeStep = timestep;
    timeradd(&newSchedCB->scheduleTime, &time, &newSchedCB->nextAwake);
    newSchedCB->callback = cb;
@@ -669,7 +777,7 @@ char EVT_sched_update(EVTHandler *handler, void *eventId, struct timeval time)
       return 1;
    }
 
-   EVT_get_monotonic_time(&evt->scheduleTime);
+   handler->evt_timer->get_monotonic_time(handler->evt_timer, &evt->scheduleTime);
    timeradd(&evt->scheduleTime, &time, &evt->nextAwake);
    evt->timeStep = time;
    pqueue_change_priority(handler->queue, evt->nextAwake, evt);
@@ -698,7 +806,7 @@ char EVT_sched_update_partial_credit(EVTHandler *handler, void *eventId,
 
    timeradd(&evt->scheduleTime, &time, &evt->nextAwake);
 
-   EVT_get_monotonic_time(&now);
+   handler->evt_timer->get_monotonic_time(handler->evt_timer, &now);
    if (timercmp(&evt->nextAwake, &now, <=))
       evt->nextAwake = now;
 

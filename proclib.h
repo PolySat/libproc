@@ -186,47 +186,6 @@ int PROC_cmd_sockaddr(ProcessData *proc, unsigned char cmd, void *data, size_t d
 int PROC_cmd_sockaddr_secondary(ProcessData *proc, unsigned char cmd, void *data, size_t dataLen, struct sockaddr_in *dest);
 
 /**
- * Get the relative time from an absolute gmt time
- *
- * @param gmt_time The absolute gmt time (time since the epoch)
- *
- * @return The relative time, in milliseconds
- */
-int event_gmt_to_rel_time(struct timeval *gmt_time);
-
-/**
- * Get the relative time from an absolute monotonic time
- *
- * @param monotonic_time The absolute monotonic time (time since the epoch)
- *
- * @return The relative time, in milliseconds
- */
-int event_monotonic_to_rel_time(struct timeval *monotonic_time);
-
-/**
- * Get the system's current absolute GMT time.
- *
- * @param tv A pointer to the timeval structure where the time gets stored
- *
- */
-#define EVT_get_gmt_time(tv) gettimeofday(tv, NULL)
-// int EVT_get_gmt_time(struct timeval *tv);
-
-/**
- * Get the system's current time since an unknown reference point.  This
- *  increases monotonically despite any changes to the system's current
- *  understanding of GMT.
- *
- * @param tv A pointer to the timeval structure where the time gets stored
- *
- */
-#ifdef __APPLE__
-#define EVT_get_monotonic_time(tv) gettimeofday(tv, NULL)
-#else
-int EVT_get_monotonic_time(struct timeval *tv);
-#endif
-
-/**
  * Cleans the process up.
  *
  * @param proc
