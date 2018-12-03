@@ -1,5 +1,5 @@
-CFLAGS=-I../.. -Wall -Werror -std=gnu99 -rdynamic -D_GNU_SOURCE -D_FORTIFY_SOURCE=2
-LDFLAGS=-L../.. -Wl,-rpath,/usr/local/lib -lproc -ldl
+CFLAGS=-I../../.. -Wall -Werror -std=gnu99 -rdynamic -D_GNU_SOURCE -D_FORTIFY_SOURCE=2
+LDFLAGS=-L../../.. -Wl,-rpath,/usr/local/lib -lproc -ldl
 
 SRC=main.c
 OBJS=$(SRC:.c=.o)
@@ -16,4 +16,4 @@ clean:
 	rm -fr *.o $(EXECUTABLE)
 
 run: $(EXECUTABLE)
-	LD_LIBRARY_PATH=../.. ./$(EXECUTABLE)
+	LD_LIBRARY_PATH=../../.. ./$(EXECUTABLE)

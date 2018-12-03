@@ -114,6 +114,8 @@ typedef struct EventState
    struct ZMQLServer *dbgServer;
    struct IPCBuffer *dbgBuffer;
    unsigned long long loop_counter;
+   unsigned long long timed_event_counter;
+   int steps_to_pause;
    int pause;
    EVT_debug_state_cb debuggerStateCB;
    void *debuggerStateArg;

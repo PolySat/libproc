@@ -23,16 +23,19 @@ int my_timed_event(void *arg)
 
 int some_crazy_function(void *arg)
 {
+   printf("Some Crazy Function\n");
    return EVENT_KEEP;   
 }
 
 int wow(void *arg)
 {
+   printf("Wow!\n");
    return EVENT_KEEP;   
 }
 
 int oh_my(void *arg)
 {
+   printf("Oh My!\n");
    return EVENT_KEEP;   
 }
 

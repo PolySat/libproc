@@ -5,7 +5,7 @@ include Make.rules.$(PLAT)
 include Make.rules.arm
 
 # Input/Output Variables
-SOURCES=priorityQueue.c events.c proclib.c ipc.c debug.c cmd.c config.c hashtable.c util.c md5.c critical.c eventTimer.c zmqlite.c
+SOURCES=priorityQueue.c events.c proclib.c ipc.c debug.c cmd.c config.c hashtable.c util.c md5.c critical.c eventTimer.c zmqlite.c json.c
 LIBRARY_NAME=proc
 MAJOR_VERS=2
 MINOR_VERS=0.0

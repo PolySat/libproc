@@ -44,7 +44,7 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 #include "ipc.h"
-// #include <polysat_pkt/watchdog_cmd.h>
+#include "json.h"
 
 #define EDBG_ENV_VAR "LIBPROC_DEBUGGER"
 
@@ -218,6 +218,8 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    
    global_evt = res;
    res->loop_counter = 0;
+   res->timed_event_counter = 0;
+   res->steps_to_pause = 0;
    return res;
 }
 
@@ -558,8 +560,6 @@ char EVT_start_loop(EVTHandler *ctx)
    while(ctx->keepGoing) {
       pause = ctx->pause;
       edbg_report_state(ctx);
-      if (pause)
-         printf("Pause\n");
 
       for (i = 0; i < EVENT_MAX; i++) {
          if (ctx->eventCnt[i] > 0) {
@@ -578,13 +578,14 @@ char EVT_start_loop(EVTHandler *ctx)
          nextAwake = &curProc->nextAwake;
       else
          nextAwake = NULL;
+      pause = 0;
       
       // Call blocking function of event timer
       retval = ctx->evt_timer->block(ctx->evt_timer, nextAwake,
                      &select_event_loop_cb, &args);
 
       // Process Timed Events
-      while ((curProc = pqueue_peek(ctx->queue))) {
+      while (!pause && (curProc = pqueue_peek(ctx->queue))) {
          ctx->evt_timer->get_monotonic_time(ctx->evt_timer, &curTime);
 
          if (timercmp(&curProc->nextAwake, &curTime, >)) {
@@ -592,8 +593,16 @@ char EVT_start_loop(EVTHandler *ctx)
             break;
          }
 
+         if (ctx->steps_to_pause > 0) {
+            if (--ctx->steps_to_pause <= 0) {
+               ctx->pause = 1;
+               pause = 1;
+            }
+         }
+
          // Pop event from the queue
          pqueue_pop(ctx->queue);
+         ctx->timed_event_counter++;
 
          // Call the callback and see if it wants to be kept
          if (curProc->callback(curProc->arg) == EVENT_KEEP) {
@@ -977,15 +986,27 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
       size_t dataLen, void *arg)
 {
    EVTHandler *ctx = (EVTHandler*)arg;
+   const char *cmd;
 
-   ctx->pause = 0;
+   cmd = json_get_string_prop(data, "command");
+
+   if (!cmd)
+      return 0;
+
+   if (!strcasecmp(cmd, "run"))
+      ctx->pause = 0;
+   else if (!strcasecmp(cmd, "stop"))
+      ctx->pause = 1;
+   else if (!strcasecmp(cmd, "next")) {
+      ctx->steps_to_pause = 1;
+      ctx->pause = 0;
+   }
 
    return 0;
 }
 
 static void edbg_init(EVTHandler *ctx)
 {
-   printf("Init with port %d\n", ctx->dbgPort);
    if (ctx->initialDebuggerState == EDBG_DISABLED || !ctx->dbgPort)
       return;
 
@@ -1123,8 +1144,9 @@ static void edbg_report_state(EVTHandler *ctx)
    // Fill the buffer with state information
    ipc_reset_buffer(ctx->dbgBuffer);
    ipc_printf_buffer(ctx->dbgBuffer,
-         "{\n  \"step\": %llu,\n  \"dbg_state\": \"running\",\n  \"port\":"
-         "%u,\n", ctx->loop_counter, ctx->dbgPort);
+         "{\n  \"loop_steps\": %llu,\n  \"dbg_state\": \"running\",\n  "
+         "\"port\":%u,\n\"steps\":%llu,\n", ctx->loop_counter, ctx->dbgPort,
+         ctx->timed_event_counter);
 
    if (ctx->debuggerStateCB)
       ctx->debuggerStateCB(ctx->dbgBuffer, ctx->debuggerStateArg);
