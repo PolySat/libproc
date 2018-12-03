@@ -154,6 +154,22 @@ struct JStrItr {
    const char *val;
 };
 
+struct JIntItr {
+   const char *prop;
+   int val;
+   int found;
+};
+
+static void json_int_itr_cb(const char *prop, const char *val, void *arg)
+{
+   struct JIntItr *params = (struct JIntItr*)arg;
+
+   if (params && params->prop && !strcmp(params->prop, prop)) {
+      params->val = atol(val);
+      params->found = 1;
+   }
+}
+
 static void json_str_itr_cb(const char *prop, const char *val, void *arg)
 {
    struct JStrItr *params = (struct JStrItr*)arg;
@@ -162,13 +178,13 @@ static void json_str_itr_cb(const char *prop, const char *val, void *arg)
       params->val = val;
 }
 
-const char *json_get_string_prop(const char *json, const char *prop)
+int json_get_string_prop(const char *json, const char *prop, const char **out)
 {
    struct JStrItr params;
    enum JSONParserResult err;
 
-   if (!json || !prop)
-      return NULL;
+   if (!json || !prop || !out)
+      return -1;
 
    params.prop = prop;
    params.val = NULL;
@@ -176,8 +192,34 @@ const char *json_get_string_prop(const char *json, const char *prop)
    err = json_iterate_props(json, json_str_itr_cb, &params);
    if (err != PARSE_GOOD) {
       printf("JSON Parsing failed with error %d\n", err);
-      return NULL;
+      return -(int)err;
    }
 
-   return params.val;
+   *out = params.val;
+   return 0;
+}
+
+int json_get_int_prop(const char *json, const char *prop, int *out)
+{
+   struct JIntItr params;
+   enum JSONParserResult err;
+
+   if (!json || !prop || !out)
+      return -1;
+
+   params.prop = prop;
+   params.val = 0;
+   params.found = 0;
+
+   err = json_iterate_props(json, json_int_itr_cb, &params);
+   if (err != PARSE_GOOD) {
+      printf("JSON Parsing failed with error %d\n", err);
+      return -(int)err;
+   }
+
+   if (!params.found)
+      return -2;
+
+   *out = params.val;
+   return 0;
 }

@@ -19,13 +19,13 @@ dbg_client: dbg_client.cpp
 	 $(CXX) $(CXXFLAGS) $< -o $@ -lzmq
 
 run:
-	 LD_LIBRARY_PATH=/home/bellardo/git/public/libproc ./zmq_server
+	 LD_LIBRARY_PATH=../.. ./zmq_server
 
 runc:
-	 LD_LIBRARY_PATH=/home/bellardo/git/public/libproc ./dbg_target
+	 LD_LIBRARY_PATH=../.. ./dbg_target
 
 dbg:
-	 LD_LIBRARY_PATH=/home/bellardo/git/public/libproc gdb ./zmq_server
+	 LD_LIBRARY_PATH=../.. gdb ./zmq_server
 
 clean:
 	rm -rf *.o zmq_server dbg_target cpp_client dbg_client

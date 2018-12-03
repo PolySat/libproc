@@ -578,7 +578,6 @@ char EVT_start_loop(EVTHandler *ctx)
          nextAwake = &curProc->nextAwake;
       else
          nextAwake = NULL;
-      pause = 0;
       
       // Call blocking function of event timer
       retval = ctx->evt_timer->block(ctx->evt_timer, nextAwake,
@@ -986,11 +985,10 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
       size_t dataLen, void *arg)
 {
    EVTHandler *ctx = (EVTHandler*)arg;
-   const char *cmd;
+   const char *cmd = NULL;
+   int steps;
 
-   cmd = json_get_string_prop(data, "command");
-
-   if (!cmd)
+   if (json_get_string_prop(data, "command", &cmd) < 0)
       return 0;
 
    if (!strcasecmp(cmd, "run"))
@@ -1000,6 +998,10 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
    else if (!strcasecmp(cmd, "next")) {
       ctx->steps_to_pause = 1;
       ctx->pause = 0;
+      if (json_get_int_prop(data, "steps", &steps) >= 0) {
+         printf("Steps now %d\n", steps);
+         ctx->steps_to_pause = steps;
+      }
    }
 
    return 0;
