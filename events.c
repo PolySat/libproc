@@ -42,11 +42,26 @@
 #include "debug.h"
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <dlfcn.h>
+#include "ipc.h"
 // #include <polysat_pkt/watchdog_cmd.h>
+
+#define EDBG_ENV_VAR "LIBPROC_DEBUGGER"
+
+struct EDBGClient {
+   int fd;
+   EVTHandler *ctx;
+   struct sockaddr_in addr;
+   char *rxbuff;
+   size_t rxlen, rxmax;
+   struct EDBGClient *next;
+};
 
 // Static global for virtual time
 static EVTHandler *global_evt = NULL;
 
+static void edbg_init(EVTHandler *ctx);
+static void edbg_report_state(EVTHandler *ctx);
 
 #ifndef timercmp
 # define timercmp(a, b, CMP)                                                  \
@@ -150,10 +165,12 @@ static void set_pos(void *a, size_t pos)
  * @param hashSize The hash size of the event handler.
  * @return A pointer to the new EventState
  */
-struct EventState *EVT_initWithSize(int hashSize)
+struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
+        void *arg)
 {
    struct EventState *res = NULL;
    int i;
+   const char *dbg_state;
 
    res = (struct EventState*)malloc(
          sizeof(struct EventState) + hashSize * sizeof(EventCBPtr));
@@ -162,6 +179,18 @@ struct EventState *EVT_initWithSize(int hashSize)
    }
 
    memset(&res->gpio_intrs, 0, sizeof(res->gpio_intrs));
+   res->debuggerStateCB = debug_cb;
+   res->debuggerStateArg = arg;
+
+   // Configure the initial debugger state
+   dbg_state = getenv(EDBG_ENV_VAR);
+   res->initialDebuggerState = EDBG_DISABLED;
+   if (dbg_state) {
+      if (!strcasecmp(dbg_state, "ENABLED"))
+         res->initialDebuggerState = EDBG_ENABLED;
+      else if (!strcasecmp(dbg_state, "STOPPED"))
+         res->initialDebuggerState = EDBG_STOPPED;
+   }
 
    res->keepGoing = 1;
    for ( i = 0; i < EVENT_MAX; i++) {
@@ -188,15 +217,16 @@ struct EventState *EVT_initWithSize(int hashSize)
    }
    
    global_evt = res;
+   res->loop_counter = 0;
    return res;
 }
 
 /* Initializes an EventState with a hash size of 19
  * @return A pointer to the new EventState
  */
-EVTHandler *EVT_create_handler()
+EVTHandler *EVT_create_handler(EVT_debug_state_cb debug_cb, void *arg)
 {
-   return (EVTHandler *)EVT_initWithSize(19);
+   return (EVTHandler *)EVT_initWithSize(19, debug_cb, arg);
 }
 
 static int EVT_remove_internal(struct EventState *ctx, struct EventCB **curr,
@@ -221,7 +251,7 @@ static int EVT_remove_internal(struct EventState *ctx, struct EventCB **curr,
    FD_CLR(tmp->fd, &ctx->eventSet[event]);
 
 	if (tmp->fd == ctx->maxFds[event]) {
-      ctx->maxFds[event] = 0;
+      ctx->maxFds[event] = 0;;
       if (ctx->eventCnt[event] > 0) {
       	//Find next highest
          for(i = 1; i < tmp->fd; i++)
@@ -259,6 +289,9 @@ void EVT_free_handler(EVTHandler *ctx)
 
    if (!ctx)
       return;
+
+   if (ctx->dbgBuffer)
+      ipc_destroy_buffer(&ctx->dbgBuffer);
 
    if (ctx->evt_timer)
       ctx->evt_timer->cleanup(ctx->evt_timer);
@@ -517,8 +550,17 @@ char EVT_start_loop(EVTHandler *ctx)
    int startFd = 0;
    struct timeval curTime, *nextAwake;
    ScheduleCB *curProc;
+   int pause;
+
+   ctx->pause = ctx->initialDebuggerState == EDBG_STOPPED;
+   edbg_init(ctx);
 
    while(ctx->keepGoing) {
+      pause = ctx->pause;
+      edbg_report_state(ctx);
+      if (pause)
+         printf("Pause\n");
+
       for (i = 0; i < EVENT_MAX; i++) {
          if (ctx->eventCnt[i] > 0) {
             args.eventSetPtrs[i] = &eventSets[i];
@@ -532,7 +574,7 @@ char EVT_start_loop(EVTHandler *ctx)
       args.maxFd = ctx->maxFd + 1;
 
       curProc = pqueue_peek(ctx->queue);
-      if (curProc)
+      if (!pause && curProc)
          nextAwake = &curProc->nextAwake;
       else
          nextAwake = NULL;
@@ -603,7 +645,8 @@ char EVT_start_loop(EVTHandler *ctx)
       /* Recover from a select few errors.  Stop the event loop and
          gripe for all others */
       else if (retval == -1) {
-         if (errno == 0 || errno == EINTR){
+         if (errno == 0 || errno == EINTR) {
+            ctx->loop_counter++;
             continue;
          }
          else if (errno == EBADF) {
@@ -617,6 +660,8 @@ char EVT_start_loop(EVTHandler *ctx)
             return -1;
          }
       }
+
+      ctx->loop_counter++;
    }
 
    return 0;
@@ -920,4 +965,181 @@ int EVT_add_pending_reboot_cb(EVTHandler *handler, EVT_sched_cb cb, void *arg)
 int EVT_remove_pending_reboot_cb(EVTHandler *handler, EVT_sched_cb cb, void *arg)
 {
    return remove_gpio_intr_callback(&handler->gpio_intrs[1], cb, arg);
+}
+
+void EVT_set_initial_debugger_state(EVTHandler *handler,
+      enum EVTDebuggerState st)
+{
+   handler->initialDebuggerState = st;
+}
+
+static int edbg_client_msg(struct ZMQLClient *client, const void *data,
+      size_t dataLen, void *arg)
+{
+   EVTHandler *ctx = (EVTHandler*)arg;
+
+   ctx->pause = 0;
+
+   return 0;
+}
+
+static void edbg_init(EVTHandler *ctx)
+{
+   printf("Init with port %d\n", ctx->dbgPort);
+   if (ctx->initialDebuggerState == EDBG_DISABLED || !ctx->dbgPort)
+      return;
+
+   ctx->dbgServer = zmql_create_tcp_server(ctx, ctx->dbgPort,
+         edbg_client_msg, ctx);
+   if (!ctx->dbgServer)
+      return;
+
+   ctx->dbgBuffer = ipc_alloc_buffer();
+}
+
+static const char *get_function_name(void *func_addr)
+{
+   Dl_info info;
+
+   if (!dladdr(func_addr, &info)) {
+      perror("dladdr");
+      return "";
+   }
+
+   if (!info.dli_sname)
+      return "";
+
+   return info.dli_sname;
+}
+
+static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
+         struct timeval *cur_time, int first)
+{
+   struct timeval remain;
+   timersub(&data->nextAwake, cur_time, &remain);
+
+   if (!first)
+      ipc_printf_buffer(json,
+         ",\n");
+
+   ipc_printf_buffer(json,
+         "    {\n"
+         "      \"id\":%lu,\n"
+         "      \"function\":\"%s\",\n"
+         "      \"time_remaining\":%ld.%06ld,\n"
+         "      \"awake_time\":%ld.%06ld,\n"
+         "      \"schedule_time\":%ld.%06ld,\n"
+         "      \"event_length\":%ld.%06ld,\n"
+         "      \"arg_pointer\":%lu\n"
+         "    }",
+         (uintptr_t)data, get_function_name((void *)data->callback),
+         remain.tv_sec, remain.tv_usec, data->nextAwake.tv_sec,
+         data->nextAwake.tv_usec, data->scheduleTime.tv_sec,
+         data->scheduleTime.tv_usec, data->timeStep.tv_sec,
+         data->timeStep.tv_usec, (uintptr_t)data->arg);
+}
+
+static void edbg_report_timed_events(struct IPCBuffer *json, EVTHandler *ctx,
+         struct timeval *cur_time)
+{
+   size_t i;
+
+   ipc_printf_buffer(json, "  \"timed_events\": [\n");
+   for (i = 1; i <=  pqueue_size(ctx->queue); i++)
+      edbg_report_timed_event(json, (ScheduleCB *)ctx->queue->d[i],
+            cur_time, 1 == i);
+   ipc_printf_buffer(json, "\n  ],\n");
+}
+
+static void edbg_report_fd_event(struct IPCBuffer *json, struct EventCB *data,
+      int first)
+{
+   char fd_path_buff[32];
+   char filename[1024];
+   int len;
+
+   sprintf(fd_path_buff, "/proc/self/fd/%d", data->fd);
+   if ((len = readlink(fd_path_buff, filename, 1023)) < 0)
+      return;
+   filename[len] = 0;
+
+   if (!first)
+      ipc_printf_buffer(json,
+         ",\n");
+
+   ipc_printf_buffer(json,
+         "    {\n"
+         "      \"id\":%lu,\n"
+         "      \"filename\":\"%s\",\n"
+         "      \"arg_pointer\":%lu,\n",
+         (uintptr_t)data, filename, (uintptr_t)data->arg);
+
+   if (data->cb[EVENT_FD_READ])
+      ipc_printf_buffer(json, "      \"read_handler\":\"%s\",\n",
+            get_function_name(data->cb[EVENT_FD_READ]));
+
+   if (data->cb[EVENT_FD_WRITE])
+      ipc_printf_buffer(json, "      \"write_handler\":\"%s\",\n",
+            get_function_name(data->cb[EVENT_FD_WRITE]));
+
+   if (data->cb[EVENT_FD_ERROR])
+      ipc_printf_buffer(json, "      \"error_handler\":\"%s\",\n",
+            get_function_name(data->cb[EVENT_FD_ERROR]));
+
+   ipc_printf_buffer(json,
+         "      \"fd\":%d\n"
+         "    }", data->fd);
+}
+
+static void edbg_report_fd_events(struct IPCBuffer *json, EVTHandler *ctx)
+{
+   int i, first = 1;
+   struct EventCB *curr;
+
+   ipc_printf_buffer(json, "  \"fd_events\": [\n");
+
+   for (i = 0; i < ctx->hashSize; i++)
+      for (curr = ctx->events[i]; curr; curr = curr->next) {
+         edbg_report_fd_event(json, curr, first);
+         first = 0;
+      }
+
+   if (!first)
+      ipc_printf_buffer(json, "\n");
+   ipc_printf_buffer(json, "  ],\n");
+}
+
+static void edbg_report_state(EVTHandler *ctx)
+{
+   struct timeval curr_time;
+
+   if (!ctx || !ctx->dbgServer || !ctx->dbgBuffer)
+      return;
+   if (zmql_client_count(ctx->dbgServer) == 0)
+      return;
+
+   EVT_get_monotonic_time(ctx, &curr_time);
+
+   // Fill the buffer with state information
+   ipc_reset_buffer(ctx->dbgBuffer);
+   ipc_printf_buffer(ctx->dbgBuffer,
+         "{\n  \"step\": %llu,\n  \"dbg_state\": \"running\",\n  \"port\":"
+         "%u,\n", ctx->loop_counter, ctx->dbgPort);
+
+   if (ctx->debuggerStateCB)
+      ctx->debuggerStateCB(ctx->dbgBuffer, ctx->debuggerStateArg);
+
+   edbg_report_timed_events(ctx->dbgBuffer, ctx, &curr_time);
+   edbg_report_fd_events(ctx->dbgBuffer, ctx);
+
+   ipc_printf_buffer(ctx->dbgBuffer, "  \"current_time\": %ld.%06ld\n}",
+                   curr_time.tv_sec, curr_time.tv_usec);
+
+   // Send the data out to all clients
+   zmql_broadcast_buffer(ctx->dbgServer, ctx->dbgBuffer);
+}
+
+void EVT_set_debugger_port(EVTHandler *handler, int port)
+{
+   handler->dbgPort = port;
 }

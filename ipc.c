@@ -39,6 +39,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <stdarg.h>
 #include "proclib.h"
 
 #define WAIT_MS (5 * 1000)
@@ -67,9 +68,14 @@ static struct ServiceNames {
    { "camera", 50012, "234.192.101.13", { 0 }, 51012 },
    { "gps", 50013, "234.192.101.14", { 0 }, 51013 },
    { "log_cleaner", 50014, "234.192.101.15", { 0 }, 51014 },
-   { "test1", 2003, "224.0.0.1", { 0 }, 52003 },
-   { "test2", 2004, "234.192.101.16", { 0 }, 52004 },
+   { "test1", 52003, "224.0.0.1", { 0 }, 52003 },
+   { "test2", 52004, "234.192.101.16", { 0 }, 52004 },
    { NULL, 0 },
+};
+
+struct IPCBuffer {
+   size_t allocLen, dataLen;
+   char *data;
 };
 
 // gets socket by service name
@@ -121,6 +127,43 @@ int socket_init(int port)
 
       ERR_WARN(bind(fd, (const struct sockaddr *)&addr, sizeof(addr)),
             "Failed to bind socket on port %d\n", port);
+   }
+
+   return fd;
+}
+
+// gets socket by port number
+int socket_tcp_init(int port)
+{
+   struct sockaddr_in addr;
+   int fd;
+
+   // Make sure we can create the socket file desciptor before configuring
+   if ((fd=socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+      ERRNO_WARN("Failed to open TCP socket\n");
+   } else {
+      // Configure socket to be non-blocking
+      ERR_WARN(fcntl(fd, F_SETFL, O_NONBLOCK),
+            "Failed to configure socket to be non-blocking\n");
+
+      // Set up the socket address structure
+      memset((char *) &addr, 0, sizeof(addr));
+      // Select IPv4 Socket type
+      addr.sin_family = AF_INET;
+      // Convert the port from host ("readable") order to network
+      addr.sin_port = htons(port);
+      // Allow socket to receive messages from any IP address
+      addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+      // Set option to share the port if it's already in use
+      int option = 1;
+      ERR_WARN(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)), "set socket options");
+
+      ERR_WARN(bind(fd, (const struct sockaddr *)&addr, sizeof(addr)),
+            "Failed to bind socket on port %d\n", port);
+
+      ERR_WARN(listen(fd, 10),
+            "Failed to listen on TCP port $d\n", port);
    }
 
    return fd;
@@ -407,4 +450,173 @@ int socket_resolve_host(const char *host, struct in_addr *addr)
    *addr = *(struct in_addr*)(hp->h_addr);
 
    return 1;
+}
+
+struct IPCBuffer *ipc_alloc_buffer(void)
+{
+   struct IPCBuffer *result;
+
+   result = (struct IPCBuffer*) malloc(sizeof(struct IPCBuffer));
+   if (!result)
+      return NULL;
+   memset(result, 0, sizeof(*result));
+
+   return result;
+}
+
+void ipc_destroy_buffer(struct IPCBuffer **goner)
+{
+   struct IPCBuffer *buffer;
+
+   if (!goner)
+      return;
+   buffer = *goner;
+   *goner = NULL;
+   if (!buffer)
+      return;
+
+   if (buffer->data)
+      free(buffer->data);
+   free(buffer);
+}
+
+void ipc_reset_buffer(struct IPCBuffer *buffer)
+{
+   if (buffer)
+      buffer->dataLen = 0;
+}
+
+int ipc_write_buffer_sync(int fd, struct IPCBuffer *buffer)
+{
+   size_t sent = 0;
+   int written;
+
+   if (!buffer || !buffer->dataLen || !buffer->data)
+      return 0;
+
+   while (sent < buffer->dataLen) {
+      written = write(fd, &buffer->data[sent], buffer->dataLen - sent);
+      if (written < 0 && errno != EAGAIN)
+         return -1;
+      else
+         sent += written;
+   }
+
+   return 0;
+}
+
+int ipc_append_buffer(struct IPCBuffer *buffer, const void *data, int len)
+{
+   if (!buffer || len <= 0)
+      return 0;
+
+   if (!buffer->data) {
+      buffer->allocLen = 1024;
+      buffer->data = malloc(buffer->allocLen);
+      if (!buffer->data)
+         return -1;
+   }
+
+   if (len >= (buffer->allocLen - buffer->dataLen)) {
+      while (len >= (buffer->allocLen - buffer->dataLen))
+         buffer->allocLen *= 2;
+
+      buffer->data = realloc(buffer->data, buffer->allocLen);
+      if (!buffer->data) {
+         buffer->allocLen = 0;
+         return -1;
+      }
+   }
+
+   if (len >= (buffer->allocLen - buffer->dataLen))
+      return -1;
+
+   memcpy(&buffer->data[buffer->dataLen], data, len);
+   buffer->dataLen += len;
+
+   return len;
+}
+
+int ipc_printf_buffer(struct IPCBuffer *buffer, const char *fmt, ...)
+{
+   int len;
+   va_list ap;
+
+   if (!buffer)
+      return 0;
+   if (!buffer->data) {
+      buffer->allocLen = 1024;
+      buffer->data = malloc(buffer->allocLen);
+      if (!buffer->data)
+         return -1;
+   }
+
+   va_start(ap, fmt);
+   len = vsnprintf(&buffer->data[buffer->dataLen],
+         buffer->allocLen - buffer->dataLen, fmt, ap);
+   va_end(ap);
+   if (len < 0)
+      return -1;
+   if (len == 0)
+      return 0;
+
+   // If the string didn't fit grow the buffer and try again
+   if (len >= (buffer->allocLen - buffer->dataLen)) {
+      while (len >= (buffer->allocLen - buffer->dataLen))
+         buffer->allocLen *= 2;
+
+      buffer->data = realloc(buffer->data, buffer->allocLen);
+      if (!buffer->data) {
+         buffer->allocLen = 0;
+         return -1;
+      }
+
+      va_start(ap, fmt);
+      len = vsnprintf(&buffer->data[buffer->dataLen],
+         buffer->allocLen - buffer->dataLen, fmt, ap);
+      va_end(ap);
+      if (len < 0)
+         return -1;
+      if (len == 0)
+         return 0;
+      if (len >= (buffer->allocLen - buffer->dataLen))
+         return -1;
+   }
+
+   buffer->dataLen += len;
+
+   return len;
+}
+
+int ipc_process_buffer(struct IPCBuffer *buffer, ipc_buffer_cb cb, void *arg)
+{
+   size_t consumed = 0, len, i;
+
+   if (!cb || !buffer || !buffer->data || 0 == buffer->dataLen)
+      return 0;
+
+   do {
+      len = cb(&buffer->data[consumed], buffer->dataLen - consumed, arg);
+      consumed += len;
+   } while (len > 0);
+
+   if (consumed > 0) {
+      if (consumed == buffer->dataLen)
+         ipc_reset_buffer(buffer);
+      else {
+         for (i = 0; i < (buffer->dataLen - consumed); i++)
+            buffer->data[i] = buffer->data[i + consumed];
+         buffer->dataLen -= consumed;
+      }
+   }
+
+   return consumed;
+}
+
+size_t ipc_buffer_size(struct IPCBuffer *buffer)
+{
+   if (!buffer)
+      return 0;
+
+   return buffer->dataLen;
 }

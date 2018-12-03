@@ -30,9 +30,9 @@ class DebugDataBroadcast(sockjs.tornado.SockJSConnection):
 
 def setup_zmq_sub():
     ctx = zmq.Context()
-    s = ctx.socket(zmq.SUB)
-    s.connect('tcp://localhost:5565')
-    s.setsockopt_string(zmq.SUBSCRIBE, unicode("", "utf_8"))
+    s = ctx.socket(zmq.PAIR)
+    s.connect('tcp://localhost:52003')
+    s.send_string('{"command":"run"}')
     stream = ZMQStream(s)
 
     def update_debug_state(msg):

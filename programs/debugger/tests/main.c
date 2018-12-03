@@ -1,8 +1,6 @@
 #include <stdio.h>
-#include <polysat/polysat.h>
-#include <polysat/eventTimer.h>
-
-#include "../core/eventtimer.h"
+#include "proclib.h"
+#include "events.h"
 
 int signal_handler(int signal, void *arg)
 {
@@ -41,7 +39,6 @@ int oh_my(void *arg)
 int main(void)
 {
    struct ProcessData *proc;
-   struct EventTimer *et;
 
    // Initialize the process
    proc = PROC_init("test1", WD_DISABLED);
@@ -50,13 +47,6 @@ int main(void)
       return -1;
    }
    
-   // Enable the debugger   
-   et = ET_debug_init(proc);
-   if (!et) {
-      printf("error: failed to create event timer\n");
-      return -1;
-   } 
-
    // Setup a signal event 
    PROC_signal(proc, SIGINT, &signal_handler, proc);
 
@@ -64,6 +54,7 @@ int main(void)
    EVT_sched_add(PROC_evt(proc), EVT_ms2tv(3000), &some_crazy_function, NULL);
    EVT_sched_add(PROC_evt(proc), EVT_ms2tv(10000), &wow, NULL);
    EVT_sched_add(PROC_evt(proc), EVT_ms2tv(20000), &oh_my, NULL);
+   EVT_set_initial_debugger_state(PROC_evt(proc), EDBG_STOPPED);
 
    EVT_start_loop(PROC_evt(proc));
    

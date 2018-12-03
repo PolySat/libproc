@@ -28,6 +28,8 @@
 #include <sys/select.h>
 
 #include "priorityQueue.h"
+#include "ipc.h"
+#include "zmqlite.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +44,18 @@ extern "C" {
 /// Defines to add or remove an event type
 #define EVENT_KEEP     1 // Keep an event
 #define EVENT_REMOVE   2 // Remove an event
+
+typedef void (*EVT_debug_state_cb)(struct IPCBuffer*, void*);
+
+enum EVTDebuggerState {
+   /// The debugger is disabled
+   EDBG_DISABLED = 1,
+   /// The debuger is enabled
+   EDBG_ENABLED = 2,
+   /// The debugger is enabled and the process is stopped
+   EDBG_STOPPED = 3,
+};
+
 
 // A callback for a file descriptor event
 typedef int (*EVT_fd_cb)(int fd, char type, void *arg);
@@ -82,6 +96,8 @@ struct GPIOInterruptDesc {
    struct GPIOInterruptCBList *callbacks;
 };
 
+struct EDBGClient;
+
 // A structure which contains information regarding the state of the event handler
 typedef struct EventState
 {
@@ -93,15 +109,26 @@ typedef struct EventState
    pqueue_t *queue;                                   // The schedule queue
    struct EventTimer *evt_timer;
 
+   enum EVTDebuggerState initialDebuggerState;
+   int dbgPort;
+   struct ZMQLServer *dbgServer;
+   struct IPCBuffer *dbgBuffer;
+   unsigned long long loop_counter;
+   int pause;
+   EVT_debug_state_cb debuggerStateCB;
+   void *debuggerStateArg;
+
+   // MUST be last entry in struct
    EventCBPtr events[1];				                      // List of pointers to event callbacks
 } EVTHandler;
 
 /**
  * Create an event handler.
+ * @param arg Context parameter passed to debugging related functions.
  *
  * @return The event handler.
  */
-EVTHandler *EVT_create_handler();
+EVTHandler *EVT_create_handler(EVT_debug_state_cb debug_cb, void *arg);
 
 /**
  * Free an event handler.
@@ -345,6 +372,22 @@ int EVT_add_pending_reboot_cb(EVTHandler *handler ,EVT_sched_cb cb, void *arg);
   * @return 0 if unregistration successful, negative otherwise
   */
 int EVT_remove_pending_reboot_cb(EVTHandler *handler, EVT_sched_cb cb, void *arg);
+
+/** Sets the debugger's initial state to the provided paramater.  Can be
+  * used to programatically enable remote event debugging.  This must be called
+  * before entering the event loop, otherwise it has no effect.
+  * @param handler The event handler.
+  * @param st The state to use when initializing the debugger.
+  */
+void EVT_set_initial_debugger_state(EVTHandler *handler,
+      enum EVTDebuggerState st);
+
+/** Sets the TCP port used by the event debugger.
+  *
+  * @param handler The event handler.
+  * @param port The port number to use
+  */
+void EVT_set_debugger_port(EVTHandler *handler, int port);
 
 #ifdef __cplusplus
 }

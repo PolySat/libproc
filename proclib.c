@@ -43,6 +43,7 @@
 #include <time.h>
 #include "critical.h"
 #include <pthread.h>
+#include "ipc.h"
 
 #define READ_BUFF_MIN 4096
 #define READ_BUFF_MAX (READ_BUFF_MIN * 4)
@@ -152,6 +153,13 @@ int PROC_udp_id(ProcessData *proc)
    return proc->cmdPort;
 }
 
+static void PROC_debugger_state(struct IPCBuffer *buff, void *arg)
+{
+   ProcessData *proc = (ProcessData*)arg;
+
+   ipc_printf_buffer(buff, "  \"process_name\": \"%s\",\n", proc->name);
+}
+
 //Initializes a ProcessData object
 ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
 {
@@ -161,6 +169,7 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
    int fd;
    FILE *inp;
    int oldPid = -1;
+
 #ifdef TIME_TEST
    struct timeval startTime;
    struct timeval endTime;
@@ -173,8 +182,6 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
    if (!proc)
       return NULL;
    memset(proc, 0, sizeof(*proc));
-   proc->signalCBHead = NULL;                           //Redundant?
-   proc->childHead = NULL;
 
    // Allocate enough space for process name and terminating null byte
    if (procName) {
@@ -258,7 +265,8 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
          "Failed to open TX socket for %s\n", procName);
 
    // Initialize event handler and return it
-   proc->evtHandler = EVT_create_handler();
+   proc->evtHandler = EVT_create_handler(PROC_debugger_state, proc);
+   EVT_set_debugger_port(proc->evtHandler, socket_get_addr_by_name(proc->name));
    //set up sigPipe to take signals. Signals will be treated as an event with cb 'signal_fd_cb'
    setup_signal_fd(proc);
 
