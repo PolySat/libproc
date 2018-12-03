@@ -57,7 +57,7 @@ int main(void)
    struct ProcessData *proc;
 
    /* Initialize the process */
-   proc = PROC_init("test1");
+   proc = PROC_init("test1", WD_DISABLED);
    if (!proc) {
       printf("error: failed to initialize process\n");
       return -1;

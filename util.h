@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,7 +59,6 @@ extern int UTIL_ensure_dir(const char *dir);
     false otherwise
  **/
 extern int UTIL_ensure_path(const char *dir);
-
 
 #ifdef __cplusplus
 }

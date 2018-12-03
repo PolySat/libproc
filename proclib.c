@@ -691,8 +691,8 @@ ProcChild *PROC_fork_child_fd(struct ProcessData *proc, int inFd_read, int inFd_
    char **argv = NULL;
    pid_t childPid;
 
-   if(vasprintf(&cmd, cmdFmt, ap)) {
-      DBG_print(DBG_LEVEL_WARN, "Unsuccessful memory allocation\n");
+   if(vasprintf(&cmd, cmdFmt, ap) < 0) {
+      ERR_REPORT(DBG_LEVEL_WARN, "vasprintf failure\n");
       goto err_cleanup;
    }
 
