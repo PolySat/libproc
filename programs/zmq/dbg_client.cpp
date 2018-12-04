@@ -21,7 +21,7 @@ int main(int argc, char **argv)
     // s_send (client, "{\"command\":\"run\"}");
 
     while (1) {
-       s_send (client, "{\"command\":\"next\"}");
+       // s_send (client, "{\"command\":\"next\"}");
        std::string msg = s_recv (client);
        std::cout << "Received: " << msg << std::endl;
     }

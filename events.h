@@ -72,6 +72,8 @@ typedef struct _ScheduleCB
 	void *arg;
 	size_t pos;
 	struct timeval timeStep;
+   pqueue_t *queue;
+   uint32_t count;
 } ScheduleCB;
 
 // Structure which defines a file callback
@@ -80,6 +82,9 @@ typedef struct EventCB
    EVT_fd_cb cb[EVENT_MAX];		  // An array of function callbacks to call
    EVT_fd_cb cleanup[EVENT_MAX];	// An array of cleanup callback to call
    void *arg[EVENT_MAX];			      // An array of arguments to pass to callbacks
+   uint32_t counts[EVENT_MAX];
+   char paused[EVENT_MAX];
+   char pausable;
    int fd;				                // The file descriptor which will launch the event
    struct EventCB *next;		      // The next signal callback
 } *EventCBPtr;
@@ -102,23 +107,32 @@ struct EDBGClient;
 typedef struct EventState
 {
    fd_set eventSet[EVENT_MAX];				                // File descriptor sets to watch
+   fd_set blockedSet[EVENT_MAX];				                // File descriptor sets to watch
    int maxFd, maxFds[EVENT_MAX], eventCnt[EVENT_MAX];	// fd information
    int hashSize;				    	                        // The hash size of the event handler
    int keepGoing;				    	                        // Whether the handler should loop or not
    struct GPIOInterruptDesc gpio_intrs[2];            // GPIO interrupt state
-   pqueue_t *queue;                                   // The schedule queue
+   pqueue_t *queue, *dbg_queue;                       // The schedule queue
    struct EventTimer *evt_timer;
+   char custom_timer;
 
    enum EVTDebuggerState initialDebuggerState;
+   enum EVTDebuggerState debuggerState;
    int dbgPort;
    struct ZMQLServer *dbgServer;
    struct IPCBuffer *dbgBuffer;
    unsigned long long loop_counter;
    unsigned long long timed_event_counter;
+   unsigned long long fd_event_counter;
    int steps_to_pause;
-   int pause;
+   int time_breakpoint;
    EVT_debug_state_cb debuggerStateCB;
    void *debuggerStateArg;
+   ScheduleCB *next_timed_event;
+   EventCBPtr next_fd_event;
+   int next_fd_event_evt;
+   int dbg_step;
+   void *dump_evt;
 
    // MUST be last entry in struct
    EventCBPtr events[1];				                      // List of pointers to event callbacks

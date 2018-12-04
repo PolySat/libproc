@@ -45,15 +45,15 @@ static void json_setup_cb(const char *key_start, const char *key_end,
    itr(key, val, arg);
 }
 
-static enum JSONParserResult json_iterate_props(const char *json,
+static enum JSONParserResult json_iterate_props(const char *json, int len,
       json_itr_cb itr, void *arg)
 {
    enum JSONParserMode mode = START_OBJ;
    const char *curr, *key_start = NULL, *key_end = NULL;
    const char *val_start = NULL, *val_end = NULL;
 
-   for (curr = json; curr && *curr; curr++) {
-      // printf("%02X: %d\n", *curr, (int)mode);
+   for (curr = json; curr && curr < (json + len); curr++) {
+      // printf("%02X (%c): %d\n", *curr, *curr, (int)mode);
       switch (*curr) {
          case ' ':
          case '\t':
@@ -151,7 +151,7 @@ static enum JSONParserResult json_iterate_props(const char *json,
 
 struct JStrItr {
    const char *prop;
-   const char *val;
+   char *val;
 };
 
 struct JIntItr {
@@ -175,10 +175,11 @@ static void json_str_itr_cb(const char *prop, const char *val, void *arg)
    struct JStrItr *params = (struct JStrItr*)arg;
 
    if (params && params->prop && !strcmp(params->prop, prop))
-      params->val = val;
+      params->val = strdup(val);
 }
 
-int json_get_string_prop(const char *json, const char *prop, const char **out)
+int json_get_string_prop(const char *json, int len, const char *prop,
+      char **out)
 {
    struct JStrItr params;
    enum JSONParserResult err;
@@ -189,9 +190,12 @@ int json_get_string_prop(const char *json, const char *prop, const char **out)
    params.prop = prop;
    params.val = NULL;
 
-   err = json_iterate_props(json, json_str_itr_cb, &params);
+   err = json_iterate_props(json, len, json_str_itr_cb, &params);
    if (err != PARSE_GOOD) {
+      if (params.val)
+         free(params.val);
       printf("JSON Parsing failed with error %d\n", err);
+      printf("   %s\n", json);
       return -(int)err;
    }
 
@@ -199,7 +203,7 @@ int json_get_string_prop(const char *json, const char *prop, const char **out)
    return 0;
 }
 
-int json_get_int_prop(const char *json, const char *prop, int *out)
+int json_get_int_prop(const char *json, int len, const char *prop, int *out)
 {
    struct JIntItr params;
    enum JSONParserResult err;
@@ -211,7 +215,7 @@ int json_get_int_prop(const char *json, const char *prop, int *out)
    params.val = 0;
    params.found = 0;
 
-   err = json_iterate_props(json, json_int_itr_cb, &params);
+   err = json_iterate_props(json, len, json_int_itr_cb, &params);
    if (err != PARSE_GOOD) {
       printf("JSON Parsing failed with error %d\n", err);
       return -(int)err;

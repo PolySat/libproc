@@ -45,6 +45,7 @@ struct ZMQLClient {
    struct ZMQLClient *next;
    int closeFlag;
    zmql_client_message_cb msgCb;
+   zmql_client_status_cb connectCb, disconnectCb;
    void *msgArg;
 };
 
@@ -53,9 +54,18 @@ struct ZMQLServer {
    int clientCount;
    struct ZMQLClient *clients;
    zmql_client_message_cb msgCb;
+   zmql_client_status_cb connectCb, disconnectCb;
    void *msgArg;
    EVTHandler *evt;
 };
+
+int zmql_server_socket(struct ZMQLServer *server)
+{
+   if (server)
+      return server->socket;
+
+   return -1;
+}
 
 static size_t zmql_client_process(const char *data, size_t dataLen, void *arg)
 {
@@ -98,6 +108,8 @@ static size_t zmql_client_process(const char *data, size_t dataLen, void *arg)
       if (0 == memcmp(data, ZMQ_AUTH_DATA, ZMQ_AUTH_LEN)) {
          zmql_client_raw_write(client, ZMQ_HANDSHAKE_DATA, ZMQ_HANDSHAKE_LEN);
          client->state = ZMQL_DATA;
+         if (client->connectCb)
+            client->connectCb(client, client->msgArg);
          return ZMQ_AUTH_LEN;
       }
       else {
@@ -199,6 +211,8 @@ int zmql_accept_cb(int fd, char type, void *arg)
    client->state = ZMQL_SIGNATURE;
    client->msgCb = server->msgCb;
    client->msgArg = server->msgArg;
+   client->disconnectCb = server->disconnectCb;
+   client->connectCb = server->connectCb;
 
    EVT_fd_add(server->evt, client->socket, EVENT_FD_READ,
          zmql_client_read_cb, client);
@@ -209,7 +223,8 @@ int zmql_accept_cb(int fd, char type, void *arg)
 }
 
 struct ZMQLServer *zmql_create_tcp_server(EVTHandler *evt, int port,
-      zmql_client_message_cb cb, void *arg)
+      zmql_client_message_cb cb, zmql_client_status_cb con_cb,
+      zmql_client_status_cb discon_cb, void *arg)
 {
    struct ZMQLServer *server;
 
@@ -227,6 +242,8 @@ struct ZMQLServer *zmql_create_tcp_server(EVTHandler *evt, int port,
    server->evt = evt;
    server->msgCb = cb;
    server->msgArg = arg;
+   server->connectCb = con_cb;
+   server->disconnectCb = discon_cb;
 
    EVT_fd_add(evt, server->socket, EVENT_FD_READ, zmql_accept_cb, server);
 
@@ -276,6 +293,8 @@ void zmql_destroy_client(struct ZMQLClient **goner)
 
    if (!client->closeFlag)
       EVT_fd_remove(client->server->evt, client->socket, EVENT_FD_READ);
+   if (client->state == ZMQL_DATA && client->disconnectCb)
+      client->disconnectCb(client, client->msgArg);
 
    if (client->server)
       client->server->clientCount--;
@@ -341,4 +360,12 @@ int zmql_client_count(struct ZMQLServer *server)
    if (!server)
       return 0;
    return server->clientCount;
+}
+
+struct ZMQLServer *zmql_server_for_client(struct ZMQLClient *client)
+{
+   if (client)
+      return client->server;
+
+   return NULL;
 }

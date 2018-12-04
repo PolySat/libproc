@@ -62,6 +62,9 @@ static EVTHandler *global_evt = NULL;
 
 static void edbg_init(EVTHandler *ctx);
 static void edbg_report_state(EVTHandler *ctx);
+void evt_fd_set_pausable(EVTHandler *ctx, int fd, char pausable);
+extern int ET_default_monotonic(struct EventTimer *et, struct timeval *tv);
+extern char EVT_sched_move_to_mono(EVTHandler *handler, void *eventId);
 
 #ifndef timercmp
 # define timercmp(a, b, CMP)                                                  \
@@ -185,6 +188,7 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    // Configure the initial debugger state
    dbg_state = getenv(EDBG_ENV_VAR);
    res->initialDebuggerState = EDBG_DISABLED;
+   res->debuggerState = EDBG_DISABLED;
    if (dbg_state) {
       if (!strcasecmp(dbg_state, "ENABLED"))
          res->initialDebuggerState = EDBG_ENABLED;
@@ -192,9 +196,13 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
          res->initialDebuggerState = EDBG_STOPPED;
    }
 
+   if (res->initialDebuggerState != EDBG_DISABLED)
+      res->debuggerState = EDBG_ENABLED;
+
    res->keepGoing = 1;
    for ( i = 0; i < EVENT_MAX; i++) {
       FD_ZERO(&res->eventSet[i]);
+      FD_ZERO(&res->blockedSet[i]);
       res->maxFds[i] = 0;
       res->eventCnt[i] = 0;
    }
@@ -203,8 +211,18 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    for (i = 0; i < res->hashSize; i++)
       res->events[i] = NULL;
 
-   res->queue = pqueue_init(hashSize, cmp_pri, get_pri, set_pri, get_pos, set_pos);
+   res->queue = pqueue_init(hashSize, cmp_pri, get_pri, set_pri,
+         get_pos, set_pos);
    if (res->queue == NULL){
+      free(res);
+ 	   return NULL;
+   }
+
+   // FIXME
+   res->dbg_queue = pqueue_init(hashSize, cmp_pri, get_pri, set_pri,
+         get_pos, set_pos);
+   if (res->dbg_queue == NULL){
+      free(res->queue);
       free(res);
  	   return NULL;
    }
@@ -219,7 +237,13 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    global_evt = res;
    res->loop_counter = 0;
    res->timed_event_counter = 0;
+   res->fd_event_counter = 0;
    res->steps_to_pause = 0;
+   res->next_timed_event = NULL;
+   res->next_fd_event = NULL;
+   res->custom_timer = 0;
+   res->dump_evt = NULL;
+
    return res;
 }
 
@@ -251,6 +275,7 @@ static int EVT_remove_internal(struct EventState *ctx, struct EventCB **curr,
    tmp->cleanup[event] = NULL;
    tmp->arg[event] = NULL;
    FD_CLR(tmp->fd, &ctx->eventSet[event]);
+   FD_CLR(tmp->fd, &ctx->blockedSet[event]);
 
 	if (tmp->fd == ctx->maxFds[event]) {
       ctx->maxFds[event] = 0;;
@@ -299,6 +324,9 @@ void EVT_free_handler(EVTHandler *ctx)
       ctx->evt_timer->cleanup(ctx->evt_timer);
    global_evt = NULL;
 
+   if (ctx->dump_evt)
+      EVT_sched_remove(ctx, ctx->dump_evt);
+
    for(i = 0; i < ctx->hashSize; i++){
       while(ctx->events[i]){
          for(event = 0; event < EVENT_MAX; event++){
@@ -313,7 +341,14 @@ void EVT_free_handler(EVTHandler *ctx)
        free(curProc);
    }
 
+   while ((curProc = pqueue_peek(ctx->dbg_queue))) {
+       pqueue_pop(ctx->dbg_queue);
+       // Call the callback and see if it wants to be kept
+       free(curProc);
+   }
+
    pqueue_free(ctx->queue);
+   pqueue_free(ctx->dbg_queue);
    free(ctx);
 }
 
@@ -361,7 +396,9 @@ char EVT_fd_add_with_cleanup(EVTHandler *ctx, int fd, int event,
          curr->cb[i] = NULL;
          curr->cleanup[i] = NULL;
          curr->arg[i] = NULL;
+         curr->paused[i] = 0;
       }
+      curr->pausable = 1;
       curr->fd = fd;
       curr->next = ctx->events[fd % ctx->hashSize];
       ctx->events[fd % ctx->hashSize] = curr;
@@ -380,6 +417,8 @@ char EVT_fd_add_with_cleanup(EVTHandler *ctx, int fd, int event,
    curr->arg[event] = p;
 
    FD_SET(fd, &ctx->eventSet[event]);
+   if (!curr->pausable || !curr->paused[event])
+      FD_SET(fd, &ctx->blockedSet[event]);
 
    if (fd > ctx->maxFds[event]){
       ctx->maxFds[event] = fd;
@@ -485,6 +524,7 @@ void EVT_set_evt_timer(EVTHandler *ctx, struct EventTimer *et)
       ctx->evt_timer->cleanup(ctx->evt_timer);
    
    ctx->evt_timer = et;
+   ctx->custom_timer = 1;
 }
 
 /**
@@ -524,19 +564,88 @@ int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv)
    return ctx->evt_timer->get_monotonic_time(ctx->evt_timer, tv);
 }
 
+static void edbg_breakpoint(EVTHandler *ctx)
+{
+   ctx->debuggerState = EDBG_STOPPED;
+   edbg_report_state(ctx);
+}
+
+static int evt_process_timed_event(EVTHandler *ctx,
+      ScheduleCB *curProc, struct timeval curTime, int stepping)
+{
+   if (!stepping && ctx->time_breakpoint) {
+      ctx->next_timed_event = curProc;
+      edbg_breakpoint(ctx);
+      return 0;
+   }
+   /*
+   if (ctx->steps_to_pause > 0) {
+      if (--ctx->steps_to_pause <= 0) {
+         ctx->time_breakpoint = 0;
+         // time_paused = 1;
+      }
+   }
+   */
+
+   // Pop event from the queue
+   ctx->timed_event_counter++;
+   curProc->count++;
+
+   // Call the callback and see if it wants to be kept
+   if (curProc->callback(curProc->arg) == EVENT_KEEP) {
+      curProc->scheduleTime = curTime;
+      timeradd(&curProc->nextAwake,
+         &curProc->timeStep, &curProc->nextAwake);
+      pqueue_insert(curProc->queue, curProc);
+   } else
+      free(curProc);
+
+   return 1;
+}
+
+int evt_process_fd_event(EVTHandler *ctx, struct EventCB **evtCurr, int event)
+{
+   int keep = EVENT_KEEP;
+
+   if ((*evtCurr)->cb[event]) {
+      (*evtCurr)->counts[event]++;
+      keep = (*(*evtCurr)->cb[event])((*evtCurr)->fd, event,
+                        (*evtCurr)->arg[event]);
+      ctx->fd_event_counter++;
+   }
+
+   if (EVENT_REMOVE == keep)
+      EVT_remove_internal(ctx, evtCurr, event);
+
+   return 1;
+}
+
 struct EVT_select_cb_args {
    fd_set *eventSetPtrs[EVENT_MAX];
    int maxFd;
+   struct timeval *mono_to;
 };
 
 static int select_event_loop_cb(struct EventTimer *et,
     struct timeval *nextAwake, void *opaque)
 {
    struct EVT_select_cb_args *args = (struct EVT_select_cb_args*)opaque;
+   struct timeval *to = nextAwake, now, diff;
+
+   if (args->mono_to) {
+      ET_default_monotonic(NULL, &now);
+      if (timercmp(&now, args->mono_to, >=))
+         diff.tv_sec = diff.tv_usec = 0;
+      else
+         timersub(args->mono_to, &now, &diff);
+
+      if (!to || timercmp(&diff, to, <))
+         to = &diff;
+   }
 
    return select(args->maxFd, args->eventSetPtrs[EVENT_FD_READ],
                   args->eventSetPtrs[EVENT_FD_WRITE],
-                  args->eventSetPtrs[EVENT_FD_ERROR], nextAwake);
+                  args->eventSetPtrs[EVENT_FD_ERROR], to);
 }
 
 char EVT_start_loop(EVTHandler *ctx)
@@ -547,76 +656,96 @@ char EVT_start_loop(EVTHandler *ctx)
    int retval;
    int event, fd;
    struct EventCB **evtCurr;
-   int keep;
    int startEvent = EVENT_FD_READ;
    int startFd = 0;
    struct timeval curTime, *nextAwake;
    ScheduleCB *curProc;
-   int pause;
+   int time_paused = 0;
+   int fd_paused = 0;
+   int real_event;
 
-   ctx->pause = ctx->initialDebuggerState == EDBG_STOPPED;
+   ctx->time_breakpoint = ctx->initialDebuggerState == EDBG_STOPPED;
    edbg_init(ctx);
 
    while(ctx->keepGoing) {
-      pause = ctx->pause;
-      edbg_report_state(ctx);
+      real_event = 0;
+      // Process any single-step events
+      if (ctx->dbg_step && ctx->next_timed_event) {
+         ctx->evt_timer->get_monotonic_time(ctx->evt_timer, &curTime);
+         evt_process_timed_event(ctx, ctx->next_timed_event, curTime, 1);
+         ctx->next_timed_event = NULL;
+         ctx->debuggerState = EDBG_ENABLED;
+         real_event = 1;
+      }
+      if (ctx->dbg_step && ctx->next_fd_event) {
+         evt_process_fd_event(ctx, &ctx->next_fd_event, ctx->next_fd_event_evt);
+         ctx->next_fd_event = NULL;
+         ctx->debuggerState = EDBG_ENABLED;
+         real_event = 1;
+      }
+      ctx->dbg_step = 0;
+
+      time_paused = fd_paused = ctx->next_timed_event || ctx->next_fd_event;
 
       for (i = 0; i < EVENT_MAX; i++) {
          if (ctx->eventCnt[i] > 0) {
             args.eventSetPtrs[i] = &eventSets[i];
-            //FD_COPY(&ctx->eventSet[i], args.eventSetPtrs[i]);
-				memcpy(args.eventSetPtrs[i], &ctx->eventSet[i], sizeof(*(&ctx->eventSet[i])));
+            if (fd_paused)
+				   memcpy(args.eventSetPtrs[i], &ctx->blockedSet[i],
+                     sizeof(*(&ctx->blockedSet[i])));
+            else
+				   memcpy(args.eventSetPtrs[i], &ctx->eventSet[i],
+                     sizeof(*(&ctx->eventSet[i])));
          }
          else
             args.eventSetPtrs[i] = NULL;
       }
 
       args.maxFd = ctx->maxFd + 1;
+      args.mono_to = NULL;
 
       curProc = pqueue_peek(ctx->queue);
-      if (!pause && curProc)
+      if (!time_paused && curProc)
          nextAwake = &curProc->nextAwake;
       else
          nextAwake = NULL;
+
+      curProc = pqueue_peek(ctx->dbg_queue);
+      if (curProc)
+         args.mono_to = &curProc->nextAwake;
       
       // Call blocking function of event timer
-      retval = ctx->evt_timer->block(ctx->evt_timer, nextAwake,
+      retval = ctx->evt_timer->block(ctx->evt_timer, nextAwake, time_paused,
                      &select_event_loop_cb, &args);
 
       // Process Timed Events
-      while (!pause && (curProc = pqueue_peek(ctx->queue))) {
+      while (!time_paused && (curProc = pqueue_peek(ctx->queue))) {
          ctx->evt_timer->get_monotonic_time(ctx->evt_timer, &curTime);
 
          if (timercmp(&curProc->nextAwake, &curTime, >)) {
             // Event is not yet ready
             break;
          }
-
-         if (ctx->steps_to_pause > 0) {
-            if (--ctx->steps_to_pause <= 0) {
-               ctx->pause = 1;
-               pause = 1;
-            }
-         }
-
-         // Pop event from the queue
          pqueue_pop(ctx->queue);
-         ctx->timed_event_counter++;
+         if (!evt_process_timed_event(ctx, curProc, curTime, 0))
+            goto next_loop_iteration;
+         real_event = 1;
+      }
 
-         // Call the callback and see if it wants to be kept
-         if (curProc->callback(curProc->arg) == EVENT_KEEP) {
-            curProc->scheduleTime = curTime;
-            timeradd(&curProc->nextAwake,
-               &curProc->timeStep, &curProc->nextAwake);
-            pqueue_insert(ctx->queue, curProc);
-         } else {
-            free(curProc);
+      while ((curProc = pqueue_peek(ctx->dbg_queue))) {
+         ET_default_monotonic(NULL, &curTime);
+
+         if (timercmp(&curProc->nextAwake, &curTime, >)) {
+            // Event is not yet ready
+            break;
          }
+         pqueue_pop(ctx->dbg_queue);
+         evt_process_timed_event(ctx, curProc, curTime, 1);
       }
 
       /* Process FD events */
       if (retval > 0) {
-               event = startEvent;
+         event = startEvent;
          startFd = (startFd + 1) % args.maxFd;
 
          do {
@@ -625,20 +754,14 @@ char EVT_start_loop(EVTHandler *ctx)
                do {
                   if (FD_ISSET(fd, args.eventSetPtrs[event])) {
                      retval--;
-                     keep = EVENT_KEEP;
                      for(evtCurr = &ctx->events[fd % ctx->hashSize];
                            *evtCurr; evtCurr = &(*evtCurr)->next) {
                         if ((*evtCurr)->fd != fd)
                            continue;
-                        if ((*evtCurr)->cb[event]) {
-                           keep = (*(*evtCurr)->cb[event])
-                              (fd, event, (*evtCurr)->arg[event]);
-                        }
+                        if (!evt_process_fd_event(ctx, evtCurr, event))
+                           goto next_loop_iteration;
+                        real_event = 1;
                         break;
-                     }
-
-                     if (EVENT_REMOVE == keep){
-                        EVT_remove_internal(ctx, evtCurr, event);
                      }
                   }
                   fd = (fd + 1) % args.maxFd;
@@ -669,7 +792,11 @@ char EVT_start_loop(EVTHandler *ctx)
          }
       }
 
+next_loop_iteration:
       ctx->loop_counter++;
+
+      if (real_event)
+         edbg_report_state(ctx);
    }
 
    return 0;
@@ -701,8 +828,9 @@ void *EVT_sched_add(EVTHandler *handler, struct timeval time,
    timeradd(&newSchedCB->scheduleTime, &time, &newSchedCB->nextAwake);
    newSchedCB->callback = cb;
    newSchedCB->arg = arg;
+   newSchedCB->queue = handler->queue;
 
-   if (0 == pqueue_insert(handler->queue, newSchedCB)){
+   if (0 == pqueue_insert(newSchedCB->queue, newSchedCB)){
      return newSchedCB;
    }
 
@@ -736,8 +864,9 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
    timeradd(&newSchedCB->scheduleTime, &time, &newSchedCB->nextAwake);
    newSchedCB->callback = cb;
    newSchedCB->arg = arg;
+   newSchedCB->queue = handler->queue;
 
-   if (0 == pqueue_insert(handler->queue, newSchedCB)){
+   if (0 == pqueue_insert(newSchedCB->queue, newSchedCB)){
       return newSchedCB;
    }
 
@@ -755,11 +884,14 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
  */
 void *EVT_sched_remove(EVTHandler *handler, void *eventId)
 {
+   ScheduleCB *evt = (ScheduleCB*)eventId;
    void *result = NULL;
+   if (!evt)
+      return NULL;
 
-   if (0 == pqueue_remove(handler->queue, eventId)) {
-      result = ((ScheduleCB*)eventId)->arg;
-      free(eventId);
+   if (0 == pqueue_remove(evt->queue, eventId)) {
+      result = evt->arg;
+      free(evt);
    }
 
    return result;
@@ -783,10 +915,32 @@ char EVT_sched_update(EVTHandler *handler, void *eventId, struct timeval time)
       return 1;
    }
 
-   handler->evt_timer->get_monotonic_time(handler->evt_timer, &evt->scheduleTime);
+   if (evt->queue == handler->queue)
+      handler->evt_timer->get_monotonic_time(handler->evt_timer,
+            &evt->scheduleTime);
+   else
+      ET_default_monotonic(NULL, &evt->scheduleTime);
+
    timeradd(&evt->scheduleTime, &time, &evt->nextAwake);
    evt->timeStep = time;
-   pqueue_change_priority(handler->queue, evt->nextAwake, evt);
+   pqueue_change_priority(evt->queue, evt->nextAwake, evt);
+
+   return 0;
+}
+
+char EVT_sched_move_to_mono(EVTHandler *handler, void *eventId)
+{
+   ScheduleCB *evt = (ScheduleCB*)eventId;
+
+   if (!evt){
+      return 1;
+   }
+
+   pqueue_remove(evt->queue, eventId);
+   ET_default_monotonic(NULL, &evt->scheduleTime);
+   timeradd(&evt->scheduleTime, &evt->timeStep, &evt->nextAwake);
+   evt->queue = handler->dbg_queue;
+   pqueue_insert(evt->queue, evt);
 
    return 0;
 }
@@ -812,13 +966,16 @@ char EVT_sched_update_partial_credit(EVTHandler *handler, void *eventId,
 
    timeradd(&evt->scheduleTime, &time, &evt->nextAwake);
 
-   handler->evt_timer->get_monotonic_time(handler->evt_timer, &now);
+   if (evt->queue == handler->queue)
+      handler->evt_timer->get_monotonic_time(handler->evt_timer, &now);
+   else
+      ET_default_monotonic(NULL, &now);
+
    if (timercmp(&evt->nextAwake, &now, <=))
       evt->nextAwake = now;
 
-   printf("%lu\n", evt->nextAwake.tv_sec);
    evt->timeStep = time;
-   pqueue_change_priority(handler->queue, evt->nextAwake, evt);
+   pqueue_change_priority(evt->queue, evt->nextAwake, evt);
 
    return 0;
 }
@@ -979,45 +1136,111 @@ void EVT_set_initial_debugger_state(EVTHandler *handler,
       enum EVTDebuggerState st)
 {
    handler->initialDebuggerState = st;
+   if (handler->initialDebuggerState != EDBG_DISABLED)
+      handler->debuggerState = EDBG_ENABLED;
+}
+
+static int edbg_dump_cb(void *arg)
+{
+   EVTHandler *ctx = (EVTHandler*)arg;
+
+   edbg_report_state(ctx);
+
+   return EVENT_KEEP;
 }
 
 static int edbg_client_msg(struct ZMQLClient *client, const void *data,
       size_t dataLen, void *arg)
 {
    EVTHandler *ctx = (EVTHandler*)arg;
-   const char *cmd = NULL;
+   char *cmd = NULL;
    int steps;
 
-   if (json_get_string_prop(data, "command", &cmd) < 0)
+   if (json_get_string_prop(data, dataLen, "command", &cmd) < 0)
       return 0;
 
-   if (!strcasecmp(cmd, "run"))
-      ctx->pause = 0;
+   if (!strcasecmp(cmd, "run")) {
+      ctx->time_breakpoint = 0;
+      ctx->dbg_step = 1;
+   }
    else if (!strcasecmp(cmd, "stop"))
-      ctx->pause = 1;
+      ctx->time_breakpoint = 1;
    else if (!strcasecmp(cmd, "next")) {
       ctx->steps_to_pause = 1;
-      ctx->pause = 0;
-      if (json_get_int_prop(data, "steps", &steps) >= 0) {
-         printf("Steps now %d\n", steps);
+      ctx->time_breakpoint = 1;
+      ctx->dbg_step = 1;
+      if (json_get_int_prop(data, dataLen, "steps", &steps) >= 0) {
          ctx->steps_to_pause = steps;
       }
    }
+   else if (!strcasecmp(cmd, "periodic_dump")) {
+      steps = 0;
+      json_get_int_prop(data, dataLen, "ms", &steps);
+      if (ctx->dump_evt)
+         EVT_sched_remove(ctx, ctx->dump_evt);
+      ctx->dump_evt = NULL;
+
+      if (steps >= 500) {
+         ctx->dump_evt = EVT_sched_add(ctx, EVT_ms2tv(steps),
+               &edbg_dump_cb, ctx);
+         EVT_sched_move_to_mono(ctx, ctx->dump_evt);
+      }
+   }
+   else {
+      printf("Unknown JSON command: %s in:\n", cmd);
+      steps = write(1, data, dataLen);
+      printf("\n");
+   }
+
+   if (cmd)
+      free(cmd);
 
    return 0;
 }
 
+static void edbg_debugger_connect(struct ZMQLClient *client, void *arg)
+{
+   EVTHandler *ctx = (EVTHandler*)arg;
+
+   edbg_report_state(ctx);
+}
+
+static void edbg_debugger_disconnect(struct ZMQLClient *client, void *arg)
+{
+   EVTHandler *ctx = (EVTHandler*)arg;
+
+   if (0 == zmql_client_count(zmql_server_for_client(client))) {
+      if (ctx->dump_evt)
+         EVT_sched_remove(ctx, ctx->dump_evt);
+      ctx->dump_evt = NULL;
+   }
+}
+
 static void edbg_init(EVTHandler *ctx)
 {
+   struct EventTimer *et;
+
    if (ctx->initialDebuggerState == EDBG_DISABLED || !ctx->dbgPort)
       return;
 
+   if (!ctx->custom_timer) {
+      et = ET_rtdebug_init();
+      if (et) {
+         if (ctx->evt_timer)
+            ctx->evt_timer->cleanup(ctx->evt_timer);
+   
+         ctx->evt_timer = et;
+      }
+   }
+
    ctx->dbgServer = zmql_create_tcp_server(ctx, ctx->dbgPort,
-         edbg_client_msg, ctx);
+         edbg_client_msg, &edbg_debugger_connect, &edbg_debugger_disconnect,
+         ctx);
    if (!ctx->dbgServer)
       return;
 
    ctx->dbgBuffer = ipc_alloc_buffer();
+   evt_fd_set_pausable(ctx, zmql_server_socket(ctx->dbgServer), 0);
 }
 
 static const char *get_function_name(void *func_addr)
@@ -1039,7 +1262,14 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
          struct timeval *cur_time, int first)
 {
    struct timeval remain;
-   timersub(&data->nextAwake, cur_time, &remain);
+   const char *rem_sign = "";
+
+   if (timercmp(&data->nextAwake, cur_time, >=))
+      timersub(&data->nextAwake, cur_time, &remain);
+   else {
+      rem_sign = "-";
+      timersub(cur_time, &data->nextAwake, &remain);
+   }
 
    if (!first)
       ipc_printf_buffer(json,
@@ -1049,28 +1279,38 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
          "    {\n"
          "      \"id\":%lu,\n"
          "      \"function\":\"%s\",\n"
-         "      \"time_remaining\":%ld.%06ld,\n"
+         "      \"time_remaining\":%s%ld.%06ld,\n"
          "      \"awake_time\":%ld.%06ld,\n"
          "      \"schedule_time\":%ld.%06ld,\n"
          "      \"event_length\":%ld.%06ld,\n"
-         "      \"arg_pointer\":%lu\n"
+         "      \"arg_pointer\":%lu,\n"
+         "      \"event_count\":%u\n"
          "    }",
          (uintptr_t)data, get_function_name((void *)data->callback),
-         remain.tv_sec, remain.tv_usec, data->nextAwake.tv_sec,
+         rem_sign, remain.tv_sec, remain.tv_usec, data->nextAwake.tv_sec,
          data->nextAwake.tv_usec, data->scheduleTime.tv_sec,
          data->scheduleTime.tv_usec, data->timeStep.tv_sec,
-         data->timeStep.tv_usec, (uintptr_t)data->arg);
+         data->timeStep.tv_usec, (uintptr_t)data->arg, data->count);
 }
 
 static void edbg_report_timed_events(struct IPCBuffer *json, EVTHandler *ctx,
          struct timeval *cur_time)
 {
    size_t i;
+   int first = 1;
 
    ipc_printf_buffer(json, "  \"timed_events\": [\n");
-   for (i = 1; i <=  pqueue_size(ctx->queue); i++)
+
+   if (ctx->next_timed_event) {
+      edbg_report_timed_event(json, ctx->next_timed_event, cur_time, first);
+      first = 0;
+   }
+
+   for (i = 1; i <=  pqueue_size(ctx->queue); i++) {
       edbg_report_timed_event(json, (ScheduleCB *)ctx->queue->d[i],
-            cur_time, 1 == i);
+            cur_time, first);
+      first = 0;
+   }
    ipc_printf_buffer(json, "\n  ],\n");
 }
 
@@ -1110,8 +1350,18 @@ static void edbg_report_fd_event(struct IPCBuffer *json, struct EventCB *data,
             get_function_name(data->cb[EVENT_FD_ERROR]));
 
    ipc_printf_buffer(json,
+         "      \"pausable\":%d,\n"
+         "      \"read_blocked\":%d,\n"
+         "      \"write_blocked\":%d,\n"
+         "      \"error_blocked\":%d,\n"
+         "      \"read_count\":%u,\n"
+         "      \"write_count\":%u,\n"
+         "      \"error_count\":%u,\n"
          "      \"fd\":%d\n"
-         "    }", data->fd);
+         "    }", data->pausable, data->paused[EVENT_FD_READ],
+         data->paused[EVENT_FD_WRITE], data->paused[EVENT_FD_ERROR],
+         data->counts[EVENT_FD_READ], data->counts[EVENT_FD_WRITE],
+         data->counts[EVENT_FD_ERROR], data->fd);
 }
 
 static void edbg_report_fd_events(struct IPCBuffer *json, EVTHandler *ctx)
@@ -1146,12 +1396,25 @@ static void edbg_report_state(EVTHandler *ctx)
    // Fill the buffer with state information
    ipc_reset_buffer(ctx->dbgBuffer);
    ipc_printf_buffer(ctx->dbgBuffer,
-         "{\n  \"loop_steps\": %llu,\n  \"dbg_state\": \"running\",\n  "
-         "\"port\":%u,\n\"steps\":%llu,\n", ctx->loop_counter, ctx->dbgPort,
-         ctx->timed_event_counter);
+         "{\n  \"loop_steps\": %llu,\n  \"dbg_state\": \"%s\",\n  "
+         "\"port\":%u,\n  \"steps\":%llu,\n", ctx->loop_counter, 
+         ctx->debuggerState == EDBG_STOPPED ? "stopped" : "running",
+         ctx->dbgPort, ctx->timed_event_counter);
 
    if (ctx->debuggerStateCB)
       ctx->debuggerStateCB(ctx->dbgBuffer, ctx->debuggerStateArg);
+
+   if (ctx->debuggerState == EDBG_STOPPED) {
+      if (ctx->next_timed_event)
+         ipc_printf_buffer(ctx->dbgBuffer,
+            "  \"next_step\" : { \"type\":\"Timed Event\", \"id\":%lu },\n",
+            (uintptr_t)ctx->next_timed_event );
+      else if (ctx->next_fd_event) {
+         ipc_printf_buffer(ctx->dbgBuffer,
+            "  \"next_step\" : { \"type\":\"FD Event\", \"id\":%lu },\n",
+            (uintptr_t)ctx->next_fd_event );
+      }
+   }
 
    edbg_report_timed_events(ctx->dbgBuffer, ctx, &curr_time);
    edbg_report_fd_events(ctx->dbgBuffer, ctx);
@@ -1166,4 +1429,41 @@ static void edbg_report_state(EVTHandler *ctx)
 void EVT_set_debugger_port(EVTHandler *handler, int port)
 {
    handler->dbgPort = port;
+}
+
+void evt_fd_set_pausable(EVTHandler *ctx, int fd, char pausable)
+{
+   struct EventCB *curr;
+   int event;
+
+   for (curr = ctx->events[fd % ctx->hashSize]; curr; curr = curr->next) {
+      if (curr->fd == fd) {
+         curr->pausable = pausable;
+
+         for (event = 0; event < EVENT_MAX; event++) {
+            if (curr->cb[event] && (!curr->pausable || !curr->paused[event]) )
+               FD_SET(fd, &ctx->blockedSet[event]);
+            else
+               FD_CLR(fd, &ctx->blockedSet[event]);
+         }
+      }
+   }
+}
+
+void evt_fd_set_paused(EVTHandler *ctx, int fd, char paused)
+{
+   struct EventCB *curr;
+   int event;
+
+   for (curr = ctx->events[fd % ctx->hashSize]; curr; curr = curr->next) {
+      if (curr->fd == fd) {
+         for (event = 0; event < EVENT_MAX; event++) {
+            curr->paused[event] = paused;
+            if (curr->cb[event] && (!curr->pausable || !curr->paused[event]) )
+               FD_SET(fd, &ctx->blockedSet[event]);
+            else
+               FD_CLR(fd, &ctx->blockedSet[event]);
+         }
+      }
+   }
 }

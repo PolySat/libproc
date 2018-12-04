@@ -58,6 +58,7 @@ int main(void)
    EVT_sched_add(PROC_evt(proc), EVT_ms2tv(10000), &wow, NULL);
    EVT_sched_add(PROC_evt(proc), EVT_ms2tv(20000), &oh_my, NULL);
    EVT_set_initial_debugger_state(PROC_evt(proc), EDBG_STOPPED);
+   //EVT_set_initial_debugger_state(PROC_evt(proc), EDBG_ENABLED);
 
    EVT_start_loop(PROC_evt(proc));
    

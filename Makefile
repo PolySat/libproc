@@ -60,4 +60,3 @@ test:
 
 clean:
 	rm -rf *.o $(LIBRARY).$(SO_EXT)* $(LIBRARY) cleanup_test
-	make -C debugger/core clean
