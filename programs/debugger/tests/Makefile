@@ -17,3 +17,6 @@ clean:
 
 run: $(EXECUTABLE)
 	LD_LIBRARY_PATH=../../.. ./$(EXECUTABLE)
+
+dbg: $(EXECUTABLE)
+	LD_LIBRARY_PATH=../../.. gdb ./$(EXECUTABLE)

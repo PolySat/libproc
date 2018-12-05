@@ -33,7 +33,7 @@ def setup_zmq_sub():
     s = ctx.socket(zmq.PAIR)
     s.connect('tcp://localhost:52003')
     s.send_string('{"command":"periodic_dump","ms":1000}')
-    s.send_string('{"command":"run"}')
+#s.send_string('{"command":"run"}')
     stream = ZMQStream(s)
 
     def update_debug_state(msg):
@@ -46,8 +46,9 @@ def setup_zmq_sub():
 
         last_debug_data = data
         debug_data_stream.broadcast(clients, data)
-#if data['dbg_state'] == 'stopped':
-#            s.send_string('{"command":"next"}')
+        if data['dbg_state'] == 'stopped':
+            print('Stopped')
+            s.send_string('{"command":"run","ms":15000}')
 
     stream.on_recv(update_debug_state)
 

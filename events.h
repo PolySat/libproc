@@ -74,6 +74,7 @@ typedef struct _ScheduleCB
 	struct timeval timeStep;
    pqueue_t *queue;
    uint32_t count;
+   char breakpoint;
 } ScheduleCB;
 
 // Structure which defines a file callback
@@ -133,6 +134,8 @@ typedef struct EventState
    int next_fd_event_evt;
    int dbg_step;
    void *dump_evt;
+   void *breakpoint_evt;
+   ScheduleCB null_evt;
 
    // MUST be last entry in struct
    EventCBPtr events[1];				                      // List of pointers to event callbacks

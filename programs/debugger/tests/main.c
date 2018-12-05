@@ -17,7 +17,7 @@ int signal_handler(int signal, void *arg)
  */
 int my_timed_event(void *arg)
 {
-   printf("Hello World\n");
+   printf("my timed event\n");
    return EVENT_KEEP;   
 }
 
