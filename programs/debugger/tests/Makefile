@@ -6,8 +6,12 @@ OBJS=$(SRC:.c=.o)
 
 EXECUTABLE=main
 
-all: $(OBJS)
+all: $(OBJS) main-util
 	$(CC) $(CFLAGS) -o $(EXECUTABLE) $(OBJS) $(LDFLAGS)
+
+main-util: main-util.o
+	$(CC) -o $@ $< $(LDFLAGS)
+
 
 .c.o:
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -17,6 +21,9 @@ clean:
 
 run: $(EXECUTABLE)
 	LD_LIBRARY_PATH=../../.. ./$(EXECUTABLE)
+
+status: main-util
+	LD_LIBRARY_PATH=../../.. ./main-util
 
 dbg: $(EXECUTABLE)
 	LD_LIBRARY_PATH=../../.. gdb ./$(EXECUTABLE)
