@@ -276,8 +276,10 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
    }
    //Event for when something (probably a command) appears on the fd
    EVT_fd_add(proc->evtHandler, proc->cmdFd, EVENT_FD_READ, cmd_handler_cb, &proc->cmds);
+   EVT_fd_set_name(proc->evtHandler, proc->cmdFd, "UDP Command Socket");
    //Event for when something (probably a command response) appears on the fd
    EVT_fd_add(proc->evtHandler, proc->txFd, EVENT_FD_READ, tx_cmd_handler_cb, proc);
+   EVT_fd_set_name(proc->evtHandler, proc->txFd, "UDP Request Socket");
    //Set up SIGCHLD signal handler
    PROC_signal(proc, SIGCHLD, &sigchld_handler, proc);
 
@@ -483,6 +485,7 @@ static void PROC_signal_handler(int sigNum, siginfo_t *si, void *p)
 static int setup_signal_fd(ProcessData *proc)
 {
    int currFlags;
+   int res;
    if (-1 != signalWriteFD)
       return 0;
 
@@ -497,8 +500,10 @@ static int setup_signal_fd(ProcessData *proc)
       return -1;
 
    signalWriteFD = proc->sigPipe[1];
-   return EVT_fd_add(proc->evtHandler, proc->sigPipe[0],
+   res = EVT_fd_add(proc->evtHandler, proc->sigPipe[0],
          EVENT_FD_READ, signal_fd_cb, proc);
+   EVT_fd_set_name(proc->evtHandler, proc->sigPipe[0], "Signal Pipe");
+   return res;
 }
 
 int PROC_signal(struct ProcessData *proc, int sigNum, PROC_signal_cb cb,
@@ -859,6 +864,8 @@ void CHLD_close_fd(ProcChild *child, int fd)
 
 char CHLD_ignore_stderr(ProcChild *child)
 {
+   int res;
+
    if (!child)
       return 0;
    if (child->stderr_fd < 0)
@@ -866,12 +873,17 @@ char CHLD_ignore_stderr(ProcChild *child)
    if (!child->parentData)
       return 1;
 
-   return EVT_fd_add(child->parentData->evtHandler, child->stderr_fd,
+   res = EVT_fd_add(child->parentData->evtHandler, child->stderr_fd,
          EVENT_FD_READ, dump_child_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stderr_fd,
+         "child %u stderr dump", child->procId);
+   return res;
 }
 
 char CHLD_ignore_stdout(ProcChild *child)
 {
+   int res;
+
    if (!child)
       return 0;
    if (child->stdout_fd < 0)
@@ -879,8 +891,11 @@ char CHLD_ignore_stdout(ProcChild *child)
    if (!child->parentData)
       return 1;
 
-   return EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
+   res = EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
          EVENT_FD_READ, dump_child_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stdout_fd,
+         "child %u stdout dump", child->procId);
+   return res;
 }
 
 char CHLD_death_notice(ProcChild *child, CHLD_death_cb_t deathCb, void *arg)
@@ -1002,6 +1017,8 @@ static int child_read_data(int fd, char type, void *arg)
 
 char CHLD_stdout_reader(ProcChild *child, CHLD_buf_stream_cb_t cb, void *arg)
 {
+   int res;
+
    if (!child)
       return 0;
    if (child->stdout_fd < 0)
@@ -1012,12 +1029,17 @@ char CHLD_stdout_reader(ProcChild *child, CHLD_buf_stream_cb_t cb, void *arg)
    child->streamState[0].cb = cb;
    child->streamState[0].arg = arg;
 
-   return EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
+   res = EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
          EVENT_FD_READ, child_read_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stdout_fd,
+         "child %u stdout reader", child->procId);
+   return res;
 }
 
 char CHLD_stderr_reader(ProcChild *child, CHLD_buf_stream_cb_t cb, void *arg)
 {
+   int res;
+
    if (!child)
       return 0;
    if (child->stderr_fd < 0)
@@ -1028,8 +1050,12 @@ char CHLD_stderr_reader(ProcChild *child, CHLD_buf_stream_cb_t cb, void *arg)
    child->streamState[1].cb = cb;
    child->streamState[1].arg = arg;
 
-   return EVT_fd_add(child->parentData->evtHandler, child->stderr_fd,
+   res = EVT_fd_add(child->parentData->evtHandler, child->stderr_fd,
          EVENT_FD_READ, child_read_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stderr_fd,
+         "child %u stderr reader", child->procId);
+
+   return res;
 }
 
 struct MsgData {

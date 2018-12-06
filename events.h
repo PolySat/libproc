@@ -75,6 +75,7 @@ typedef struct _ScheduleCB
    pqueue_t *queue;
    uint32_t count;
    char breakpoint;
+   char name[128];
 } ScheduleCB;
 
 // Structure which defines a file callback
@@ -87,6 +88,7 @@ typedef struct EventCB
    char paused[EVENT_MAX];
    char pausable;
    int fd;				                // The file descriptor which will launch the event
+   char name[128];
    struct EventCB *next;		      // The next signal callback
 } *EventCBPtr;
 
@@ -203,7 +205,19 @@ char EVT_fd_add_with_cleanup(EVTHandler *handler, int fd, int type,
  * @param type Type of file descriptor event (EVENT_FD_READ, EVENT_FD_WRITE,
  * or EVENT_FD_ERROR).
  */
+
 void EVT_fd_remove(EVTHandler *handler, int fd, int type);
+
+/**
+ * Provide a debugging name for a file descriptor
+ *
+ * @param handler The event handler.
+ * @param fd The file descriptor.
+ * @param fmt The format specifier for the name
+ * @param ... The parameters to the format specifier
+ */
+void EVT_fd_set_name(EVTHandler *handler, int fd, const char *fmt, ...)
+                     __attribute__ ((format (printf, 3, 4)));
 
 /**
   * Convert a millisecond value into a timeval suitable for registering
@@ -277,6 +291,16 @@ char EVT_sched_update(EVTHandler *handler, void *eventId, struct timeval time);
  * @return 0 on success, other value if it is not found
  */
 char EVT_sched_update_partial_credit(EVTHandler *handler, void *eventId, struct timeval time);
+
+/**
+ * Provide a debugging name for a scheduled event.
+ *
+ * @param event The event to name.
+ * @param fmt The format specifier for the name
+ * @param ... The parameters to the format specifier
+ */
+void EVT_sched_set_name(void *eventId, const char *fmt, ...)
+                     __attribute__ ((format (printf, 2, 3)));
 
 /**
  * Starts the main event loop.  Control of the program is given to the

@@ -414,6 +414,7 @@ char EVT_fd_add_with_cleanup(EVTHandler *ctx, int fd, int event,
       curr->pausable = 1;
       curr->fd = fd;
       curr->next = ctx->events[fd % ctx->hashSize];
+      curr->name[0] = 0;
       ctx->events[fd % ctx->hashSize] = curr;
    }
    if (!curr->cb[event])
@@ -839,6 +840,7 @@ void *EVT_sched_add(EVTHandler *handler, struct timeval time,
    newSchedCB->callback = cb;
    newSchedCB->arg = arg;
    newSchedCB->queue = handler->queue;
+   newSchedCB->name[0] = 0;
 
    if (0 == pqueue_insert(newSchedCB->queue, newSchedCB)){
      return newSchedCB;
@@ -875,6 +877,7 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
    newSchedCB->callback = cb;
    newSchedCB->arg = arg;
    newSchedCB->queue = handler->queue;
+   newSchedCB->name[0] = 0;
 
    if (0 == pqueue_insert(newSchedCB->queue, newSchedCB)){
       return newSchedCB;
@@ -1010,6 +1013,32 @@ char EVT_sched_update_partial_credit(EVTHandler *handler, void *eventId,
    return 0;
 }
 
+void EVT_sched_set_name(void *eventId, const char *fmt, ...)
+{
+   va_list ap;
+   ScheduleCB *evt = (ScheduleCB*)eventId;
+
+   va_start(ap, fmt);
+   vsnprintf(evt->name, sizeof(evt->name), fmt, ap);
+   va_end(ap);
+   evt->name[sizeof(evt->name) - 1] = 0;
+}
+
+void EVT_fd_set_name(EVTHandler *ctx, int fd, const char *fmt, ...)
+{
+   va_list ap;
+   struct EventCB *curr;
+
+   for (curr = ctx->events[fd % ctx->hashSize]; curr; curr++) {
+      if (curr->fd == fd) {
+         va_start(ap, fmt);
+         vsnprintf(curr->name, sizeof(curr->name), fmt, ap);
+         va_end(ap);
+         curr->name[sizeof(curr->name) - 1] = 0;
+      }
+   }
+}
+
 void EVT_exit_loop(EVTHandler *ctx)
 {
    ctx->keepGoing = 0;
@@ -1124,6 +1153,7 @@ static int setup_gpio_intr(EVTHandler *handler, struct GPIOInterruptDesc *intr, 
       close(intr->fd);
       intr->fd = 0;
    }
+   EVT_fd_set_name(handler, intr->fd, "GPIO");
 
    return 0;
 }
@@ -1208,6 +1238,7 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
          ctx->breakpoint_evt = EVT_sched_add(ctx, EVT_ms2tv(steps),
                &edbg_breakpoint_cb, ctx);
          EVT_sched_make_breakpoint(ctx, ctx->breakpoint_evt);
+         EVT_sched_set_name(ctx->breakpoint_evt, "Debug Breakpoint");
       }
    }
    else if (!strcasecmp(cmd, "stop"))
@@ -1231,6 +1262,7 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
          ctx->dump_evt = EVT_sched_add(ctx, EVT_ms2tv(steps),
                &edbg_dump_cb, ctx);
          EVT_sched_move_to_mono(ctx, ctx->dump_evt);
+         EVT_sched_set_name(ctx->dump_evt, "Debug State Dump");
       }
    }
    else {
@@ -1326,6 +1358,7 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
          "    {\n"
          "      \"id\":%lu,\n"
          "      \"function\":\"%s\",\n"
+         "      \"function2\":\"%s\",\n"
          "      \"time_remaining\":%s%ld.%06ld,\n"
          "      \"awake_time\":%ld.%06ld,\n"
          "      \"schedule_time\":%ld.%06ld,\n"
@@ -1333,7 +1366,9 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
          "      \"arg_pointer\":%lu,\n"
          "      \"event_count\":%u\n"
          "    }",
-         (uintptr_t)data, get_function_name((void *)data->callback),
+         (uintptr_t)data,
+         data->name[0] ? data->name : get_function_name((void *)data->callback),
+         get_function_name((void *)data->callback),
          rem_sign, remain.tv_sec, remain.tv_usec, data->nextAwake.tv_sec,
          data->nextAwake.tv_usec, data->scheduleTime.tv_sec,
          data->scheduleTime.tv_usec, data->timeStep.tv_sec,
@@ -1381,8 +1416,10 @@ static void edbg_report_fd_event(struct IPCBuffer *json, struct EventCB *data,
          "    {\n"
          "      \"id\":%lu,\n"
          "      \"filename\":\"%s\",\n"
+         "      \"filename2\":\"%s\",\n"
          "      \"arg_pointer\":%lu,\n",
-         (uintptr_t)data, filename, (uintptr_t)data->arg);
+         (uintptr_t)data, data->name[0] ? data->name : filename,
+         filename, (uintptr_t)data->arg);
 
    if (data->cb[EVENT_FD_READ])
       ipc_printf_buffer(json, "      \"read_handler\":\"%s\",\n",
