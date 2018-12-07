@@ -19,11 +19,13 @@ int main(int argc, char **argv)
 
     client.connect(buff);
     // s_send (client, "{\"command\":\"run\"}");
+    s_send (client, "{\"command\":\"set_fd_breakpoint\",\"fd\":8}");
 
     while (1) {
-       // s_send (client, "{\"command\":\"next\"}");
        std::string msg = s_recv (client);
        std::cout << "Received: " << msg << std::endl;
+       sleep(3);
+       s_send (client, "{\"command\":\"next\"}");
     }
 
     client.close();
