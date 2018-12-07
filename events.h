@@ -63,87 +63,9 @@ typedef int (*EVT_fd_cb)(int fd, char type, void *arg);
 // A callback for a scheduled event
 typedef int (*EVT_sched_cb)(void *arg);
 
-// Structure representing a schedule callback
-typedef struct _ScheduleCB
-{
-	struct timeval scheduleTime;
-	struct timeval nextAwake;
-	EVT_sched_cb callback;
-	void *arg;
-	size_t pos;
-	struct timeval timeStep;
-   pqueue_t *queue;
-   uint32_t count;
-   char breakpoint;
-   char name[128];
-} ScheduleCB;
-
-// Structure which defines a file callback
-typedef struct EventCB
-{
-   EVT_fd_cb cb[EVENT_MAX];		  // An array of function callbacks to call
-   EVT_fd_cb cleanup[EVENT_MAX];	// An array of cleanup callback to call
-   void *arg[EVENT_MAX];			      // An array of arguments to pass to callbacks
-   uint32_t counts[EVENT_MAX];
-   char paused[EVENT_MAX];
-   char pausable;
-   int fd;				                // The file descriptor which will launch the event
-   char name[128];
-   struct EventCB *next;		      // The next signal callback
-} *EventCBPtr;
-
-struct GPIOInterruptCBList {
-   EVT_sched_cb cb;
-   void *arg;
-   struct GPIOInterruptCBList *next;
-};
-
-struct GPIOInterruptDesc {
-   const char *filename;
-   int fd, tripped;
-   struct GPIOInterruptCBList *callbacks;
-};
-
-struct EDBGClient;
-
-// A structure which contains information regarding the state of the event handler
-typedef struct EventState
-{
-   fd_set eventSet[EVENT_MAX];				                // File descriptor sets to watch
-   fd_set blockedSet[EVENT_MAX];				                // File descriptor sets to watch
-   int maxFd, maxFds[EVENT_MAX], eventCnt[EVENT_MAX];	// fd information
-   int hashSize;				    	                        // The hash size of the event handler
-   int keepGoing;				    	                        // Whether the handler should loop or not
-   struct GPIOInterruptDesc gpio_intrs[2];            // GPIO interrupt state
-   pqueue_t *queue, *dbg_queue;                       // The schedule queue
-   struct EventTimer *evt_timer;
-   char custom_timer;
-
-   enum EVTDebuggerState initialDebuggerState;
-   enum EVTDebuggerState debuggerState;
-   int dbgPort;
-   struct ZMQLServer *dbgServer;
-   struct IPCBuffer *dbgBuffer;
-   unsigned long long loop_counter;
-   unsigned long long timed_event_counter;
-   unsigned long long fd_event_counter;
-   int steps_to_pause;
-   int time_breakpoint;
-   int fd_breakpoint;
-   EVT_debug_state_cb debuggerStateCB;
-   void *debuggerStateArg;
-   ScheduleCB *next_timed_event;
-   EventCBPtr next_fd_event;
-   int next_fd_event_evt;
-   int dbg_step;
-   int dump_every_loop;
-   void *dump_evt;
-   void *breakpoint_evt;
-   ScheduleCB null_evt;
-
-   // MUST be last entry in struct
-   EventCBPtr events[1];				                      // List of pointers to event callbacks
-} EVTHandler;
+// Type which contains event handler information
+struct EventState;
+typedef struct EventState EVTHandler;
 
 /**
  * Create an event handler.
