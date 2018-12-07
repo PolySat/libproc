@@ -11,7 +11,7 @@ MAJOR_VERS=2
 MINOR_VERS=1.1
 
 # Install Variables
-INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h eventTimer.h telm_dict.h zmqlite.h
+INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h eventTimer.h telm_dict.h zmqlite.h critical.h
 
 # Build Variables
 override CFLAGS+=$(SYMBOLS) -Wall -Werror -std=gnu99 -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS)
