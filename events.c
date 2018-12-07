@@ -99,7 +99,7 @@ struct EDBGClient {
 };
 
 // A structure which contains information regarding the state of the event handler
-typedef struct EventState
+struct EventState
 {
    fd_set eventSet[EVENT_MAX];                            // File descriptor sets to watch
    fd_set blockedSet[EVENT_MAX];                          // File descriptor sets to watch
@@ -134,7 +134,7 @@ typedef struct EventState
 
    // MUST be last entry in struct
    EventCBPtr events[1];                                  // List of pointers to event callbacks
-} EVTHandler;
+};
 
 // Static global for virtual time
 static EVTHandler *global_evt = NULL;
