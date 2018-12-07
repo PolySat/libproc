@@ -66,6 +66,7 @@ void evt_fd_set_pausable(EVTHandler *ctx, int fd, char pausable);
 extern int ET_default_monotonic(struct EventTimer *et, struct timeval *tv);
 extern char EVT_sched_move_to_mono(EVTHandler *handler, void *eventId);
 extern void EVT_sched_make_breakpoint(EVTHandler *handler, void *eventId);
+void evt_fd_set_paused(EVTHandler *ctx, int fd, char paused);
 
 #ifndef timercmp
 # define timercmp(a, b, CMP)                                                  \
@@ -224,7 +225,6 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
  	   return NULL;
    }
 
-   // FIXME
    res->dbg_queue = pqueue_init(hashSize, cmp_pri, get_pri, set_pri,
          get_pos, set_pos);
    if (res->dbg_queue == NULL){
@@ -250,6 +250,7 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    res->custom_timer = 0;
    res->dump_evt = NULL;
    res->breakpoint_evt = NULL;
+   res->dump_every_loop = 0;
    memset(&res->null_evt, 0, sizeof(res->null_evt));
    res->null_evt.callback = null_evt_callback;
 
@@ -612,9 +613,20 @@ static int evt_process_timed_event(EVTHandler *ctx,
    return 1;
 }
 
-int evt_process_fd_event(EVTHandler *ctx, struct EventCB **evtCurr, int event)
+int evt_process_fd_event(EVTHandler *ctx, struct EventCB **evtCurr, int event,
+      int stepping)
 {
    int keep = EVENT_KEEP;
+
+   if (!evtCurr || !*evtCurr)
+      return 1;
+
+   if (!stepping && ctx->fd_breakpoint && (*evtCurr)->pausable &&
+         (*evtCurr)->paused[event]) {
+      ctx->next_fd_event = *evtCurr;
+      edbg_breakpoint(ctx);
+      return 0;
+   }
 
    if ((*evtCurr)->cb[event]) {
       (*evtCurr)->counts[event]++;
@@ -674,6 +686,7 @@ char EVT_start_loop(EVTHandler *ctx)
    int real_event;
 
    ctx->time_breakpoint = ctx->initialDebuggerState == EDBG_STOPPED;
+   ctx->fd_breakpoint = ctx->initialDebuggerState == EDBG_STOPPED;
    edbg_init(ctx);
 
    while(ctx->keepGoing) {
@@ -687,7 +700,8 @@ char EVT_start_loop(EVTHandler *ctx)
          real_event = 1;
       }
       if (ctx->dbg_step && ctx->next_fd_event) {
-         evt_process_fd_event(ctx, &ctx->next_fd_event, ctx->next_fd_event_evt);
+         evt_process_fd_event(ctx, &ctx->next_fd_event,
+               ctx->next_fd_event_evt, 1);
          ctx->next_fd_event = NULL;
          ctx->debuggerState = EDBG_ENABLED;
          real_event = 1;
@@ -769,7 +783,7 @@ char EVT_start_loop(EVTHandler *ctx)
                            *evtCurr; evtCurr = &(*evtCurr)->next) {
                         if ((*evtCurr)->fd != fd)
                            continue;
-                        if (!evt_process_fd_event(ctx, evtCurr, event))
+                        if (!evt_process_fd_event(ctx, evtCurr, event, 0))
                            goto next_loop_iteration;
                         real_event = 1;
                         break;
@@ -806,8 +820,8 @@ char EVT_start_loop(EVTHandler *ctx)
 next_loop_iteration:
       ctx->loop_counter++;
 
-      if (real_event)
-         ;// edbg_report_state(ctx);
+      if (real_event && ctx->dump_every_loop)
+         edbg_report_state(ctx);
    }
 
    return 0;
@@ -1228,6 +1242,7 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
 
    if (!strcasecmp(cmd, "run")) {
       ctx->time_breakpoint = 0;
+      ctx->fd_breakpoint = 0;
       ctx->dbg_step = 1;
       if (ctx->breakpoint_evt)
          EVT_sched_remove(ctx, ctx->breakpoint_evt);
@@ -1241,11 +1256,14 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
          EVT_sched_set_name(ctx->breakpoint_evt, "Debug Breakpoint");
       }
    }
-   else if (!strcasecmp(cmd, "stop"))
+   else if (!strcasecmp(cmd, "stop")) {
       ctx->time_breakpoint = 1;
+      ctx->fd_breakpoint = 1;
+   }
    else if (!strcasecmp(cmd, "next")) {
       ctx->steps_to_pause = 1;
       ctx->time_breakpoint = 1;
+      ctx->fd_breakpoint = 1;
       ctx->dbg_step = 1;
       if (json_get_int_prop(data, dataLen, "steps", &steps) >= 0) {
          ctx->steps_to_pause = steps;
@@ -1257,12 +1275,26 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
       if (ctx->dump_evt)
          EVT_sched_remove(ctx, ctx->dump_evt);
       ctx->dump_evt = NULL;
+      ctx->dump_every_loop = 0;
 
       if (steps >= 500) {
          ctx->dump_evt = EVT_sched_add(ctx, EVT_ms2tv(steps),
                &edbg_dump_cb, ctx);
          EVT_sched_move_to_mono(ctx, ctx->dump_evt);
          EVT_sched_set_name(ctx->dump_evt, "Debug State Dump");
+      }
+      else if (steps == 1)
+         ctx->dump_every_loop = 1;
+   }
+   else if (!strcasecmp(cmd, "set_fd_breakpoint") || 
+            !strcasecmp(cmd, "clear_fd_breakpoint") ) {
+      steps = 0;
+      json_get_int_prop(data, dataLen, "fd", &steps);
+      if (steps > 2) {
+         if (!strcasecmp(cmd, "set_fd_breakpoint"))
+            evt_fd_set_paused(ctx, steps, 1);
+         else
+            evt_fd_set_paused(ctx, steps, 0);
       }
    }
    else {
@@ -1318,6 +1350,8 @@ static void edbg_init(EVTHandler *ctx)
    if (!ctx->dbgServer)
       return;
 
+   DBG_print(DBG_LEVEL_INFO, "Event Debugger running on port %d\n",
+         ctx->dbgPort);
    ctx->dbgBuffer = ipc_alloc_buffer();
    evt_fd_set_pausable(ctx, zmql_server_socket(ctx->dbgServer), 0);
 }

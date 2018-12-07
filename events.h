@@ -129,12 +129,14 @@ typedef struct EventState
    unsigned long long fd_event_counter;
    int steps_to_pause;
    int time_breakpoint;
+   int fd_breakpoint;
    EVT_debug_state_cb debuggerStateCB;
    void *debuggerStateArg;
    ScheduleCB *next_timed_event;
    EventCBPtr next_fd_event;
    int next_fd_event_evt;
    int dbg_step;
+   int dump_every_loop;
    void *dump_evt;
    void *breakpoint_evt;
    ScheduleCB null_evt;
