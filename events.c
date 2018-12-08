@@ -127,10 +127,11 @@ struct EventState
    EventCBPtr next_fd_event;
    int next_fd_event_evt;
    int dbg_step;
-   int dump_every_loop;
    void *dump_evt;
    void *breakpoint_evt;
    ScheduleCB null_evt;
+   uint8_t dump_every_loop;
+   uint8_t full_dump_format;
 
    // MUST be last entry in struct
    EventCBPtr events[1];                                  // List of pointers to event callbacks
@@ -140,7 +141,7 @@ struct EventState
 static EVTHandler *global_evt = NULL;
 
 static void edbg_init(EVTHandler *ctx);
-static void edbg_report_state(EVTHandler *ctx);
+static void edbg_report_state(EVTHandler *ctx, uint8_t full_format);
 void evt_fd_set_pausable(EVTHandler *ctx, int fd, char pausable);
 extern int ET_default_monotonic(struct EventTimer *et, struct timeval *tv);
 extern char EVT_sched_move_to_mono(EVTHandler *handler, void *eventId);
@@ -330,6 +331,7 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    res->dump_evt = NULL;
    res->breakpoint_evt = NULL;
    res->dump_every_loop = 0;
+   res->full_dump_format = 1;
    memset(&res->null_evt, 0, sizeof(res->null_evt));
    res->null_evt.callback = null_evt_callback;
 
@@ -661,7 +663,7 @@ int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv)
 static void edbg_breakpoint(EVTHandler *ctx)
 {
    ctx->debuggerState = EDBG_STOPPED;
-   edbg_report_state(ctx);
+   edbg_report_state(ctx, ctx->full_dump_format);
 }
 
 static int evt_process_timed_event(EVTHandler *ctx,
@@ -900,7 +902,7 @@ next_loop_iteration:
       ctx->loop_counter++;
 
       if (real_event && ctx->dump_every_loop)
-         edbg_report_state(ctx);
+         edbg_report_state(ctx, ctx->full_dump_format);
    }
 
    return 0;
@@ -1304,7 +1306,7 @@ static int edbg_dump_cb(void *arg)
 {
    EVTHandler *ctx = (EVTHandler*)arg;
 
-   edbg_report_state(ctx);
+   edbg_report_state(ctx, ctx->full_dump_format);
 
    return EVENT_KEEP;
 }
@@ -1348,13 +1350,21 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
          ctx->steps_to_pause = steps;
       }
    }
+   else if (!strcasecmp(cmd, "start_dumping_every_loop")) {
+      ctx->dump_every_loop = 1;
+   }
+   else if (!strcasecmp(cmd, "stop_dumping_every_loop")) {
+      ctx->dump_every_loop = 0;
+   }
+   else if (!strcasecmp(cmd, "dump_now")) {
+      edbg_report_state(ctx, 1);
+   }
    else if (!strcasecmp(cmd, "periodic_dump")) {
       steps = 0;
       json_get_int_prop(data, dataLen, "ms", &steps);
       if (ctx->dump_evt)
          EVT_sched_remove(ctx, ctx->dump_evt);
       ctx->dump_evt = NULL;
-      ctx->dump_every_loop = 0;
 
       if (steps >= 500) {
          ctx->dump_evt = EVT_sched_add(ctx, EVT_ms2tv(steps),
@@ -1362,8 +1372,6 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
          EVT_sched_move_to_mono(ctx, ctx->dump_evt);
          EVT_sched_set_name(ctx->dump_evt, "Debug State Dump");
       }
-      else if (steps == 1)
-         ctx->dump_every_loop = 1;
    }
    else if (!strcasecmp(cmd, "set_fd_breakpoint") || 
             !strcasecmp(cmd, "clear_fd_breakpoint") ) {
@@ -1392,7 +1400,7 @@ static void edbg_debugger_connect(struct ZMQLClient *client, void *arg)
 {
    EVTHandler *ctx = (EVTHandler*)arg;
 
-   edbg_report_state(ctx);
+   edbg_report_state(ctx, ctx->full_dump_format);
 }
 
 static void edbg_debugger_disconnect(struct ZMQLClient *client, void *arg)
@@ -1579,7 +1587,7 @@ static void edbg_report_fd_events(struct IPCBuffer *json, EVTHandler *ctx)
    ipc_printf_buffer(json, "  ],\n");
 }
 
-static void edbg_report_state(EVTHandler *ctx)
+static void edbg_report_state(EVTHandler *ctx, uint8_t full_format)
 {
    struct timeval curr_time;
 
@@ -1613,8 +1621,10 @@ static void edbg_report_state(EVTHandler *ctx)
       }
    }
 
-   edbg_report_timed_events(ctx->dbgBuffer, ctx, &curr_time);
-   edbg_report_fd_events(ctx->dbgBuffer, ctx);
+   if (full_format) {
+      edbg_report_timed_events(ctx->dbgBuffer, ctx, &curr_time);
+      edbg_report_fd_events(ctx->dbgBuffer, ctx);
+   }
 
    ipc_printf_buffer(ctx->dbgBuffer, "  \"current_time\": %ld.%06ld\n}",
                    curr_time.tv_sec, curr_time.tv_usec);
