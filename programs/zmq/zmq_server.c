@@ -67,7 +67,8 @@ int main(int argc, char *argv[])
    // Add a signal handler call back for SIGINT signal
    PROC_signal(gProc, SIGINT, &sigint_handler, gProc);
 
-   server = zmql_create_tcp_server(PROC_evt(gProc), 12345, &data_cb, NULL);
+   server = zmql_create_tcp_server(PROC_evt(gProc), 12345, &data_cb, NULL,
+         NULL, NULL);
 
    EVT_start_loop(PROC_evt(gProc));
 
