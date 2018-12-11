@@ -227,3 +227,44 @@ int json_get_int_prop(const char *json, int len, const char *prop, int *out)
    *out = params.val;
    return 0;
 }
+
+struct JPtrItr {
+   const char *prop;
+   void *val;
+   int found;
+};
+
+static void json_ptr_itr_cb(const char *prop, const char *val, void *arg)
+{
+   struct JPtrItr *params = (struct JPtrItr*)arg;
+
+   if (params && params->prop && !strcmp(params->prop, prop)) {
+      params->val = (void*)strtoll(val, NULL, 0);
+      params->found = 1;
+   }
+}
+
+int json_get_ptr_prop(const char *json, int len, const char *prop, void **out)
+{
+   struct JPtrItr params;
+   enum JSONParserResult err;
+
+   if (!json || !prop || !out)
+      return -1;
+
+   params.prop = prop;
+   params.val = NULL;
+   params.found = 0;
+
+   err = json_iterate_props(json, len, json_ptr_itr_cb, &params);
+   if (err != PARSE_GOOD) {
+      printf("JSON Parsing failed with error %d\n", err);
+      return -(int)err;
+   }
+
+   if (!params.found)
+      return -2;
+
+   *out = params.val;
+   return 0;
+}
