@@ -1589,16 +1589,18 @@ static void edbg_report_fd_event(struct IPCBuffer *json, struct EventCB *data,
             get_function_name(data->cb[EVENT_FD_ERROR]));
 
    ipc_printf_buffer(json,
-         "      \"pausable\":%d,\n"
-         "      \"read_breakpoint\":%d,\n"
-         "      \"write_breakpoint\":%d,\n"
-         "      \"error_breakpoint\":%d,\n"
+         "      \"pausable\":%s,\n"
+         "      \"read_breakpoint\":%s,\n"
+         "      \"write_breakpoint\":%s,\n"
+         "      \"error_breakpoint\":%s,\n"
          "      \"read_count\":%u,\n"
          "      \"write_count\":%u,\n"
          "      \"error_count\":%u,\n"
          "      \"fd\":%d\n"
-         "    }", data->pausable, data->breakpoint[EVENT_FD_READ],
-         data->breakpoint[EVENT_FD_WRITE], data->breakpoint[EVENT_FD_ERROR],
+         "    }", json_bool(data->pausable),
+         json_bool(data->breakpoint[EVENT_FD_READ]),
+         json_bool(data->breakpoint[EVENT_FD_WRITE]),
+         json_bool(data->breakpoint[EVENT_FD_ERROR]),
          data->counts[EVENT_FD_READ], data->counts[EVENT_FD_WRITE],
          data->counts[EVENT_FD_ERROR], data->fd);
 }
