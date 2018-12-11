@@ -1,6 +1,0 @@
-*.o
-*.so
-__pycache__
-*.pb.*
-*pb2.py
-.vscode
