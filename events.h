@@ -363,7 +363,7 @@ class EventManager
 {
    public:
       EventManager() : free_state(true) {
-         ctx = EVT_create_handler();
+         ctx = EVT_create_handler(NULL, NULL);
       }
 
       EventManager(struct EventState *state) : ctx(state),
