@@ -261,6 +261,7 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    int i;
    const char *dbg_state;
 
+   printf("INIT!!!\n");
    res = (struct EventState*)malloc(
          sizeof(struct EventState) + hashSize * sizeof(EventCBPtr));
    if (!res){
@@ -275,6 +276,7 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    dbg_state = getenv(EDBG_ENV_VAR);
    res->initialDebuggerState = EDBG_DISABLED;
    res->debuggerState = EDBG_DISABLED;
+   printf("dbg_state %p\n", dbg_state);
    if (dbg_state) {
       if (!strcasecmp(dbg_state, "ENABLED"))
          res->initialDebuggerState = EDBG_ENABLED;
@@ -1510,11 +1512,11 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
    ipc_printf_buffer(json,
          "    {\n"
          "      \"id\":%lu,\n"
+         "      \"name\":\"%s\",\n"
          "      \"function\":\"%s\",\n"
-         "      \"function2\":\"%s\",\n"
          "      \"time_remaining\":%s%ld.%06ld,\n"
          "      \"awake_time\":%ld.%06ld,\n"
-         "      \"schedule_time\":%ld.%06ld,\n"
+         "      \"scheduled_time\":%ld.%06ld,\n"
          "      \"event_length\":%ld.%06ld,\n"
          "      \"arg_pointer\":%lu,\n"
          "      \"event_count\":%u\n"
@@ -1568,8 +1570,8 @@ static void edbg_report_fd_event(struct IPCBuffer *json, struct EventCB *data,
    ipc_printf_buffer(json,
          "    {\n"
          "      \"id\":%lu,\n"
+         "      \"name\":\"%s\",\n"
          "      \"filename\":\"%s\",\n"
-         "      \"filename2\":\"%s\",\n"
          "      \"arg_pointer\":%lu,\n",
          (uintptr_t)data, data->name[0] ? data->name : filename,
          filename, (uintptr_t)data->arg);
@@ -1634,9 +1636,10 @@ static void edbg_report_state(EVTHandler *ctx, uint8_t full_format)
    ipc_reset_buffer(ctx->dbgBuffer);
    ipc_printf_buffer(ctx->dbgBuffer,
          "{\n  \"loop_steps\": %llu,\n  \"dbg_state\": \"%s\",\n  "
-         "\"port\":%u,\n  \"steps\":%llu,\n", ctx->loop_counter, 
+         "\"port\":%u,\n  \"timed_events\":%llu,\n  \"fd_events\":%llu,\n",
+         ctx->loop_counter, 
          ctx->debuggerState == EDBG_STOPPED ? "stopped" : "running",
-         ctx->dbgPort, ctx->timed_event_counter);
+         ctx->dbgPort, ctx->timed_event_counter, ctx->fd_event_counter);
 
    if (ctx->debuggerStateCB)
       ctx->debuggerStateCB(ctx->dbgBuffer, ctx->debuggerStateArg);
