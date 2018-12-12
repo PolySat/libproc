@@ -333,6 +333,7 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    res->breakpoint_evt = NULL;
    res->dump_every_loop = 0;
    res->full_dump_format = 1;
+   res->dbg_step = 0;
    memset(&res->null_evt, 0, sizeof(res->null_evt));
    res->null_evt.callback = null_evt_callback;
 
@@ -488,16 +489,10 @@ char EVT_fd_add_with_cleanup(EVTHandler *ctx, int fd, int event,
       if (!curr)
          return -1;
 
-      for (i = 0; i < EVENT_MAX; i++) {
-         curr->cb[i] = NULL;
-         curr->cleanup[i] = NULL;
-         curr->arg[i] = NULL;
-         curr->breakpoint[i] = 0;
-      }
+      memset(curr, 0, sizeof(*curr));
       curr->pausable = 1;
       curr->fd = fd;
       curr->next = ctx->events[fd % ctx->hashSize];
-      curr->name[0] = 0;
       ctx->events[fd % ctx->hashSize] = curr;
    }
    if (!curr->cb[event])
@@ -710,6 +705,7 @@ int evt_process_fd_event(EVTHandler *ctx, struct EventCB **evtCurr, int event,
          (ctx->break_on_next || (*evtCurr)->breakpoint[event])) {
       if (--ctx->steps_to_break <= 0) {
          ctx->next_fd_event = *evtCurr;
+         ctx->next_fd_event_evt = event;
          edbg_breakpoint(ctx);
          return 0;
       }
@@ -942,6 +938,7 @@ void *EVT_sched_add(EVTHandler *handler, struct timeval time,
    newSchedCB->queue = handler->queue;
    newSchedCB->name[0] = 0;
    newSchedCB->breakpoint = 0;
+   newSchedCB->count = 0;
 
    if (0 == pqueue_insert(newSchedCB->queue, newSchedCB)){
      return newSchedCB;
@@ -1513,20 +1510,25 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
          "    {\n"
          "      \"id\":%lu,\n"
          "      \"name\":\"%s\",\n"
-         "      \"function\":\"%s\",\n"
+         "      \"function\":\"%s\",\n",
+         (uintptr_t)data,
+         data->name[0] ? data->name : get_function_name((void *)data->callback),
+         get_function_name((void *)data->callback));
+
+   ipc_printf_buffer(json,
          "      \"time_remaining\":%s%ld.%06ld,\n"
          "      \"awake_time\":%ld.%06ld,\n"
-         "      \"scheduled_time\":%ld.%06ld,\n"
+         "      \"scheduled_time\":%ld.%06ld,\n",
+         rem_sign, remain.tv_sec, remain.tv_usec, data->nextAwake.tv_sec,
+         data->nextAwake.tv_usec, data->scheduleTime.tv_sec,
+         data->scheduleTime.tv_usec );
+
+   ipc_printf_buffer(json,
          "      \"event_length\":%ld.%06ld,\n"
          "      \"arg_pointer\":%lu,\n"
          "      \"event_count\":%u\n"
          "    }",
-         (uintptr_t)data,
-         data->name[0] ? data->name : get_function_name((void *)data->callback),
-         get_function_name((void *)data->callback),
-         rem_sign, remain.tv_sec, remain.tv_usec, data->nextAwake.tv_sec,
-         data->nextAwake.tv_usec, data->scheduleTime.tv_sec,
-         data->scheduleTime.tv_usec, data->timeStep.tv_sec,
+         data->timeStep.tv_sec,
          data->timeStep.tv_usec, (uintptr_t)data->arg, data->count);
 }
 
@@ -1592,15 +1594,18 @@ static void edbg_report_fd_event(struct IPCBuffer *json, struct EventCB *data,
          "      \"pausable\":%s,\n"
          "      \"read_breakpoint\":%s,\n"
          "      \"write_breakpoint\":%s,\n"
-         "      \"error_breakpoint\":%s,\n"
+         "      \"error_breakpoint\":%s,\n",
+         json_bool(data->pausable),
+         json_bool(data->breakpoint[EVENT_FD_READ]),
+         json_bool(data->breakpoint[EVENT_FD_WRITE]),
+         json_bool(data->breakpoint[EVENT_FD_ERROR]));
+
+   ipc_printf_buffer(json,
          "      \"read_count\":%u,\n"
          "      \"write_count\":%u,\n"
          "      \"error_count\":%u,\n"
          "      \"fd\":%d\n"
-         "    }", json_bool(data->pausable),
-         json_bool(data->breakpoint[EVENT_FD_READ]),
-         json_bool(data->breakpoint[EVENT_FD_WRITE]),
-         json_bool(data->breakpoint[EVENT_FD_ERROR]),
+         "    }",
          data->counts[EVENT_FD_READ], data->counts[EVENT_FD_WRITE],
          data->counts[EVENT_FD_ERROR], data->fd);
 }

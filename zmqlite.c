@@ -4,6 +4,9 @@
 #include <errno.h>
 #include "debug.h"
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/file.h>
+
 
 static int zmql_client_raw_write(struct ZMQLClient *client, const void *data,
       int dlen);
@@ -170,6 +173,7 @@ int zmql_client_read_cb(int fd, char type, void *arg)
    }
    if (len <= 0) {
       DBG_print(DBG_LEVEL_INFO, "Destroying zmql client %p.", client);
+      client->closeFlag = 1;
       zmql_destroy_client(&client);
       return EVENT_REMOVE;
    }
@@ -178,6 +182,7 @@ int zmql_client_read_cb(int fd, char type, void *arg)
    ipc_process_buffer(client->data, zmql_client_process, client);
 
    if (client->closeFlag) {
+      DBG_print(DBG_LEVEL_INFO, "Destroying zmql client %p per request.", client);
       zmql_destroy_client(&client);
       return EVENT_REMOVE;
    }
@@ -202,6 +207,8 @@ int zmql_accept_cb(int fd, char type, void *arg)
       free(client);
       return EVENT_KEEP;
    }
+
+   fcntl(client->socket, F_SETFL, O_NONBLOCK);
 
    server->clientCount++;
    client->server = server;
@@ -294,8 +301,10 @@ void zmql_destroy_client(struct ZMQLClient **goner)
       }
    }
 
-   if (!client->closeFlag)
+   if (!client->closeFlag) {
+      DBG_print(DBG_LEVEL_INFO, "Removing FD event for %p.", client);
       EVT_fd_remove(client->server->evt, client->socket, EVENT_FD_READ);
+   }
    if (client->state == ZMQL_DATA && client->disconnectCb)
       client->disconnectCb(client, client->msgArg);
 
@@ -306,6 +315,7 @@ void zmql_destroy_client(struct ZMQLClient **goner)
    if (client->data)
       ipc_destroy_buffer(&client->data);
 
+   DBG_print(DBG_LEVEL_INFO, "Freeing zmql client %p.", client);
    free(client);
 }
 
