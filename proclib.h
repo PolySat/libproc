@@ -131,6 +131,8 @@ void PROC_set_context(ProcessData *proc, void *ctx);
  */
 
 int PROC_cmd(ProcessData *proc, unsigned char cmd, void *data, size_t dataLen, const char *dest);
+int PROC_buff_sockaddr(ProcessData *proc, void *data, size_t dataLen,
+      struct sockaddr_in *dest);
 
 /**
  * Sends an CMD message over the process' secondary IPC socket to the

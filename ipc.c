@@ -435,6 +435,55 @@ int socket_send_packet_and_read_response(const char *dstAddr,
    return result;
 }
 
+//  UDP data, and receive a single response.
+int socket_send_packet_and_read_xdr(const char *dstAddr,
+      const char *dstProc, void *txCmd, size_t txCmdLen,
+      void *rxResp, size_t rxRespLen, int responseTimeoutMS)
+{
+   int sock;
+   int result = 0;
+   struct sockaddr_in addr;
+   struct sockaddr_in src_addr;
+
+   sock = socket_init(0);
+   if (sock < 0)
+      return -1;
+
+   addr.sin_family = AF_INET;
+   addr.sin_addr.s_addr = 0;
+
+   if (dstAddr) {
+      if (0 == socket_resolve_host(dstAddr, &addr.sin_addr))
+         return -1;
+   }
+
+   if (0 == addr.sin_addr.s_addr)
+      inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+
+   addr.sin_port = htons(socket_get_addr_by_name(dstProc));
+
+   socket_write(sock, txCmd, txCmdLen, &addr);
+
+   if (rxResp && rxRespLen > 0) {
+      result = wait_for_packet(sock, responseTimeoutMS);
+      if (result == 0) {
+         printf("No response received in %d ms\n", responseTimeoutMS);
+         result = -2;
+      }
+      else if (result != 1) {
+         perror("Error waiting for reponse packet");
+         result = -3;
+      }
+      else {
+         result = socket_read(sock, rxResp, rxRespLen, &src_addr);
+      }
+   }
+
+   socket_close(sock);
+
+   return result;
+}
+
 int socket_resolve_host(const char *host, struct in_addr *addr)
 {
    struct hostent *hp;

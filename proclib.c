@@ -1143,6 +1143,12 @@ static int proc_cmd_internal(ProcessData *proc, int fd, unsigned char cmd, void 
    return retval;
 }
 
+int PROC_buff_sockaddr(ProcessData *proc, void *data, size_t dataLen,
+      struct sockaddr_in *dest)
+{
+   return socket_write(proc->cmdFd, data, dataLen, dest);
+}
+
 
 int PROC_cmd(ProcessData *proc, unsigned char cmd, void *data, size_t dataLen, const char *dest)
 {

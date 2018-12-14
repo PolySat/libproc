@@ -194,6 +194,9 @@ int socket_get_name_by_addr(struct sockaddr_in * addr, char * buf, size_t bufSiz
 int socket_send_packet_and_read_response(const char *dstAddr,
       const char *dstProc, void *txCmd, size_t txCmdLen,
       void *rxResp, size_t rxRespLen, int responseTimeoutMS);
+int socket_send_packet_and_read_xdr(const char *dstAddr,
+      const char *dstProc, void *txCmd, size_t txCmdLen,
+      void *rxResp, size_t rxRespLen, int responseTimeoutMS);
 
 /**
   * Resolve a host name or dotted-quad into an in_addr
