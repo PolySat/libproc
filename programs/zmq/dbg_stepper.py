@@ -25,8 +25,9 @@ def setup_zmq_sub():
         data = json.loads(msg[0].decode('utf-8'))
         print(json.dumps(data, indent=4))
         print(data['dbg_state'])
-#if data['dbg_state'] == 'stopped':
-#s.send_string('{"command":"next"}')
+        if data['dbg_state'] == 'stopped':
+            s.send_string('{"command":"run","ms":4000}')
+#            s.send_string('{"command":"next"}')
 
     stream.on_recv(update_debug_state)
 

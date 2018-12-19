@@ -44,6 +44,7 @@ int sigint_handler(int signum, void *arg)
 
 int poke_cb(void *arg)
 {
+   printf("Poke\n");
    return EVENT_KEEP;
 }
 
@@ -52,9 +53,10 @@ int main(int argc, char *argv[])
    gProc = PROC_init("test1", WD_DISABLED);
 
    // Add a signal handler call back for SIGINT signal
+   DBG_setLevel(DBG_LEVEL_ALL);
    PROC_signal(gProc, SIGINT, &sigint_handler, gProc);
    EVT_sched_add(PROC_evt(gProc), EVT_ms2tv(2000), poke_cb, NULL);
-   EVT_set_initial_debugger_state(PROC_evt(gProc), EDBG_STOPPED);
+   // EVT_set_initial_debugger_state(PROC_evt(gProc), EDBG_STOPPED);
 
    EVT_start_loop(PROC_evt(gProc));
 
