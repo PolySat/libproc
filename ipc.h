@@ -289,6 +289,19 @@ typedef size_t (*ipc_buffer_cb)(const char *data, size_t dataLen, void *arg);
   */
 int ipc_process_buffer(struct IPCBuffer *buffer, ipc_buffer_cb cb, void *arg);
 
+struct ProcessData;
+struct IPC_Command;
+enum IPC_CB_TYPE { IPC_CB_TYPE_COOKED = 1, IPC_CB_TYPE_RAW = 2 };
+
+typedef void (*IPC_command_callback)(struct ProcessData *proc, int timeout, void *arg, char *resp_buff, size_t resp_len, enum IPC_CB_TYPE cb_type);
+
+extern int IPC_command(struct ProcessData*, uint32_t command, void *params,
+      uint32_t param_type,
+      struct sockaddr_in dest, IPC_command_callback cb, void *,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout);
+extern void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
+      uint32_t param_type, void *params, struct sockaddr_in *dest);
+
 #ifdef __cplusplus
 }
 #endif

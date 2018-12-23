@@ -113,7 +113,7 @@ static void *HASH_remove_key_internal(struct HashTable *table,
 
 void *HASH_remove_key(struct HashTable *table, void *key)
 {
-   if (!table || !key)
+   if (!table)
       return NULL;
 
    return HASH_remove_key_internal(table, key);
@@ -149,13 +149,13 @@ void *HASH_find_key(struct HashTable *table, void *key)
    size_t hash;
    struct HashNode *curr;
 
-   if (!table || !key)
+   if (!table)
       return NULL;
 
    hash = (*table->hashFunc)(key);
    for( curr = table->buckets[hash % table->hashSize];
          curr; curr = curr->next) {
-      if (curr->key && (*table->keyCmp)(curr->key, key))
+      if ((*table->keyCmp)(curr->key, key))
          return curr->data;
    }
 
@@ -182,8 +182,6 @@ int HASH_add_data(struct HashTable *table, void *data)
       return -1;
 
    key = (*table->keyForData)(data);
-   if (!key)
-      return -2;
 
    if (HASH_find_key(table, key))
       return -3;
@@ -199,6 +197,32 @@ int HASH_add_data(struct HashTable *table, void *data)
    table->buckets[curr->hash % table->hashSize] = curr;
 
    return 0;
+}
+
+void HASH_iterate_arg_table(struct HashTable *table,
+      HASH_iterator_arg_cb iterator, void *arg)
+{
+   int i;
+   if (!table)
+      return;
+
+   struct HashNode **ptr;
+   struct HashNode *goner;
+   for(i = 0; i < table->hashSize; i++)
+   {
+      ptr = &table->buckets[i];
+      while(ptr && *ptr)
+      {
+         if ((*iterator)((*ptr)->data, arg)) {
+            goner = *ptr;
+            *ptr = goner->next;
+            goner->next = NULL;
+            free(goner);
+         }
+         else
+            ptr = &(*ptr)->next;
+      }
+   }
 }
 
 void HASH_iterate_table(struct HashTable *table, HASH_iterator_cb iterator)

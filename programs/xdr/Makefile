@@ -1,0 +1,29 @@
+# Makefile for process command test program
+
+C=gcc
+CFLAGS=-rdynamic -Wall -pedantic -std=c99 -g -I../..
+LDFLAGS=-L../.. -lproc -ldl
+
+all: test_proc test-util
+
+test_proc: test_proc.c test_schema.c
+	 $(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+test_schema.h: test_schema.x
+	 ../../xdrgen/xdrgen --target libproc --output test_schema test_schema.x
+
+test_schema.c: test_schema.x
+	 ../../xdrgen/xdrgen --target libproc --output test_schema test_schema.x
+
+test-util: test_schema.c test-util.c
+	 $(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+util:
+	 LD_LIBRARY_PATH=../.. ./test-util
+
+test:
+	 LD_LIBRARY_PATH=../.. ./test_proc
+
+clean:
+	rm -rf *.o test_proc test_schema.c test_schema.h
+

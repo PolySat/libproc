@@ -26,6 +26,7 @@ typedef size_t (*HASH_hash_func_cb)(void *key);
 typedef int (*HASH_cmp_keys_cb)(void *key1, void *key2);
 typedef void *(*HASH_key_for_data_cb)(void *data);
 typedef int (*HASH_iterator_cb)(void *data);
+typedef int (*HASH_iterator_arg_cb)(void *data, void *arg);
 typedef void (*HASH_extractor_cb)(void *data);
 
 struct HashTable;
@@ -54,6 +55,8 @@ void *HASH_remove_key(struct HashTable *table, void *key);
 void *HASH_remove_data(struct HashTable *table, void *data);
 
 void HASH_iterate_table(struct HashTable *table, HASH_iterator_cb iterator);
+void HASH_iterate_arg_table(struct HashTable *table,
+      HASH_iterator_arg_cb iterator, void *arg);
 void HASH_extract(struct HashTable *table, HASH_extractor_cb extractor);
 
 #ifdef __cplusplus

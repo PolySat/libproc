@@ -41,6 +41,7 @@
 #include <arpa/inet.h>
 #include <stdarg.h>
 #include "proclib.h"
+#include "cmd_schema.h"
 
 #define WAIT_MS (5 * 1000)
 
@@ -436,33 +437,19 @@ int socket_send_packet_and_read_response(const char *dstAddr,
 }
 
 //  UDP data, and receive a single response.
-int socket_send_packet_and_read_xdr(const char *dstAddr,
-      const char *dstProc, void *txCmd, size_t txCmdLen,
+int socket_send_packet_and_read_xdr_sa(struct sockaddr_in *addr,
+      void *txCmd, size_t txCmdLen,
       void *rxResp, size_t rxRespLen, int responseTimeoutMS)
 {
    int sock;
    int result = 0;
-   struct sockaddr_in addr;
    struct sockaddr_in src_addr;
 
    sock = socket_init(0);
    if (sock < 0)
       return -1;
 
-   addr.sin_family = AF_INET;
-   addr.sin_addr.s_addr = 0;
-
-   if (dstAddr) {
-      if (0 == socket_resolve_host(dstAddr, &addr.sin_addr))
-         return -1;
-   }
-
-   if (0 == addr.sin_addr.s_addr)
-      inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
-
-   addr.sin_port = htons(socket_get_addr_by_name(dstProc));
-
-   socket_write(sock, txCmd, txCmdLen, &addr);
+   socket_write(sock, txCmd, txCmdLen, addr);
 
    if (rxResp && rxRespLen > 0) {
       result = wait_for_packet(sock, responseTimeoutMS);
@@ -482,6 +469,29 @@ int socket_send_packet_and_read_xdr(const char *dstAddr,
    socket_close(sock);
 
    return result;
+}
+
+int socket_send_packet_and_read_xdr(const char *dstAddr,
+      const char *dstProc, void *txCmd, size_t txCmdLen,
+      void *rxResp, size_t rxRespLen, int responseTimeoutMS)
+{
+   struct sockaddr_in addr;
+
+   addr.sin_family = AF_INET;
+   addr.sin_addr.s_addr = 0;
+
+   if (dstAddr) {
+      if (0 == socket_resolve_host(dstAddr, &addr.sin_addr))
+         return -1;
+   }
+
+   if (0 == addr.sin_addr.s_addr)
+      inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+
+   addr.sin_port = htons(socket_get_addr_by_name(dstProc));
+
+   return socket_send_packet_and_read_xdr_sa(&addr,
+      txCmd, txCmdLen, rxResp, rxRespLen, responseTimeoutMS);
 }
 
 int socket_resolve_host(const char *host, struct in_addr *addr)
@@ -669,3 +679,81 @@ size_t ipc_buffer_size(struct IPCBuffer *buffer)
 
    return buffer->dataLen;
 }
+
+static int ipc_blocking_command(char *txbuff, size_t txlen,
+      struct sockaddr_in dest, IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+{
+   char rxbuff[65536];
+   int rxlen;
+
+   rxlen = socket_send_packet_and_read_xdr_sa(&dest, txbuff, txlen, rxbuff,
+         sizeof(rxbuff), timeout);
+   if (rxlen < 0) {
+      if (cb)
+         cb(NULL, 1, arg, NULL, 0, cb_type);
+      return rxlen;
+   }
+
+   return CMD_resolve_callback(NULL, cb, arg, cb_type, rxbuff, rxlen);
+}
+
+int IPC_command(ProcessData *proc, uint32_t command, void *params,
+      uint32_t param_type,
+      struct sockaddr_in dest, IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+{
+   struct IPC_Command cmd;
+   static uint32_t next_cmd_ref = 1;
+   char st_buff[1024];
+   char *buff = st_buff;
+   size_t len;
+   int res;
+
+   cmd.cmd = command;
+   cmd.ipcref = next_cmd_ref++;
+   cmd.parameters.type = param_type;
+   cmd.parameters.data = params;
+
+   if (IPC_Command_encode(&cmd, st_buff, &len, sizeof(st_buff)) < 0) {
+      if (len > sizeof(st_buff)) {
+         buff = malloc(len);
+         if (!buff)
+            return -1;
+         if (IPC_Command_encode(&cmd, buff, &len, len) < 0) {
+            free(buff);
+            return -1;
+         }
+      }
+      else
+         return -1;
+   }
+
+   if (!proc) {
+      res = ipc_blocking_command(buff, len, dest, cb, arg, cb_type, timeout);
+      if (buff != st_buff)
+         free(buff);
+      return res;
+   }
+
+   return 0;
+}
+
+void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
+      uint32_t param_type, void *params, struct sockaddr_in *dest)
+{
+   char buff[65536];
+   size_t used;
+   struct IPC_Response resp;
+
+   resp.ipcref = cmd->ipcref;
+   resp.result = IPC_RESULTCODE_SUCCESS;
+   resp.data.type = param_type;
+   resp.data.data = params;
+
+   if (IPC_Response_encode(&resp, buff, &used, sizeof(buff)) < 0)
+      return;
+
+   PROC_buff_sockaddr(proc, buff, used, dest);
+}
+

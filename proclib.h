@@ -78,6 +78,11 @@ typedef struct ProcessData {
   **/
 EVTHandler *PROC_evt(ProcessData *proc);
 
+struct XDR_CommandHandlers {
+   uint32_t number;
+   CMD_XDR_handler_t cb;
+   void *arg;
+};
 /**
  * Initializes the process and creates an event handler which can
  * be used by the process to register callbacks.
@@ -88,12 +93,16 @@ EVTHandler *PROC_evt(ProcessData *proc);
  *
  * @param procName The unique process name.
  * @param wdMode Software watchdog mode.
+ * @param handlers An array, terminated with an all-zero entry, of XDR
+ *                  command handlers to register with the CMD system
  *
  * @return A ProcessData struct which can be used to register callbacks.
  *
  * @retval Initialzed ProcessData struct on success
  * @retval Null		Error
  */
+ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
+      struct XDR_CommandHandlers *handlers);
 ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode);
 
 /**

@@ -160,8 +160,14 @@ static void PROC_debugger_state(struct IPCBuffer *buff, void *arg)
    ipc_printf_buffer(buff, "  \"process_name\": \"%s\",\n", proc->name);
 }
 
-//Initializes a ProcessData object
 ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
+{
+   return PROC_init_xdr(procName, wdMode, NULL);
+}
+
+//Initializes a ProcessData object
+ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
+      struct XDR_CommandHandlers *handlers)
 {
    ProcessData *proc;
    char filepath[80];
@@ -274,6 +280,10 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
    if (cmd_handler_init(procName, &proc->cmds) == -1) {
       return NULL;
    }
+   proc->cmds.proc = proc;
+   // Add in XDR handlers
+   for(; handlers && handlers->number; handlers++)
+      CMD_set_xdr_cmd_handler(handlers->number, handlers->cb, handlers->arg);
    //Event for when something (probably a command) appears on the fd
    EVT_fd_add(proc->evtHandler, proc->cmdFd, EVENT_FD_READ, cmd_handler_cb, &proc->cmds);
    EVT_fd_set_name(proc->evtHandler, proc->cmdFd, "UDP Command Socket");
