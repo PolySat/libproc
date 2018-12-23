@@ -107,6 +107,8 @@ extern int XDR_encode_byte_string(char *src, char *dst,
       size_t *used, size_t max);
 extern int XDR_encode_string(const char *src, char *dst,
       size_t *used, size_t max);
+extern int XDR_encode_float(float *src, char *dst,
+      size_t *used, size_t max);
 
 
 extern void *XDR_malloc_allocator(struct XDR_StructDefinition*);
@@ -129,7 +131,10 @@ extern void XDR_print_field_byte_string(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style);
 extern void XDR_print_field_string(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style);
+extern void XDR_print_field_float(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style);
 
+extern void XDR_scan_float(const char *in, void *dst, void *arg);
 extern void XDR_scan_int32(const char *in, void *dst, void *arg);
 extern void XDR_scan_uint32(const char *in, void *dst, void *arg);
 extern void XDR_scan_int64(const char *in, void *dst, void *arg);

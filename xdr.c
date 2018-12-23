@@ -146,6 +146,15 @@ int XDR_decode_float(char *src, float *dst, size_t *inc, size_t max)
    return 0;
 }
 
+int XDR_encode_float(float *src, char *dst, size_t *used, size_t max)
+{
+   *used = sizeof(*src);
+   if (max < *used)
+      return -1;
+   memcpy(dst, src, *used);
+   return 0;
+}
+
 int XDR_decode_double(char *src, double *dst, size_t *inc, size_t max)
 {
    if (max < sizeof(*dst))
@@ -483,6 +492,21 @@ void XDR_struct_free_deallocator(void **goner, struct XDR_StructDefinition *def)
    free(to_free);
 }
 
+void XDR_print_field_float(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style)
+{
+   float val;
+
+   if (!data)
+      return;
+   memcpy(&val, data, sizeof(val));
+
+   if (style == XDR_PRINT_HUMAN && 0 != field->conv_divisor)
+      fprintf(out, "%lf", val/field->conv_divisor + field->conv_offset);
+   else
+      fprintf(out, "%f", val);
+}
+
 void XDR_print_field_int32(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style)
 {
@@ -555,6 +579,13 @@ void XDR_print_field_union(FILE *out, void *data,
    def = XDR_definition_for_type(val.type);
    if (def && def->print_func)
       def->print_func(out, val.data, def->arg, style);
+}
+
+void XDR_scan_float(const char *in, void *dst, void *arg)
+{
+   float val;
+   sscanf(in, "%f", &val);
+   memcpy(dst, &val, sizeof(val));
 }
 
 void XDR_scan_int32(const char *in, void *dst, void *arg)

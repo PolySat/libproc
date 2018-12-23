@@ -4,6 +4,7 @@ from xdr.parser import *
 
 type_map = { 'int': { 'type': 'int32_t', 'dec': 'XDR_decode_int32', 'enc':'XDR_encode_int32', 'print': 'XDR_print_field_int32', 'scan': 'XDR_scan_int32', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
              'unsigned int': { 'type': 'uint32_t', 'dec': 'XDR_decode_uint32', 'enc': 'XDR_encode_uint32', 'print': 'XDR_print_field_uint32', 'scan': 'XDR_scan_uint32', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
+             'float': { 'type': 'float', 'dec': 'XDR_decode_float', 'enc': 'XDR_encode_float', 'print': 'XDR_print_field_float', 'scan': 'XDR_scan_float', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
              'void': { 'type': 'uint32_t', 'dec': 'XDR_decode_uint32', 'enc': 'XDR_encode_uint32', 'print': 'XDR_print_field_uint32', 'scan': 'XDR_scan_uint32', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
              'hyper': { 'type': 'int64_t', 'dec': 'XDR_decode_int64', 'enc': 'XDR_encode_int64', 'print': 'XDR_print_field_int64', 'scan': 'XDR_scan_int64', 'dealloc':False, 'id': '0', 'field_dealloc': None}, \
              'unsigned hyper': { 'type': 'uint64_t', 'dec': 'XDR_decode_uint64', 'enc': 'XDR_encode_uint64', 'print': 'XDR_print_field_uint64', 'scan': 'XDR_scan_uint64', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
