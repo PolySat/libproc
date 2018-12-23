@@ -104,7 +104,7 @@ def generateHeader(ir, output, namespace, mapping):
       if isinstance(x, XDRStruct):
          render_template(out, "prototypes.h", dict(st=x,types=type_map))
 
-   render_template(out, "footer.h", {})
+   render_template(out, "footer.h", dict(namespace=namespace))
    out.close()
 
 def generate(ir, output):
