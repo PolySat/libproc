@@ -19,8 +19,8 @@ class Parser:
       else:
          if self.parent == None:
 #Enums defined in the parent IPC scope
-            self.scopeMap['ipc::commands::status'] = 'IPC::COMMANDS::STATUS'
-            self.scopeMap['ipc::commands::data_req'] = 'IPC::COMMANDS::DATA_REQ'
+            self.scopeMap['ipc::cmds::status'] = 'IPC::CMDS::STATUS'
+            self.scopeMap['ipc::cmds::data_req'] = 'IPC::CMDS::DATA_REQ'
             self.scopeMap['ipc::datareq'] = 'IPC::DataReq'
             self.namespace = 'IPC::' + t[1].upper() + '::'
          else:

@@ -466,7 +466,7 @@ int CMD_iterate_structs(char *src, size_t len, CMD_struct_itr itr_cb, void *arg,
    src += used;
    len -= used;
 
-   if (type != IPC_DATA_TYPES_OPAQUE_STRUCT_ARR) {
+   if (type != IPC_TYPES_OPAQUE_STRUCT_ARR) {
       def = XDR_definition_for_type(type);
       itr_cb(type, def, src, len, arg, arg2);
       return 0;
@@ -879,3 +879,36 @@ void CMD_print_response(struct ProcessData *proc, int timeout,
    }
 }
 
+struct IPC_OpaqueStruct CMD_struct_to_opaque_struct(void *src, uint32_t type)
+{
+   struct IPC_OpaqueStruct result;
+   struct XDR_StructDefinition *def;
+   size_t dlen = 256, needed = 0;
+
+   result.length = 0;
+   result.data = NULL;
+   def = XDR_definition_for_type(type);
+
+   if (!src || !def || !def->encoder)
+      return result;
+
+   result.data = malloc(dlen);
+   if (def->encoder(src, result.data, &needed, dlen, type, def->arg) < 0) {
+      free(result.data);
+      result.data = NULL;
+      if (dlen >= needed)
+         return result;
+
+      dlen = needed + 16;
+      result.data = malloc(dlen);
+      needed = 0;
+      if (def->encoder(src, result.data, &needed, dlen, type, def->arg) < 0) {
+         free(result.data);
+         result.data = NULL;
+         return result;
+      }
+   }
+
+   result.length = needed;
+   return result;
+}

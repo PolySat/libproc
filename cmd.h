@@ -164,6 +164,7 @@ struct CMD_ErrorInfo {
 extern void CMD_register_error(struct CMD_ErrorInfo *errs);
 extern void CMD_register_errors(struct CMD_ErrorInfo *errs);
 extern const char *CMD_error_message(uint32_t id);
+extern struct IPC_OpaqueStruct CMD_struct_to_opaque_struct(void *src, uint32_t type);
 
 #ifdef __cplusplus
 }
