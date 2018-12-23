@@ -585,9 +585,9 @@ static int print_cmd_summary(void *data)
 {
    struct CMD_XDRCommandInfo *xdr = (struct CMD_XDRCommandInfo*)data;
    if (xdr->name && xdr->summary)
-      printf("  %24s -- %s\n", xdr->name, xdr->summary);
+      printf("  \033[31m\033[1m%24s\033[0m -- %s\n", xdr->name, xdr->summary);
    else if (xdr->name)
-      printf("  %24s -- UNDOCUMENTED\n", xdr->name);
+      printf("  \033[31m\033[1m%24s\033[0m -- UNDOCUMENTED\n", xdr->name);
    return 0;
 }
 
@@ -597,9 +597,9 @@ int CMD_usage_summary(struct CMD_MulticallInfo *mc, const char *name)
    printf("Usage: %s -c <command name>\n  Use --help with a command for detailed parameter information.\n\nAvailable commands are:\n", name);
    for (; mc && mc->func; mc++) {
       if (mc->name && mc->help_description)
-         printf("  %24s -- %s\n", mc->name, mc->help_description);
+         printf("  \033[31m\033[1m%24s\033[0m -- %s\n", mc->name, mc->help_description);
       else if (mc->name)
-         printf("  %24s -- UNDOCUMENTED\n", mc->name);
+         printf("  \033[31m\033[1m%24s\033[0m -- UNDOCUMENTED\n", mc->name);
    }
    HASH_iterate_table(xdrCommandHash, &print_cmd_summary);
 
