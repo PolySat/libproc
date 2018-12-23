@@ -20,7 +20,8 @@ def main():
         output = os.path.basename(args.input.name) + "." + args.target
 
     try:
-        ir = xdr_parse(args.input.read())
+        p = Parser(args.input.name, None)
+        ir = p.xdr_parse(args.input.read())
     except pyparsing.ParseSyntaxException as e:
         sys.exit("Parsing failed: %s at %s line %d col %d" % (e.msg, args.input.name, e.lineno, e.col))
 
