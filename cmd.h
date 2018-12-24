@@ -87,11 +87,13 @@ struct Command {
 struct MulticastCommandState;
 struct ProcessData;
 struct XDR_StructDefinition;
+struct CMDResponseCb;
 
 struct CommandCbArg {
    struct Command *cmds;
    struct McastCommandState *mcast;
    struct ProcessData *proc;
+   struct CMDResponseCb *resp;
 };
 
 // Initializes the command callbacks
@@ -167,6 +169,9 @@ extern void CMD_register_error(struct CMD_ErrorInfo *errs);
 extern void CMD_register_errors(struct CMD_ErrorInfo *errs);
 extern const char *CMD_error_message(uint32_t id);
 extern struct IPC_OpaqueStruct CMD_struct_to_opaque_struct(void *src, uint32_t type);
+extern void CMD_add_response_cb(struct ProcessData *proc, uint32_t id,
+      IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout);
 
 #ifdef __cplusplus
 }

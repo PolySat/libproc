@@ -64,6 +64,16 @@ struct McastCommandState {
    struct McastCommandState *next;
 };
 
+struct CMDResponseCb {
+   uint32_t id;
+   IPC_command_callback cb;
+   void *arg;
+   enum IPC_CB_TYPE cb_type;
+   void *to_evt;
+   ProcessData *proc;
+   struct CMDResponseCb *next;
+};
+
 struct CMD_XDRCommandInfo *CMD_xdr_cmd_by_number(uint32_t num);
 
 static int multicast_cmd_handler_cb(int socket, char type, void * arg)
@@ -362,15 +372,51 @@ int cmd_handler_init(const char * procName, struct CommandCbArg *cmds)
    return EXIT_SUCCESS;
 }
 
+static void cmd_handle_xdr_response(ProcessData *proc,
+      char *data, size_t dataLen)
+{
+   struct IPC_ResponseHeader hdr;
+   size_t len = 0;
+   struct CMDResponseCb **itr, *state = NULL;
+
+   if (IPC_ResponseHeader_decode(data, &hdr, &len, dataLen, NULL) < 0)
+      return;
+   if (hdr.cmd != IPC_CMDS_RESPONSE)
+      return;
+
+   for (itr = &proc->cmds.resp; itr && (*itr); itr = &(*itr)->next) {
+      if ((*itr)->id == hdr.ipcref) {
+         state = *itr;
+         *itr = state->next;
+         break;
+      }
+   }
+
+   if (!state)
+      return;
+
+   CMD_resolve_callback(proc, state->cb, state->arg, state->cb_type,
+         data, dataLen);
+
+   if (state->to_evt) {
+      EVT_sched_remove(PROC_evt(proc), state->to_evt);
+      state->to_evt = NULL;
+   }
+
+   free(state);
+}
+
 int cmd_handler_cb(int socket, char type, void * arg)
 {
+   ProcessData *proc = (ProcessData*)arg;
    unsigned char data[MAX_IP_PACKET_SIZE];
    struct Command *cmd = NULL;
-   struct CommandCbArg *cmds = (struct CommandCbArg*)arg;
+   struct CommandCbArg *cmds = &proc->cmds;
    size_t dataLen, used = 0;
    struct sockaddr_in src;
    struct IPC_Command xdr_cmd;
    struct CMD_XDRCommandInfo *cmd_info;
+   uint32_t cmd_num;
    data[0] = 0;
 
    // should only be read events, but make sure
@@ -383,7 +429,13 @@ int cmd_handler_cb(int socket, char type, void * arg)
          // Command 0 was never used.  Now it is used to tell the difference
          //  between the old command format and the newer XDR format
          if (*data == 0) {
-            if (IPC_Command_decode((char*)data, &xdr_cmd,
+            if (XDR_decode_uint32((char*)data, &cmd_num,
+                     &used, dataLen, NULL) < 0)
+               DBG_print(DBG_LEVEL_WARN, "Failed to decode XDR uint32 of "
+                     "length %lu\n", dataLen);
+            if (cmd_num == IPC_CMDS_RESPONSE)
+               cmd_handle_xdr_response(proc, (char*)data, dataLen);
+            else if (IPC_Command_decode((char*)data, &xdr_cmd,
                      &used, dataLen, NULL) < 0) {
                DBG_print(DBG_LEVEL_WARN, "Failed to decode XDR command of "
                      "length %lu\n", dataLen);
@@ -393,6 +445,8 @@ int cmd_handler_cb(int socket, char type, void * arg)
                if (cmd_info && cmd_info->handler)
                   cmd_info->handler(cmds->proc, &xdr_cmd, &src,
                         cmd_info->arg, socket);
+               else if (cmd_info)
+                  IPC_error(proc, &xdr_cmd, IPC_RESULTCODE_UNSUPPORTED, &src);
 
                XDR_free_union(&xdr_cmd.parameters);
             }
@@ -865,6 +919,10 @@ void CMD_set_xdr_cmd_handler(uint32_t num, CMD_XDR_handler_t cb, void *arg)
 int CMD_resolve_callback(ProcessData *proc, IPC_command_callback cb,
       void *arg, enum IPC_CB_TYPE cb_type, void *rxbuff, size_t rxlen)
 {
+   struct XDR_StructDefinition *def;
+   void *resp;
+   size_t used;
+
    if (!cb)
       return 0;
 
@@ -873,7 +931,17 @@ int CMD_resolve_callback(ProcessData *proc, IPC_command_callback cb,
       return 0;
    }
 
-   assert(cb_type == IPC_CB_TYPE_COOKED);
+   def = XDR_definition_for_type(IPC_TYPES_RESPONSE);
+   if (!def)
+      return 0;
+
+   resp = def->allocator(def);
+   if (!resp)
+      return 0;
+   if (def->decoder(rxbuff, resp, &used, rxlen, def->arg) >= 0)
+      cb(proc, 0, arg, resp, 0, cb_type);
+
+   def->deallocator(&resp, def);
 
    return 0;
 }
@@ -950,4 +1018,52 @@ struct IPC_OpaqueStruct CMD_struct_to_opaque_struct(void *src, uint32_t type)
 
    result.length = needed;
    return result;
+}
+
+static int response_timeout_cb(void *arg)
+{
+   struct CMDResponseCb *state = (struct CMDResponseCb*)arg;
+   struct CMDResponseCb **itr;
+
+   if (!arg)
+      return EVENT_REMOVE;
+
+   for (itr = &state->proc->cmds.resp; itr && (*itr); itr = &(*itr)->next) {
+      if (*itr == state) {
+         *itr = state->next;
+         break;
+      }
+   }
+
+   state->cb(state->proc, 1, state->arg, NULL, 0, state->cb_type);
+   state->to_evt = NULL;
+   free(state);
+
+   return EVENT_REMOVE;
+}
+
+void CMD_add_response_cb(ProcessData *proc, uint32_t id,
+      IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+{
+   struct CMDResponseCb *state;
+   struct CommandCbArg *st = &proc->cmds;
+
+   if (!st)
+      return;
+
+   state = malloc(sizeof(*state));
+   memset(state, 0, sizeof(*state));
+
+   state->id = id;
+   state->cb = cb;
+   state->arg = arg;
+   state->cb_type = cb_type;
+   state->proc = proc;
+   state->next = st->resp;
+   st->resp = state;
+
+   if (timeout)
+      state->to_evt = EVT_sched_add(PROC_evt(proc), EVT_ms2tv(timeout),
+            response_timeout_cb, state);
 }

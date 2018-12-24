@@ -705,19 +705,22 @@ int IPC_command(ProcessData *proc, uint32_t command, void *params,
 {
    struct IPC_Command cmd;
    static uint32_t next_cmd_ref = 1;
-   char st_buff[1024];
-   char *buff = st_buff;
+   char *buff;
    size_t len;
    int res;
+   size_t buff_len = 1024;
 
    cmd.cmd = command;
    cmd.ipcref = next_cmd_ref++;
    cmd.parameters.type = param_type;
    cmd.parameters.data = params;
+   buff = malloc(buff_len);
 
-   if (IPC_Command_encode(&cmd, st_buff, &len, sizeof(st_buff), NULL) < 0) {
-      if (len > sizeof(st_buff)) {
-         buff = malloc(len);
+   if (IPC_Command_encode(&cmd, buff, &len, buff_len, NULL) < 0) {
+      if (len > buff_len) {
+         free(buff);
+         buff_len = len;
+         buff = malloc(buff_len);
          if (!buff)
             return -1;
          if (IPC_Command_encode(&cmd, buff, &len, len, NULL) < 0) {
@@ -731,10 +734,14 @@ int IPC_command(ProcessData *proc, uint32_t command, void *params,
 
    if (!proc) {
       res = ipc_blocking_command(buff, len, dest, cb, arg, cb_type, timeout);
-      if (buff != st_buff)
-         free(buff);
+      free(buff);
       return res;
    }
+
+   PROC_cmd_raw_sockaddr(proc, buff, len, &dest);
+   if (cb)
+      CMD_add_response_cb(proc, cmd.ipcref, cb, arg,
+            cb_type, timeout);
 
    return 0;
 }
@@ -742,19 +749,56 @@ int IPC_command(ProcessData *proc, uint32_t command, void *params,
 void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
       uint32_t param_type, void *params, struct sockaddr_in *dest)
 {
-   char buff[65536];
-   size_t used;
    struct IPC_Response resp;
+   char *buff;
+   size_t len;
+   size_t buff_len = 1024;
 
+   buff = malloc(buff_len);
    resp.cmd = IPC_CMDS_RESPONSE;
    resp.ipcref = cmd->ipcref;
    resp.result = IPC_RESULTCODE_SUCCESS;
    resp.data.type = param_type;
    resp.data.data = params;
 
-   if (IPC_Response_encode(&resp, buff, &used, sizeof(buff), NULL) < 0)
-      return;
+   if (IPC_Response_encode(&resp, buff, &len, buff_len, NULL) < 0) {
+      if (len > buff_len) {
+         free(buff);
+         buff_len = len;
+         buff = malloc(buff_len);
+         if (!buff)
+            return;
+         if (IPC_Response_encode(&resp, buff, &len, buff_len, NULL) < 0) {
+            free(buff);
+            return;
+         }
+      }
+      else
+         return;
+   }
 
-   PROC_buff_sockaddr(proc, buff, used, dest);
+   PROC_cmd_raw_sockaddr(proc, buff, len, dest);
 }
 
+void IPC_error(struct ProcessData *proc, struct IPC_Command *cmd,
+      uint32_t err_code, struct sockaddr_in *dest)
+{
+   struct IPC_Response resp;
+   char *buff;
+   size_t len;
+   size_t buff_len = 128;
+
+   buff = malloc(buff_len);
+   resp.cmd = IPC_CMDS_RESPONSE;
+   resp.ipcref = cmd->ipcref;
+   resp.result = err_code;
+   resp.data.type = IPC_TYPES_VOID;
+   resp.data.data = NULL;
+
+   if (IPC_Response_encode(&resp, buff, &len, buff_len, NULL) < 0) {
+      free(buff);
+      return;
+   }
+
+   PROC_cmd_raw_sockaddr(proc, buff, len, dest);
+}

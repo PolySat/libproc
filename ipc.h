@@ -301,6 +301,8 @@ extern int IPC_command(struct ProcessData*, uint32_t command, void *params,
       enum IPC_CB_TYPE cb_type, unsigned int timeout);
 extern void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
       uint32_t param_type, void *params, struct sockaddr_in *dest);
+extern void IPC_error(struct ProcessData *proc, struct IPC_Command *cmd,
+      uint32_t error_code, struct sockaddr_in *dest);
 
 #ifdef __cplusplus
 }

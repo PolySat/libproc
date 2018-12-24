@@ -140,7 +140,7 @@ void PROC_set_context(ProcessData *proc, void *ctx);
  */
 
 int PROC_cmd(ProcessData *proc, unsigned char cmd, void *data, size_t dataLen, const char *dest);
-int PROC_buff_sockaddr(ProcessData *proc, void *data, size_t dataLen,
+int PROC_cmd_raw_sockaddr(ProcessData *proc, void *data, size_t dataLen,
       struct sockaddr_in *dest);
 
 /**
@@ -451,7 +451,6 @@ char CHLD_stderr_reader(ProcChild *child, CHLD_buf_stream_cb_t, void *arg);
 */
 int thread_function(ProcessData *proc, void *fcn_ptr, void *arg, void *cb_fcn,
 void *cb_arg);
-
 
 #ifdef __cplusplus
 }

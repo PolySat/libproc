@@ -44,11 +44,13 @@ struct Command {
 
 enum ResultCode {
    SUCCESS = BASE + 0,
-   INCORRECT_PARAMETER_TYPE = BASE + 1
+   INCORRECT_PARAMETER_TYPE = BASE + 1,
+   UNSUPPORTED = BASE + 2
 };
 
 error ResultCode::SUCCESS = "No error - success";
 error ResultCode::INCORRECT_PARAMETER_TYPE = "Type of command parameter didn't match the expected type";
+error ResultCode::UNSUPPORTED = "The target process does not support the command sent";
 
 struct DataReq {
    int length;

@@ -105,6 +105,8 @@ struct CSState *proc_get_cs_state(ProcessData *proc)
 
 static ProcessData *watchProc = NULL;
 static int proc_cmd_sockaddr_internal(ProcessData *proc, int fd, unsigned char cmd, void *data, size_t dataLen, struct sockaddr_in *dest);
+int proc_cmd_sockaddr_raw_internal(ProcessData *proc, int fd, void *data,
+      size_t dataLen, struct sockaddr_in *dest);
 
 static void watchdog_reg_info(int fd, unsigned char cmd, void *data,
    size_t dataLen, struct sockaddr_in *src)
@@ -285,7 +287,7 @@ ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
    for(; handlers && handlers->number; handlers++)
       CMD_set_xdr_cmd_handler(handlers->number, handlers->cb, handlers->arg);
    //Event for when something (probably a command) appears on the fd
-   EVT_fd_add(proc->evtHandler, proc->cmdFd, EVENT_FD_READ, cmd_handler_cb, &proc->cmds);
+   EVT_fd_add(proc->evtHandler, proc->cmdFd, EVENT_FD_READ, cmd_handler_cb, proc);
    EVT_fd_set_name(proc->evtHandler, proc->cmdFd, "UDP Command Socket");
    //Event for when something (probably a command response) appears on the fd
    EVT_fd_add(proc->evtHandler, proc->txFd, EVENT_FD_READ, tx_cmd_handler_cb, proc);
@@ -1153,13 +1155,6 @@ static int proc_cmd_internal(ProcessData *proc, int fd, unsigned char cmd, void 
    return retval;
 }
 
-int PROC_buff_sockaddr(ProcessData *proc, void *data, size_t dataLen,
-      struct sockaddr_in *dest)
-{
-   return socket_write(proc->cmdFd, data, dataLen, dest);
-}
-
-
 int PROC_cmd(ProcessData *proc, unsigned char cmd, void *data, size_t dataLen, const char *dest)
 {
    return proc_cmd_internal(proc, proc->cmdFd, cmd, data, dataLen, dest);
@@ -1175,27 +1170,26 @@ int PROC_cmd_sockaddr(ProcessData *proc, unsigned char cmd, void *data, size_t d
    return proc_cmd_sockaddr_internal(proc, proc->cmdFd, cmd, data, dataLen, dest);
 }
 
+int PROC_cmd_raw_sockaddr(ProcessData *proc, void *data, size_t dataLen,
+      struct sockaddr_in *dest)
+{
+   return proc_cmd_sockaddr_raw_internal(proc, proc->cmdFd, data, dataLen, dest);
+}
+
 int PROC_cmd_sockaddr_secondary(ProcessData *proc, unsigned char cmd, void *data, size_t dataLen, struct sockaddr_in *dest)
 {
    return proc_cmd_sockaddr_internal(proc, proc->txFd, cmd, data, dataLen, dest);
 }
 
-int proc_cmd_sockaddr_internal(ProcessData *proc, int fd, unsigned char cmd, void *data, size_t dataLen, struct sockaddr_in *dest)
+int proc_cmd_sockaddr_raw_internal(ProcessData *proc, int fd, void *data,
+      size_t dataLen, struct sockaddr_in *dest)
 {
    int retval = 0;
    struct MsgData *msg = (struct MsgData*)malloc(sizeof(struct MsgData));
 
    // create buffer large enough to fit data + command
-   msg->data = (char*)malloc(dataLen+1);
-
-   // set first byte of data to be the command
-   msg->data[0] = cmd;
-
-   // new length is total data + 1 byte for the command
-   msg->dataLen = dataLen + 1;
-
-   // copy the data/arguments into the buffer
-   memcpy((msg->data)+1, data, dataLen);
+   msg->data = data;
+   msg->dataLen = dataLen;
 
    // send the data
    errno = 0;
@@ -1212,10 +1206,27 @@ int proc_cmd_sockaddr_internal(ProcessData *proc, int fd, unsigned char cmd, voi
       msg->proc = proc;
       msg->dest = *dest;
       // schedule a write for when buffer is available
-      EVT_fd_add(PROC_evt(proc), fd, EVENT_FD_WRITE, socket_write_cb, (void*)msg);
+      EVT_fd_add(PROC_evt(proc), fd, EVENT_FD_WRITE, socket_write_cb,
+            (void*)msg);
+      retval = msg->dataLen;
    }
 
    return retval;
+}
+
+int proc_cmd_sockaddr_internal(ProcessData *proc, int fd, unsigned char cmd, void *data, size_t dataLen, struct sockaddr_in *dest)
+{
+   char *d;
+
+   // create buffer large enough to fit data + command
+   d = (char*)malloc(dataLen+1);
+
+   // set first byte of data to be the command
+   d[0] = cmd;
+
+   // copy the data/arguments into the buffer
+   memcpy(d+1, data, dataLen);
+   return proc_cmd_sockaddr_raw_internal(proc, fd, d, dataLen + 1, dest);
 }
 
 int PROC_set_cmd_handler(struct ProcessData *proc,
@@ -1431,4 +1442,3 @@ cleanup:
    free(data);
    return 1;
 }
-
