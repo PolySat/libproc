@@ -4,7 +4,8 @@ const BASE = 0x100;
 
 enum Cmds {
    STATUS = BASE + 1,
-   DATA_REQ = BASE + 2
+   DATA_REQ = BASE + 2,
+   RESPONSE = BASE + 3
 };
 
 enum types {
@@ -65,12 +66,14 @@ struct OpaqueStructArr {
 } = types::OPAQUE_STRUCT_ARR;
 
 struct Response {
+   Cmds cmd;
    unsigned int ipcref;
    ResultCode result;
    Data data;
 } = types::RESPONSE;
 
 struct ResponseHeader {
+   Cmds cmd;
    unsigned int ipcref;
    ResultCode result;
 } = types::RESPONSE_HDR;

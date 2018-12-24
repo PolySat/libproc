@@ -868,6 +868,11 @@ void CMD_print_response(struct ProcessData *proc, int timeout,
       if (IPC_ResponseHeader_decode(resp_buff, &hdr, &len, resp_len, NULL) < 0)
          return;
 
+      if (hdr.cmd != IPC_CMDS_RESPONSE) {
+         printf("Packet received, but not a response type!\n");
+         return;
+      }
+
       if (hdr.result != IPC_RESULTCODE_SUCCESS) {
          printf("Error: %s\n", CMD_error_message(hdr.result));
       }
@@ -883,18 +888,19 @@ void CMD_print_response(struct ProcessData *proc, int timeout,
 struct IPC_OpaqueStruct CMD_struct_to_opaque_struct(void *src, uint32_t type)
 {
    struct IPC_OpaqueStruct result;
-   struct XDR_StructDefinition *def;
    size_t dlen = 256, needed = 0;
+   struct XDR_Union un;
 
    result.length = 0;
    result.data = NULL;
-   def = XDR_definition_for_type(type);
+   un.type = type;
+   un.data = src;
 
-   if (!src || !def || !def->encoder)
+   if (!src)
       return result;
 
    result.data = malloc(dlen);
-   if (def->encoder(src, result.data, &needed, dlen, type, def->arg) < 0) {
+   if (XDR_encode_union(&un, result.data, &needed, dlen, NULL) < 0) {
       free(result.data);
       result.data = NULL;
       if (dlen >= needed)
@@ -903,7 +909,7 @@ struct IPC_OpaqueStruct CMD_struct_to_opaque_struct(void *src, uint32_t type)
       dlen = needed + 16;
       result.data = malloc(dlen);
       needed = 0;
-      if (def->encoder(src, result.data, &needed, dlen, type, def->arg) < 0) {
+      if (XDR_encode_union(&un, result.data, &needed, dlen, NULL) < 0) {
          free(result.data);
          result.data = NULL;
          return result;

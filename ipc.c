@@ -746,6 +746,7 @@ void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
    size_t used;
    struct IPC_Response resp;
 
+   resp.cmd = IPC_CMDS_RESPONSE;
    resp.ipcref = cmd->ipcref;
    resp.result = IPC_RESULTCODE_SUCCESS;
    resp.data.type = param_type;
