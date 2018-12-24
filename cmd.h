@@ -28,6 +28,11 @@
 #ifndef CMD_H
 #define CMD_H
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -170,6 +175,7 @@ extern void CMD_register_errors(struct CMD_ErrorInfo *errs);
 extern const char *CMD_error_message(uint32_t id);
 extern struct IPC_OpaqueStruct CMD_struct_to_opaque_struct(void *src, uint32_t type);
 extern void CMD_add_response_cb(struct ProcessData *proc, uint32_t id,
+      struct sockaddr_in host,
       IPC_command_callback cb, void *arg,
       enum IPC_CB_TYPE cb_type, unsigned int timeout);
 

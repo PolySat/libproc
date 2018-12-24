@@ -740,7 +740,7 @@ int IPC_command(ProcessData *proc, uint32_t command, void *params,
 
    PROC_cmd_raw_sockaddr(proc, buff, len, &dest);
    if (cb)
-      CMD_add_response_cb(proc, cmd.ipcref, cb, arg,
+      CMD_add_response_cb(proc, cmd.ipcref, dest, cb, arg,
             cb_type, timeout);
 
    return 0;

@@ -66,6 +66,7 @@ struct McastCommandState {
 
 struct CMDResponseCb {
    uint32_t id;
+   struct sockaddr_in host;
    IPC_command_callback cb;
    void *arg;
    enum IPC_CB_TYPE cb_type;
@@ -373,7 +374,7 @@ int cmd_handler_init(const char * procName, struct CommandCbArg *cmds)
 }
 
 static void cmd_handle_xdr_response(ProcessData *proc,
-      char *data, size_t dataLen)
+      char *data, size_t dataLen, struct sockaddr_in *src)
 {
    struct IPC_ResponseHeader hdr;
    size_t len = 0;
@@ -385,7 +386,8 @@ static void cmd_handle_xdr_response(ProcessData *proc,
       return;
 
    for (itr = &proc->cmds.resp; itr && (*itr); itr = &(*itr)->next) {
-      if ((*itr)->id == hdr.ipcref) {
+      if ((*itr)->id == hdr.ipcref && (*itr)->host.sin_port == src->sin_port &&
+            (*itr)->host.sin_addr.s_addr == src->sin_addr.s_addr ) {
          state = *itr;
          *itr = state->next;
          break;
@@ -434,7 +436,7 @@ int cmd_handler_cb(int socket, char type, void * arg)
                DBG_print(DBG_LEVEL_WARN, "Failed to decode XDR uint32 of "
                      "length %lu\n", dataLen);
             if (cmd_num == IPC_CMDS_RESPONSE)
-               cmd_handle_xdr_response(proc, (char*)data, dataLen);
+               cmd_handle_xdr_response(proc, (char*)data, dataLen, &src);
             else if (IPC_Command_decode((char*)data, &xdr_cmd,
                      &used, dataLen, NULL) < 0) {
                DBG_print(DBG_LEVEL_WARN, "Failed to decode XDR command of "
@@ -1043,6 +1045,7 @@ static int response_timeout_cb(void *arg)
 }
 
 void CMD_add_response_cb(ProcessData *proc, uint32_t id,
+      struct sockaddr_in host,
       IPC_command_callback cb, void *arg,
       enum IPC_CB_TYPE cb_type, unsigned int timeout)
 {
@@ -1056,6 +1059,7 @@ void CMD_add_response_cb(ProcessData *proc, uint32_t id,
    memset(state, 0, sizeof(*state));
 
    state->id = id;
+   state->host = host;
    state->cb = cb;
    state->arg = arg;
    state->cb_type = cb_type;
