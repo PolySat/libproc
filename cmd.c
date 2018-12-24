@@ -543,7 +543,7 @@ int CMD_xdr_cmd_help(struct CMD_XDRCommandInfo *command)
    if (!command)
       return 2;
 
-   printf("%s [-h <destination>]", command->name);
+   printf("%s [-h <destination>] [-f <kvp | csv | human>]", command->name);
    if (command->parameter) {
       if (command->parameter->decoder != &XDR_struct_decoder ||
             command->parameter->encoder != &XDR_struct_encoder)
@@ -558,6 +558,7 @@ int CMD_xdr_cmd_help(struct CMD_XDRCommandInfo *command)
 
    printf(" %s\n", command->summary);
    printf("   destination -- DNS name or IP address of machine to receive the command\n");
+   printf("   kvp | csv | human -- Output format for data\n");
    printf("   Valid parameter/value pairs are:\n");
 
    for (field = fields; field && field->encoder; field++)
@@ -574,7 +575,8 @@ int CMD_xdr_cmd_help(struct CMD_XDRCommandInfo *command)
 int CMD_mc_cmd_help(struct CMD_MulticallInfo *command)
 {
    if (command) {
-      printf("%s [-h <destination>] %s\n", command->name,
+      printf("%s [-h <destination>] [-f <kvp | csv | human>] %s\n",
+            command->name,
             command->help_param_summary);
       printf("%s\n%s\n", command->help_description, command->help_detail);
    }
@@ -609,7 +611,8 @@ int CMD_usage_summary(struct CMD_MulticallInfo *mc, const char *name)
 
 int CMD_send_command_line_command(int argc, char **argv,
       struct CMD_MulticallInfo *mc, ProcessData *proc, IPC_command_callback cb,
-      void *cb_arg, unsigned int timeout, const char *destProc)
+      void *cb_arg, unsigned int timeout, const char *destProc,
+      enum XDR_PRINT_STYLE *styleOut)
 {
    char *host = "127.0.0.1";
    struct CMD_MulticallInfo *mcCommand = NULL;
@@ -622,6 +625,7 @@ int CMD_send_command_line_command(int argc, char **argv,
    char *key, *value;
    int res;
    uint32_t param_type = 0;
+   enum XDR_PRINT_STYLE style = XDR_PRINT_HUMAN;
 
    // Match command based on executable name
    execName = rindex(argv[0], '/');
@@ -633,7 +637,7 @@ int CMD_send_command_line_command(int argc, char **argv,
    command = CMD_xdr_cmd_by_name(execName);
    mcCommand = CMD_mc_cmd_by_name(execName, mc);
 
-   // Process command line flags: -c, -h, -n, --help
+   // Process command line flags: -c, -h, -n, -f, --help
    for (argItr = 1; argItr < argc && argv[argItr][0] == '-'; argItr++) {
       switch(argv[argItr][1]) {
          case 'c':
@@ -655,6 +659,19 @@ int CMD_send_command_line_command(int argc, char **argv,
             command = CMD_xdr_cmd_by_number(strtol(argv[++argItr], NULL, 0));
             break;
 
+         case 'f':
+            if (argv[argItr][2] || argItr == (argc - 1))
+               return CMD_usage_summary(mc, execName);
+            if (!strcasecmp(argv[++argItr], "human"))
+               style = XDR_PRINT_HUMAN;
+            else if (!strcasecmp(argv[argItr], "kvp"))
+               style = XDR_PRINT_KVP;
+            else if (!strcasecmp(argv[argItr], "csv"))
+               style = XDR_PRINT_CSV_DATA;
+            else
+               return CMD_usage_summary(mc, execName);
+            break;
+
          case '-':
          default:
             if (!command && !mcCommand)
@@ -670,6 +687,9 @@ int CMD_send_command_line_command(int argc, char **argv,
             argv + argItr, host);
    if (!command)
       return CMD_usage_summary(mc, execName);
+
+   if (styleOut)
+      *styleOut = style;
 
    // Resolve hostname
    dest.sin_family = AF_INET;
@@ -863,6 +883,10 @@ void CMD_print_response(struct ProcessData *proc, int timeout,
 {
    struct IPC_ResponseHeader hdr;
    size_t len = 0;
+   enum XDR_PRINT_STYLE style = XDR_PRINT_HUMAN;
+
+   if (arg)
+      style = *(enum XDR_PRINT_STYLE*)arg;
 
    if (cb_type == IPC_CB_TYPE_RAW) {
       if (IPC_ResponseHeader_decode(resp_buff, &hdr, &len, resp_len, NULL) < 0)
@@ -877,8 +901,16 @@ void CMD_print_response(struct ProcessData *proc, int timeout,
          printf("Error: %s\n", CMD_error_message(hdr.result));
       }
       else {
+         if (style == XDR_PRINT_CSV_DATA) {
+            CMD_iterate_structs(resp_buff + len, resp_len - len,
+               &XDR_print_structure, stdout, XDR_PRINT_CSV_HEADER);
+            fprintf(stdout, "\n");
+         }
+
          CMD_iterate_structs(resp_buff + len, resp_len - len,
-               &XDR_print_structure, stdout, XDR_PRINT_HUMAN);
+               &XDR_print_structure, stdout, style);
+         if (style == XDR_PRINT_CSV_DATA)
+            fprintf(stdout, "\n");
       }
    }
    else if (cb_type == IPC_CB_TYPE_COOKED) {
