@@ -9,16 +9,30 @@ static struct XDR_FieldDefinition ${st.name.replace('::','_',400)}_Fields[] = {
 ::    if m.type == 'void':
 ::       continue
 ::    #endif
+:: if m.length == None:
    { (XDR_Decoder)&${types[m.type]['dec']},
       (XDR_Encoder)&${types[m.type]['enc']},
+:: else:
+   { (XDR_Decoder)&${types[m.type]['dec']}_array,
+      (XDR_Encoder)&${types[m.type]['enc']}_array,
+:: #endif
       offsetof(struct ${st.name.replace('::','_',400)}, ${m.name}),
       ${nullstr(m.documentation.key, '"', '"')}, ${nullstr(m.documentation.name, '"', '"')}, ${nullstr(m.documentation.unit, '"', '"')}, ${m.documentation.offset}, ${m.documentation.divisor},
+:: if m.length == None:
       ${nullstr(types[m.type]['print'], '&', '')}, ${nullstr(types[m.type]['scan'], '&', '')},
+:: else:
+      ${nullstr(types[m.type]['print'], '&', '_array')}, ${nullstr(types[m.type]['scan'], '&', '_array')},
+:: #endif
       ${nullstr(types[m.type]['field_dealloc'], '&', '')}, ${types[m.type]['id']},
-      ${nullstr(m.documentation.description, '"', '"')} },
+      ${nullstr(m.documentation.description, '"', '"')},
+:: if m.length_const:
+      0 },
+:: else:
+      offsetof(struct ${st.name.replace('::','_',400)}, ${m.length}) },
+:: #endif
 
 :: #endfor
-   { NULL, NULL, 0, NULL, NULL, NULL, 0, 0, NULL, 0, NULL }
+   { NULL, NULL, 0, NULL, NULL, NULL, 0, 0, NULL, 0, NULL, 0 }
 };
 
 static struct XDR_StructDefinition ${st.name.replace('::','_',400)}_Struct = {

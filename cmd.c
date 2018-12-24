@@ -383,7 +383,8 @@ int cmd_handler_cb(int socket, char type, void * arg)
          // Command 0 was never used.  Now it is used to tell the difference
          //  between the old command format and the newer XDR format
          if (*data == 0) {
-            if (IPC_Command_decode((char*)data, &xdr_cmd, &used, dataLen) < 0) {
+            if (IPC_Command_decode((char*)data, &xdr_cmd,
+                     &used, dataLen, NULL) < 0) {
                DBG_print(DBG_LEVEL_WARN, "Failed to decode XDR command of "
                      "length %lu\n", dataLen);
             }
@@ -460,7 +461,7 @@ int CMD_iterate_structs(char *src, size_t len, CMD_struct_itr itr_cb, void *arg,
    uint32_t arr_itr;
    struct XDR_StructDefinition *def;
 
-   if (XDR_decode_uint32(src, &type, &used, len) < 0)
+   if (XDR_decode_uint32(src, &type, &used, len, NULL) < 0)
       return -1;
 
    src += used;
@@ -472,14 +473,14 @@ int CMD_iterate_structs(char *src, size_t len, CMD_struct_itr itr_cb, void *arg,
       return 0;
    }
 
-   if (XDR_decode_uint32(src, &arr_ents, &used, len) < 0)
+   if (XDR_decode_uint32(src, &arr_ents, &used, len, NULL) < 0)
       return -1;
 
    src += used;
    len -= used;
 
    for (arr_itr = 0; arr_itr < arr_ents; arr_itr++) {
-      if (XDR_decode_uint32(src, &byte_len, &used, len) < 0)
+      if (XDR_decode_uint32(src, &byte_len, &used, len, NULL) < 0)
          return -2;
 
       src += used;
@@ -706,7 +707,7 @@ int CMD_send_command_line_command(int argc, char **argv,
                continue;
             key = NULL;
             field->scanner(value, (char*)param + field->offset,
-                  command->parameter->arg);
+                  command->parameter->arg, (char*)param + field->len_offset);
             break;
          }
          if (key) {
@@ -864,7 +865,7 @@ void CMD_print_response(struct ProcessData *proc, int timeout,
    size_t len = 0;
 
    if (cb_type == IPC_CB_TYPE_RAW) {
-      if (IPC_ResponseHeader_decode(resp_buff, &hdr, &len, resp_len) < 0)
+      if (IPC_ResponseHeader_decode(resp_buff, &hdr, &len, resp_len, NULL) < 0)
          return;
 
       if (hdr.result != IPC_RESULTCODE_SUCCESS) {

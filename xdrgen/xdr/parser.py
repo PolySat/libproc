@@ -220,7 +220,7 @@ class Parser:
 
    def xdr_parse_declaration(self, x):
       if x[0] == 'void':
-         return XDRDeclaration(None, 'basic', 'void', None, None, XDRFieldDocumentation('', '', '', 0, 0, ''))
+         return XDRDeclaration(None, 'basic', 'void', None, None, True, XDRFieldDocumentation('', '', '', 0, 0, ''))
       elif x[0] == 'opaque' or x[0] == 'string':
          type = x[0]
          name = x[1]
@@ -237,16 +237,19 @@ class Parser:
 
          if length == None:
             length_type = ''
+            length_const = True
          else:
             try:
                intlen = int(length)
                length_type = 'fixed'
+               length_const = True
             except:
                length_type = 'variable'
+               length_const = False
          if type == 'string':
             length_type = 'variable'
 
-         return XDRDeclaration(name, kind, type, length, length_type, docs)
+         return XDRDeclaration(name, kind, type, length, length_type, length_const, docs)
       else:
          name = x[1]
          docidx = 2
@@ -273,13 +276,16 @@ class Parser:
             doc = self.xdr_parse_fielddoc(x[docidx])
          if length == None:
             length_type = ''
+            length_const = True
          else:
             try:
                intlen = int(length)
                length_type = 'fixed'
+               length_const = True
             except:
                length_type = 'variable'
-         return XDRDeclaration(name, kind, type, length, length_type, doc)
+               length_const = False
+         return XDRDeclaration(name, kind, type, length, length_type, length_const, doc)
 
    def xdr_parse_definition(self, x):
       if x[0] == 'namespace':
@@ -331,6 +337,6 @@ class Parser:
       ir = []
       for x in ast:
          ir = ir + self.xdr_parse_definition(x)
-#print(ir)
+#      print(ir)
       return ir
 

@@ -9,7 +9,7 @@ type_map = { 'int': { 'type': 'int32_t', 'dec': 'XDR_decode_int32', 'enc':'XDR_e
              'hyper': { 'type': 'int64_t', 'dec': 'XDR_decode_int64', 'enc': 'XDR_encode_int64', 'print': 'XDR_print_field_int64', 'scan': 'XDR_scan_int64', 'dealloc':False, 'id': '0', 'field_dealloc': None}, \
              'unsigned hyper': { 'type': 'uint64_t', 'dec': 'XDR_decode_uint64', 'enc': 'XDR_encode_uint64', 'print': 'XDR_print_field_uint64', 'scan': 'XDR_scan_uint64', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
              'string': { 'type': 'char', 'dec': 'XDR_decode_string', 'enc': 'XDR_encode_string', 'print': 'XDR_print_field_string', 'scan': 'XDR_scan_string', 'dealloc':True, 'deallocator': 'XDR_dealloc_string', 'id': '0', 'field_dealloc': None }, \
-             'opaque': { 'type': 'char', 'dec': 'XDR_decode_byte_string', 'enc': 'XDR_encode_byte_string', 'print': 'XDR_print_field_byte_string', 'scan': 'XDR_scan_bytes', 'dealloc':True, 'deallocator': 'XDR_dealloc_byte_string', 'id': '0', 'field_dealloc': None }, \
+             'opaque': { 'type': 'char', 'dec': 'XDR_decode_byte', 'enc': 'XDR_encode_byte', 'print': 'XDR_print_field_byte', 'scan': 'XDR_scan_byte', 'dealloc':True, 'deallocator': 'XDR_dealloc_byte', 'id': '0', 'field_dealloc': None }, \
            }
 
 def extract_namespace(ir, default, prefix):

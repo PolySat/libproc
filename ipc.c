@@ -715,12 +715,12 @@ int IPC_command(ProcessData *proc, uint32_t command, void *params,
    cmd.parameters.type = param_type;
    cmd.parameters.data = params;
 
-   if (IPC_Command_encode(&cmd, st_buff, &len, sizeof(st_buff)) < 0) {
+   if (IPC_Command_encode(&cmd, st_buff, &len, sizeof(st_buff), NULL) < 0) {
       if (len > sizeof(st_buff)) {
          buff = malloc(len);
          if (!buff)
             return -1;
-         if (IPC_Command_encode(&cmd, buff, &len, len) < 0) {
+         if (IPC_Command_encode(&cmd, buff, &len, len, NULL) < 0) {
             free(buff);
             return -1;
          }
@@ -751,7 +751,7 @@ void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
    resp.data.type = param_type;
    resp.data.data = params;
 
-   if (IPC_Response_encode(&resp, buff, &used, sizeof(buff)) < 0)
+   if (IPC_Response_encode(&resp, buff, &used, sizeof(buff), NULL) < 0)
       return;
 
    PROC_buff_sockaddr(proc, buff, used, dest);
