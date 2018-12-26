@@ -56,8 +56,8 @@ int ET_default_monotonic(struct EventTimer *et, struct timeval *tv)
 
    #ifdef __APPLE__
 
-   res = 0
-   gettimeofday(tv, NULL)
+   res = 0;
+   gettimeofday(tv, NULL);
 
    #else
 
