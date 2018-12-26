@@ -2,14 +2,14 @@ import os
 import tenjin
 from xdr.parser import *
 
-type_map = { 'int': { 'type': 'int32_t', 'dec': 'XDR_decode_int32', 'enc':'XDR_encode_int32', 'print': 'XDR_print_field_int32', 'scan': 'XDR_scan_int32', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
-             'unsigned int': { 'type': 'uint32_t', 'dec': 'XDR_decode_uint32', 'enc': 'XDR_encode_uint32', 'print': 'XDR_print_field_uint32', 'scan': 'XDR_scan_uint32', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
-             'float': { 'type': 'float', 'dec': 'XDR_decode_float', 'enc': 'XDR_encode_float', 'print': 'XDR_print_field_float', 'scan': 'XDR_scan_float', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
-             'void': { 'type': 'uint32_t', 'dec': 'XDR_decode_uint32', 'enc': 'XDR_encode_uint32', 'print': 'XDR_print_field_uint32', 'scan': 'XDR_scan_uint32', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
-             'hyper': { 'type': 'int64_t', 'dec': 'XDR_decode_int64', 'enc': 'XDR_encode_int64', 'print': 'XDR_print_field_int64', 'scan': 'XDR_scan_int64', 'dealloc':False, 'id': '0', 'field_dealloc': None}, \
-             'unsigned hyper': { 'type': 'uint64_t', 'dec': 'XDR_decode_uint64', 'enc': 'XDR_encode_uint64', 'print': 'XDR_print_field_uint64', 'scan': 'XDR_scan_uint64', 'dealloc':False, 'id': '0', 'field_dealloc': None }, \
-             'string': { 'type': 'char', 'dec': 'XDR_decode_string', 'enc': 'XDR_encode_string', 'print': 'XDR_print_field_string', 'scan': 'XDR_scan_string', 'dealloc':True, 'deallocator': 'XDR_dealloc_string', 'id': '0', 'field_dealloc': None }, \
-             'opaque': { 'type': 'char', 'dec': 'XDR_decode_byte', 'enc': 'XDR_encode_byte', 'print': 'XDR_print_field_byte', 'scan': 'XDR_scan_byte', 'dealloc':True, 'deallocator': 'XDR_dealloc_byte', 'id': '0', 'field_dealloc': None }, \
+type_map = { 'int': { 'type': 'int32_t', 'dec': 'XDR_decode_int32', 'enc':'XDR_encode_int32', 'print': 'XDR_print_field_int32', 'scan': 'XDR_scan_int32', 'dealloc':False, 'id': '0', 'field_dealloc': None, 'field_dealloc_array': 'XDR_array_field_deallocator'}, \
+             'unsigned int': { 'type': 'uint32_t', 'dec': 'XDR_decode_uint32', 'enc': 'XDR_encode_uint32', 'print': 'XDR_print_field_uint32', 'scan': 'XDR_scan_uint32', 'dealloc':False, 'id': '0', 'field_dealloc': None, 'field_dealloc_array': 'XDR_array_field_deallocator' }, \
+             'float': { 'type': 'float', 'dec': 'XDR_decode_float', 'enc': 'XDR_encode_float', 'print': 'XDR_print_field_float', 'scan': 'XDR_scan_float', 'dealloc':False, 'id': '0', 'field_dealloc': None, 'field_dealloc_array': 'XDR_array_field_deallocator' }, \
+             'void': { 'type': 'uint32_t', 'dec': 'XDR_decode_uint32', 'enc': 'XDR_encode_uint32', 'print': 'XDR_print_field_uint32', 'scan': 'XDR_scan_uint32', 'dealloc':False, 'id': '0', 'field_dealloc': None, 'field_dealloc_array': None }, \
+             'hyper': { 'type': 'int64_t', 'dec': 'XDR_decode_int64', 'enc': 'XDR_encode_int64', 'print': 'XDR_print_field_int64', 'scan': 'XDR_scan_int64', 'dealloc':False, 'id': '0', 'field_dealloc': None, 'field_dealloc_array': 'XDR_array_field_deallocator'}, \
+             'unsigned hyper': { 'type': 'uint64_t', 'dec': 'XDR_decode_uint64', 'enc': 'XDR_encode_uint64', 'print': 'XDR_print_field_uint64', 'scan': 'XDR_scan_uint64', 'dealloc':False, 'id': '0', 'field_dealloc': None, 'field_dealloc_array': 'XDR_array_field_deallocator' }, \
+             'string': { 'type': 'char', 'dec': 'XDR_decode_string', 'enc': 'XDR_encode_string', 'print': 'XDR_print_field_string', 'scan': 'XDR_scan_string', 'dealloc':True, 'deallocator': 'XDR_dealloc_string', 'id': '0', 'field_dealloc': None, 'field_dealloc_array': None }, \
+             'opaque': { 'type': 'char', 'dec': 'XDR_decode_byte', 'enc': 'XDR_encode_byte', 'print': 'XDR_print_field_byte', 'scan': 'XDR_scan_byte', 'dealloc':True, 'deallocator': 'XDR_dealloc_byte', 'id': '0', 'field_dealloc': None, 'field_dealloc_array': 'XDR_array_field_deallocator' }, \
            }
 
 def extract_namespace(ir, default, prefix):
@@ -36,9 +36,9 @@ def extract_union_mapping(ir, namespace):
 def setup_types(ir):
    for x in ir:
       if isinstance(x, XDRUnion):
-         type_map[x.name] = { 'type': 'struct XDR_Union', 'dec': 'XDR_decode_union', 'enc': 'XDR_encode_union', 'print': '', 'scan': '', 'dealloc': True, 'deallocator': 'XDR_dealloc_union', 'id': '0', 'field_dealloc': None }
+         type_map[x.name] = { 'type': 'struct XDR_Union', 'dec': 'XDR_decode_union', 'enc': 'XDR_encode_union', 'print': '', 'scan': '', 'dealloc': True, 'deallocator': 'XDR_dealloc_union', 'id': '0', 'field_dealloc': 'XDR_union_field_deallocator', 'field_dealloc_array': 'XDR_union_array_field_deallocator' }
       elif isinstance(x, XDREnum):
-         type_map[x.name] = { 'type': 'uint32_t', 'dec': 'XDR_decode_uint32', 'enc': 'XDR_encode_uint32', 'print': 'XDR_print_field_uint32', 'scan': 'XDR_scan_uint32', 'dealloc': False, 'id': '0', 'field_dealloc': None }
+         type_map[x.name] = { 'type': 'uint32_t', 'dec': 'XDR_decode_uint32', 'enc': 'XDR_encode_uint32', 'print': 'XDR_print_field_uint32', 'scan': 'XDR_scan_uint32', 'dealloc': False, 'id': '0', 'field_dealloc': None, 'field_dealloc_array': 'XDR_array_field_deallocator' }
       elif isinstance(x, XDRStruct):
          dealloc = False;
          deallocator = 'XDR_free_deallocator'
@@ -47,7 +47,7 @@ def setup_types(ir):
          if dealloc:
             deallocator = x.name.replace('::','_',400) + "_dealloc"
          type_map[x.name] = { 'type': 'struct ' + x.name.replace('::','_',400), 'dec':  x.name.replace('::','_',400) + "_decode", \
-            'enc':  x.name.replace('::','_',400) + "_encode", 'print': '', 'scan': '', 'dealloc': dealloc, 'deallocator': 'XDR_struct_free_deallocator', 'id': x.id.replace('::','_',400), 'field_dealloc': 'XDR_struct_field_deallocator' }
+            'enc':  x.name.replace('::','_',400) + "_encode", 'print': '', 'scan': '', 'dealloc': dealloc, 'deallocator': 'XDR_struct_free_deallocator', 'id': x.id.replace('::','_',400), 'field_dealloc': 'XDR_struct_field_deallocator', 'field_dealloc_array': 'XDR_struct_array_field_deallocator' }
 
 def generateSource(ir, output, namespace, mapping):
    out = open(output + ".c", 'w')
@@ -60,6 +60,10 @@ def generateSource(ir, output, namespace, mapping):
    for x in ir:
       if isinstance(x, XDRStruct):
          render_template(out, "encoders.c", dict(st=x,types=type_map,enums=mapping))
+
+   for x in ir:
+      if isinstance(x, XDRCommand):
+         render_template(out, "command-types.c", dict(cmd=x,types=type_map,enums=mapping))
    render_template(out, "command-header.c", dict(ns=namespace))
    for x in ir:
       if isinstance(x, XDRCommand):
@@ -87,8 +91,12 @@ def generateHeader(ir, output, namespace, mapping):
    out = open(output + ".h", 'w')
    out.write("#ifndef " + output.split('/')[-1].upper() + "_H\n")
    out.write("#define " + output.split('/')[-1].upper() + "_H\n\n")
-   out.write("#include <polysat/xdr.h>\n")
-   out.write("#include <polysat/cmd.h>\n")
+   if namespace == 'IPC':
+      out.write('#include "xdr.h"\n')
+      out.write('#include "cmd.h"\n')
+   else:
+      out.write("#include <polysat/xdr.h>\n")
+      out.write("#include <polysat/cmd.h>\n")
    out.write("#include <stdint.h>\n\n")
 
    for x in ir:

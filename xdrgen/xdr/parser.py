@@ -67,6 +67,7 @@ class Parser:
       self.parent = parentParser
       self.filename = filename
       self.namespace = 'FOO_'
+      self.cmdcnt = 0
       self.enumNamespace = ''
       self.scopeMap = {}
       kw = P.Keyword
@@ -166,11 +167,12 @@ class Parser:
       command_options = \
              P.Optional(g(kw("summary") + P.QuotedString('"') + s(";"))) & \
              P.Optional(g(kw("param") + type_name + s(";")))  & \
+             P.Optional(g(kw("types") + s("=") + g(type_name + P.ZeroOrMore(s(',') + type_name)) + s(";"))) & \
              P.Optional(g(kw("response") + g(type_name + P.ZeroOrMore(s(',') + type_name)) + s(";")))
 
       command_body = s("{") + command_options + s("}")
       
-      command_def = kw("command") + P.QuotedString('"') + g(command_body) + s('=') + type_name + s(";")
+      command_def = kw("command") + P.QuotedString('"') + g(command_body) + P.Optional(s('=') + type_name) + s(";")
 
       union_def = kw("union") - newscopedidentifier + s('{') + s('}') + s(";")
 
@@ -318,6 +320,8 @@ class Parser:
          summary = None
          param = '0'
          response = None
+         types = None
+         num = '0'
          for field in x[2]:
             if field[0] == 'summary':
                summary = field[1]
@@ -325,7 +329,13 @@ class Parser:
                param = field[1]
             if field[0] == 'response':
                response = field[1]
-         return [XDRCommand(x[1], x[3], summary, param, response)]
+            if field[0] == 'types':
+               types = field[1]
+         if len(x) >= 4:
+            num = x[3]
+         self.cmdcnt += 1
+         return [XDRCommand(x[1], num, summary, param, response, types, \
+               self.namespace + 'AUTOCMD_' + str(self.cmdcnt))]
 
    def xdr_parse(self, src):
       """

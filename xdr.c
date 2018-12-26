@@ -59,6 +59,18 @@ void XDR_register_structs(struct XDR_StructDefinition *structs)
    }
 }
 
+void XDR_register_populator(XDR_populate_struct cb, void *arg, uint32_t type)
+{
+   struct XDR_StructDefinition *def = NULL;
+
+   def = XDR_definition_for_type(type);
+   if (!def)
+      return;
+
+   def->populate = cb;
+   def->populate_arg = arg;
+}
+
 int XDR_decode_byte_array(char *src, char **dst, size_t *used,
       size_t max, void *lenptr)
 {
@@ -674,6 +686,38 @@ void XDR_struct_field_deallocator(void **goner,
    def->deallocator(goner, def);
 }
 
+void XDR_struct_array_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field)
+{
+   // Needs to be written!!
+   assert(0);
+}
+
+void XDR_union_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field)
+{
+   struct XDR_StructDefinition *def;
+   struct XDR_Union *u;
+
+   if (!goner)
+      return;
+   u = (struct XDR_Union*)*(struct XDR_Union**)goner;
+   def = XDR_definition_for_type(u->type);
+   if (def && def->deallocator)
+      def->deallocator(&u->data, def);
+   else
+      free(u->data);
+}
+
+void XDR_array_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field)
+{
+   if (!goner || !*goner)
+      return;
+
+   free(*goner);
+}
+
 void XDR_free_deallocator(void **goner, struct XDR_StructDefinition *def)
 {
    void *to_free;
@@ -1109,7 +1153,7 @@ void XDR_array_field_scanner(const char *in, void *dst_ptr, void *arg,
    sep = (char*)in - 1;
    do {
       first = sep + 1;
-      sep = strchr(sep, ',');
+      sep = strchr(first, ',');
       if (sep)
          *sep = 0;
       scan(first, dst + i * increment, parg, NULL);

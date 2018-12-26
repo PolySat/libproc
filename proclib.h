@@ -69,7 +69,7 @@ typedef struct ProcessData {
    int cmdPort;
    void *callbackContext;
    //cmds holds the parsed, .cmd.cfg file call backs along with other info
-   struct CommandCbArg cmds;
+   struct CommandCbArg *cmds;
    struct CSState criticalState;
 } ProcessData;
 

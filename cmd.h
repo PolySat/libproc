@@ -32,15 +32,15 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdio.h>
-#include <stdint.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include "ipc.h"
 
 /**
@@ -71,6 +71,9 @@ extern "C" {
 
 struct EventState;
 struct IPC_Command;
+struct ProcessData;
+struct CommandCbArg;
+struct XDR_StructDefinition;
 
 // Format for a command callback function
 typedef void (*CMD_handler_t)(int socket, unsigned char cmd, void *data,
@@ -84,30 +87,14 @@ typedef void (*CMD_XDR_handler_t)(struct ProcessData *, struct IPC_Command *cmd,
 typedef void (*MCAST_handler_t)(void *arg, int socket, unsigned char cmd,
    void *data, size_t dataLen, struct sockaddr_in *fromAddr);
 
-struct Command {
-   CMD_handler_t cmd_cb;
-   uint32_t uid, group, prot;
-};
-
-struct MulticastCommandState;
-struct ProcessData;
-struct XDR_StructDefinition;
-struct CMDResponseCb;
-
-struct CommandCbArg {
-   struct Command *cmds;
-   struct McastCommandState *mcast;
-   struct ProcessData *proc;
-   struct CMDResponseCb *resp;
-};
-
 // Initializes the command callbacks
-int cmd_handler_init(const char * process_name, struct CommandCbArg *cmds);
+int cmd_handler_init(const char * process_name, struct ProcessData *proc,
+      struct CommandCbArg **cmds);
 
 // The actual command handler callback for the event handler
 int cmd_handler_cb(int socket, char type, void *arg);
 
-void cmd_handler_cleanup(struct CommandCbArg *cmds);
+void cmd_handler_cleanup(struct CommandCbArg **cmds);
 
 void cmd_set_multicast_handler(struct CommandCbArg *st,
    struct EventState *evt_loop, const char *service, int cmdNum,
@@ -141,6 +128,7 @@ struct CMD_XDRCommandInfo {
    uint32_t params;
    const char *name;
    const char *summary;
+   uint32_t *types;
    struct XDR_StructDefinition *parameter;
    CMD_XDR_handler_t handler;
    void *arg;
@@ -178,6 +166,12 @@ extern void CMD_add_response_cb(struct ProcessData *proc, uint32_t id,
       struct sockaddr_in host,
       IPC_command_callback cb, void *arg,
       enum IPC_CB_TYPE cb_type, unsigned int timeout);
+
+extern int CMD_set_cmd_handler(struct CommandCbArg *cmd,
+            int cmdNum, CMD_handler_t handler, uint32_t uid,
+            uint32_t group, uint32_t protection);
+extern int CMD_loopback_cmd(struct CommandCbArg *cmds, int fd,
+            int cmdNum, void *data, size_t dataLen);
 
 #ifdef __cplusplus
 }

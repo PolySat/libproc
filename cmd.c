@@ -41,7 +41,12 @@
 #include "xdr.h"
 #include "cmd_schema.h"
 
+struct DatareqCmd {
+   struct CMD_XDRCommandInfo *cmd;
+   struct DatareqCmd *next;
+};
 static struct HashTable *xdrCommandHash = NULL;
+static struct DatareqCmd *xdrDatareqList = NULL;
 static struct HashTable *xdrErrorHash = NULL;
 
 /// Value in the PROT element in the CMD structure that indicates protected cmd
@@ -75,7 +80,111 @@ struct CMDResponseCb {
    struct CMDResponseCb *next;
 };
 
+struct DataReqParams {
+   struct IPC_OpaqueStruct *dest;
+   uint32_t type;
+   struct ProcessData *proc;
+   int direct_resp;
+   struct IPC_Command *cmd;
+   struct sockaddr_in *from;
+};
+
+struct Command {
+   CMD_handler_t cmd_cb;
+   uint32_t uid, group, prot;
+};
+
+struct CommandCbArg {
+   struct Command *cmds;
+   struct McastCommandState *mcast;
+   struct ProcessData *proc;
+   struct CMDResponseCb *resp;
+   struct IPC_Heartbeat beats;
+};
+
 struct CMD_XDRCommandInfo *CMD_xdr_cmd_by_number(uint32_t num);
+
+void heartbeat_populator(void *arg, XDR_tx_struct cb, void *cb_args)
+{
+   struct CommandCbArg *cmds = (struct CommandCbArg*)arg;
+
+   if (!cmds)
+      return;
+
+   cmds->beats.heartbeats++;
+   cb(&cmds->beats, cb_args);
+}
+
+void data_req_populate_cb(void *data, void *arg)
+{
+   struct DataReqParams *params;
+
+   if (!arg || !data)
+      return;
+   params = (struct DataReqParams*)arg;
+   if (!params->dest)
+      return;
+
+   if (params->direct_resp)
+      IPC_response(params->proc, params->cmd, params->type, data, params->from);
+   else
+      *params->dest = CMD_struct_to_opaque_struct(data, params->type);
+}
+
+void cmd_handle_data_req(struct ProcessData *proc, struct IPC_Command *cmd,
+      struct sockaddr_in *from, void *arg, int fd)
+{
+   struct IPC_DataReq *req;
+   int i;
+   struct IPC_OpaqueStructArr resp;
+   struct XDR_StructDefinition *def = NULL;
+   struct DataReqParams params;
+
+   if (cmd->parameters.type != IPC_TYPES_DATAREQ) {
+      IPC_error(proc, cmd, IPC_RESULTCODE_INCORRECT_PARAMETER_TYPE, from);
+      return;
+   }
+
+   req = (struct IPC_DataReq*)cmd->parameters.data;
+   if (!req || !req->reqs || req->length <= 0 || req->length > 1024) {
+      IPC_response(proc, cmd, IPC_TYPES_VOID, NULL, from);
+      return;
+   }
+
+   params.proc = proc;
+   params.cmd = cmd;
+   params.from = from;
+   params.direct_resp = 0;
+   resp.structs = malloc(sizeof(struct IPC_OpaqueStruct) * req->length);
+   if (!resp.structs)
+      IPC_error(proc, cmd, IPC_RESULTCODE_ALLOCATION_ERR, from);
+   memset(resp.structs, 0,  sizeof(struct IPC_OpaqueStruct) * req->length);
+   resp.length = 0;
+
+   for (i = 0; req && i < req->length && req->reqs; i++) {
+      def = XDR_definition_for_type(req->reqs[i]);
+      if (!def || !def->populate)
+         continue;
+
+      if (0 == i && 1 == req->length)
+         params.direct_resp = 1;
+
+      params.dest = &resp.structs[resp.length];
+      params.type = req->reqs[i];
+      def->populate(def->populate_arg, &data_req_populate_cb, &params);
+      if (resp.structs[resp.length].data)
+         resp.length++;
+   }
+
+   if (!params.direct_resp)
+      IPC_response(proc, cmd, IPC_TYPES_OPAQUE_STRUCT_ARR, &resp, from);
+
+   for (i = 0; req && i < req->length && req->reqs; i++)
+      if (resp.structs[i].data)
+         free(resp.structs[i].data);
+
+   free(resp.structs);
+}
 
 static int multicast_cmd_handler_cb(int socket, char type, void * arg)
 {
@@ -315,12 +424,23 @@ void invalidCommand(int socket, unsigned char cmd, void * data, size_t dataLen,
                                                       struct sockaddr_in * src);
 
 // Initialize the command handler
-int cmd_handler_init(const char * procName, struct CommandCbArg *cmds)
+int cmd_handler_init(const char * procName, struct ProcessData *proc,
+      struct CommandCbArg **cmds_ptr)
 {
    struct CFG_Root *root = NULL;
    int i;
    char cfgFile[256];
+   struct CommandCbArg *cmds;
 
+   cmds = malloc(sizeof(*cmds));
+   if (!cmds)
+      return -1;
+   memset(cmds, 0, sizeof(*cmds));
+   *cmds_ptr = cmds;
+
+   CMD_set_xdr_cmd_handler(IPC_CMDS_DATA_REQ, &cmd_handle_data_req, cmds);
+   XDR_register_populator(&heartbeat_populator, cmds, IPC_TYPES_HEARTBEAT);
+   cmds->proc = proc;
    if (procName) {
       sprintf(cfgFile, "./%s.cmd.cfg", procName);
 
@@ -385,7 +505,7 @@ static void cmd_handle_xdr_response(ProcessData *proc,
    if (hdr.cmd != IPC_CMDS_RESPONSE)
       return;
 
-   for (itr = &proc->cmds.resp; itr && (*itr); itr = &(*itr)->next) {
+   for (itr = &proc->cmds->resp; itr && (*itr); itr = &(*itr)->next) {
       if ((*itr)->id == hdr.ipcref && (*itr)->host.sin_port == src->sin_port &&
             (*itr)->host.sin_addr.s_addr == src->sin_addr.s_addr ) {
          state = *itr;
@@ -413,7 +533,7 @@ int cmd_handler_cb(int socket, char type, void * arg)
    ProcessData *proc = (ProcessData*)arg;
    unsigned char data[MAX_IP_PACKET_SIZE];
    struct Command *cmd = NULL;
-   struct CommandCbArg *cmds = &proc->cmds;
+   struct CommandCbArg *cmds = proc->cmds;
    size_t dataLen, used = 0;
    struct sockaddr_in src;
    struct IPC_Command xdr_cmd;
@@ -435,14 +555,18 @@ int cmd_handler_cb(int socket, char type, void * arg)
                      &used, dataLen, NULL) < 0)
                DBG_print(DBG_LEVEL_WARN, "Failed to decode XDR uint32 of "
                      "length %lu\n", dataLen);
-            if (cmd_num == IPC_CMDS_RESPONSE)
+            if (cmd_num == IPC_CMDS_RESPONSE) {
+               cmds->beats.responses++;
                cmd_handle_xdr_response(proc, (char*)data, dataLen, &src);
+            }
             else if (IPC_Command_decode((char*)data, &xdr_cmd,
                      &used, dataLen, NULL) < 0) {
+               cmds->beats.commands++;
                DBG_print(DBG_LEVEL_WARN, "Failed to decode XDR command of "
                      "length %lu\n", dataLen);
             }
             else {
+               cmds->beats.commands++;
                cmd_info = CMD_xdr_cmd_by_number(xdr_cmd.cmd);
                if (cmd_info && cmd_info->handler)
                   cmd_info->handler(cmds->proc, &xdr_cmd, &src,
@@ -454,6 +578,7 @@ int cmd_handler_cb(int socket, char type, void * arg)
             }
          }
          else {
+            cmds->beats.commands++;
             cmd = cmds->cmds + *data;
             DBG_print(DBG_LEVEL_INFO, "Received command 0x%02x (%d - %d)",
                                        *data, cmd->uid, cmd->group);
@@ -502,11 +627,17 @@ void invalidCommand(int socket, unsigned char cmd, void * data, size_t dataLen, 
    DBG_print(DBG_LEVEL_INFO, "Received invalid command: 0x%02x\n", cmd);
 }
 
-void cmd_handler_cleanup(struct CommandCbArg *cmds)
+void cmd_handler_cleanup(struct CommandCbArg **goner)
 {
+   struct CommandCbArg *cmds;
+   if (!goner)
+      return;
+   cmds = *goner;
    if (cmds && cmds->cmds) {
       free(cmds->cmds);
    }
+   free(cmds);
+   *goner = NULL;
 }
 
 int CMD_iterate_structs(char *src, size_t len, CMD_struct_itr itr_cb, void *arg,
@@ -582,14 +713,27 @@ static int cmd_hash_by_name(void *data, void *arg)
 struct CMD_XDRCommandInfo *CMD_xdr_cmd_by_name(const char *name)
 {
    struct CMD_HashByName_Args p = { name, NULL };
-   HASH_iterate_arg_table(xdrCommandHash, &cmd_hash_by_name, &p);
+   struct DatareqCmd *itr;
+
+   if (xdrCommandHash)
+      HASH_iterate_arg_table(xdrCommandHash, &cmd_hash_by_name, &p);
+
+   for (itr = xdrDatareqList; itr && !p.result; itr = itr->next)
+      if (!strcasecmp(itr->cmd->name, name))
+         p.result = itr->cmd;
+
    return p.result;
 }
 
 struct CMD_XDRCommandInfo *CMD_xdr_cmd_by_number(uint32_t num)
 {
-   return (struct CMD_XDRCommandInfo *)
-      HASH_find_key(xdrCommandHash, (void*)(intptr_t)num);
+   struct CMD_XDRCommandInfo *cmd = NULL;
+   
+   if (xdrCommandHash)
+      cmd = (struct CMD_XDRCommandInfo *)
+         HASH_find_key(xdrCommandHash, (void*)(intptr_t)num);
+
+   return cmd;
 }
 
 int CMD_xdr_cmd_help(struct CMD_XDRCommandInfo *command)
@@ -614,16 +758,17 @@ int CMD_xdr_cmd_help(struct CMD_XDRCommandInfo *command)
 
    printf(" %s\n", command->summary);
    printf("   destination -- DNS name or IP address of machine to receive the command\n");
-   printf("   kvp | csv | human -- Output format for data\n");
+   printf("   kvp | csv | human -- Output format for data\n\n");
    printf("   Valid parameter/value pairs are:\n");
 
-   for (field = fields; field && field->encoder; field++)
+   for (field = fields; field && field->encoder; field++) {
       if (field->key && field->scanner) {
          if (field->description)
             printf("     %24s -- %s\n", field->key, field->description);
          else
             printf("     %24s -- UNDOCUMENTED\n", field->key);
       }
+   }
 
    return 2;
 }
@@ -653,6 +798,8 @@ static int print_cmd_summary(void *data)
 
 int CMD_usage_summary(struct CMD_MulticallInfo *mc, const char *name)
 {
+   struct DatareqCmd *itr;
+
    printf("Usage: %s -c <command name>\n  Use --help with a command for detailed parameter information.\n\nAvailable commands are:\n", name);
    for (; mc && mc->func; mc++) {
       if (mc->name && mc->help_description)
@@ -661,6 +808,9 @@ int CMD_usage_summary(struct CMD_MulticallInfo *mc, const char *name)
          printf("  \033[31m\033[1m%24s\033[0m -- UNDOCUMENTED\n", mc->name);
    }
    HASH_iterate_table(xdrCommandHash, &print_cmd_summary);
+
+   for (itr = xdrDatareqList; itr; itr = itr->next)
+      print_cmd_summary(itr->cmd);
 
    return 1;
 }
@@ -682,6 +832,8 @@ int CMD_send_command_line_command(int argc, char **argv,
    int res;
    uint32_t param_type = 0;
    enum XDR_PRINT_STYLE style = XDR_PRINT_HUMAN;
+   struct IPC_DataReq dreq;
+   uint32_t command_num;
 
    // Match command based on executable name
    execName = rindex(argv[0], '/');
@@ -758,7 +910,9 @@ int CMD_send_command_line_command(int argc, char **argv,
    dest.sin_port = htons(socket_get_addr_by_name(destProc));
 
    // Parse KVP parameters
-   if (command->parameter) {
+   command_num = command->command;
+   if (command->parameter &&
+         (command->params != IPC_TYPES_DATAREQ || !command->types)) {
       if (command->parameter->decoder != &XDR_struct_decoder ||
             command->parameter->encoder != &XDR_struct_encoder ||
             !command->parameter->allocator || !command->parameter->deallocator)
@@ -779,7 +933,7 @@ int CMD_send_command_line_command(int argc, char **argv,
          *value++ = 0;
          param_type = command->params;
          for (field = fields; field->encoder; field++) {
-            if (strcasecmp(field->key, key) || !field->scanner)
+            if (!field->key || strcasecmp(field->key, key) || !field->scanner)
                continue;
             key = NULL;
             field->scanner(value, (char*)param + field->offset,
@@ -792,11 +946,28 @@ int CMD_send_command_line_command(int argc, char **argv,
          }
       }
    }
+   else if (command->types && command->params == IPC_TYPES_DATAREQ) {
+      dreq.length = 0;
+      dreq.reqs = command->types;
+      while(dreq.reqs && dreq.reqs[dreq.length])
+         dreq.length++;
+
+      if (dreq.length > 0) {
+         param = &dreq;
+         param_type = IPC_TYPES_DATAREQ;
+         command_num = IPC_CMDS_DATA_REQ;
+      }
+   }
 
    // Send command and print response
-   res = IPC_command(proc, command->command, param, param_type, dest, cb, cb_arg,
+   if (command_num)
+      res = IPC_command(proc, command_num, param, param_type, dest, cb, cb_arg,
          IPC_CB_TYPE_RAW, timeout);
-   if (param)
+   else
+      res = -3;
+
+   if (param && command->parameter &&
+         (command->params != IPC_TYPES_DATAREQ || !command->types))
       command->parameter->deallocator(&param, command->parameter);
 
    return res;
@@ -804,7 +975,7 @@ int CMD_send_command_line_command(int argc, char **argv,
 
 void CMD_register_commands(struct CMD_XDRCommandInfo *cmd, int override)
 {
-   for(; cmd && cmd->command > 0; cmd++)
+   for(; cmd && (cmd->command || cmd->types) > 0; cmd++)
       CMD_register_command(cmd, override);
 }
 
@@ -829,27 +1000,47 @@ static int xdr_cmd_cmp_key(void *key1, void *key2)
 
 void CMD_register_command(struct CMD_XDRCommandInfo *cmd, int override)
 {
+   struct HashTable *table = NULL;
+   struct DatareqCmd *node;
+
    if (!cmd)
       return;
 
-   if (!xdrCommandHash) {
-      xdrCommandHash = HASH_create_table(37, &xdr_cmd_hash_func,
+   if (cmd->command) {
+      if (!xdrCommandHash) {
+         xdrCommandHash = HASH_create_table(37, &xdr_cmd_hash_func,
             &xdr_cmd_cmp_key, &xdr_cmd_key_for_data);
-      if (!xdrCommandHash)
-         return;
+         if (!xdrCommandHash)
+            return;
+      }
+      table = xdrCommandHash;
    }
+   else if (cmd->types) {
+      node = malloc(sizeof(*node));
+      if (!node)
+         return;
+      node->next = xdrDatareqList;
+      node->cmd = cmd;
+      xdrDatareqList = node;
+
+      if (cmd->params)
+         cmd->parameter = XDR_definition_for_type(cmd->params);
+      return;
+   }
+   else
+      return;
 
    if (cmd->params)
       cmd->parameter = XDR_definition_for_type(cmd->params);
 
-   if (HASH_find_key(xdrCommandHash, (void*)(intptr_t)cmd->command)) {
+   if (HASH_find_key(table, (void*)(intptr_t)cmd->command)) {
       if (override) {
-         HASH_remove_key(xdrCommandHash, (void*)(intptr_t)cmd->command);
-         HASH_add_data(xdrCommandHash, cmd);
+         HASH_remove_key(table, (void*)(intptr_t)cmd->command);
+         HASH_add_data(table, cmd);
       }
    }
    else
-      HASH_add_data(xdrCommandHash, cmd);
+      HASH_add_data(table, cmd);
 }
 
 void CMD_register_errors(struct CMD_ErrorInfo *errs)
@@ -1030,7 +1221,7 @@ static int response_timeout_cb(void *arg)
    if (!arg)
       return EVENT_REMOVE;
 
-   for (itr = &state->proc->cmds.resp; itr && (*itr); itr = &(*itr)->next) {
+   for (itr = &state->proc->cmds->resp; itr && (*itr); itr = &(*itr)->next) {
       if (*itr == state) {
          *itr = state->next;
          break;
@@ -1050,7 +1241,7 @@ void CMD_add_response_cb(ProcessData *proc, uint32_t id,
       enum IPC_CB_TYPE cb_type, unsigned int timeout)
 {
    struct CMDResponseCb *state;
-   struct CommandCbArg *st = &proc->cmds;
+   struct CommandCbArg *st = proc->cmds;
 
    if (!st)
       return;
@@ -1070,4 +1261,36 @@ void CMD_add_response_cb(ProcessData *proc, uint32_t id,
    if (timeout)
       state->to_evt = EVT_sched_add(PROC_evt(proc), EVT_ms2tv(timeout),
             response_timeout_cb, state);
+}
+
+int CMD_set_cmd_handler(struct CommandCbArg *cmd,
+            int cmdNum, CMD_handler_t handler, uint32_t uid,
+            uint32_t group, uint32_t protection)
+{
+   if (cmdNum < 0 || cmdNum >= MAX_NUM_CMDS)
+      return -1;
+
+   cmd->cmds[cmdNum].cmd_cb = handler;
+   cmd->cmds[cmdNum].uid = uid;
+   cmd->cmds[cmdNum].group = group;
+   cmd->cmds[cmdNum].prot = protection;
+
+   return 0;
+}
+
+int CMD_loopback_cmd(struct CommandCbArg *cmds, int fd,
+            int cmdNum, void *data, size_t dataLen)
+{
+   struct sockaddr_in dummy;
+
+   if (cmdNum < 0 || cmdNum >= MAX_NUM_CMDS)
+      return -1;
+
+   if (!cmds->cmds[cmdNum].cmd_cb)
+      return -2;
+
+   memset(&dummy, 0, sizeof(dummy));
+   cmds->cmds[cmdNum].cmd_cb(fd, cmdNum, data, dataLen, &dummy);
+
+   return 0;
 }

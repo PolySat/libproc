@@ -3,9 +3,9 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <polysat/proclib.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "proclib.h"
 
 struct XDR_FieldDefinition;
 
@@ -20,7 +20,10 @@ typedef void (*XDR_print_func)(FILE *out, void *data, void *arg,
       enum XDR_PRINT_STYLE style);
 typedef void (*XDR_print_field_func)(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *len);
-typedef void (*XDR_field_scanner)(const char *in, void *dst, void *arg, void *len);
+typedef void (*XDR_field_scanner)(const char *in, void *dst, void *arg,
+      void *len);
+typedef void (*XDR_tx_struct)(void *data, void *arg);
+typedef void (*XDR_populate_struct)(void *arg, XDR_tx_struct cb, void *cb_arg);
 
 struct XDR_Union {
    uint32_t type;
@@ -53,10 +56,14 @@ struct XDR_StructDefinition {
    void *(*allocator)(struct XDR_StructDefinition *def);
    void (*deallocator)(void **goner, struct XDR_StructDefinition *def);
    XDR_print_func print_func;
+   XDR_populate_struct populate;
+   void *populate_arg;
 };
 
 extern void XDR_register_structs(struct XDR_StructDefinition*);
 extern void XDR_register_struct(struct XDR_StructDefinition*);
+extern void XDR_register_populator(XDR_populate_struct cb,
+      void *arg, uint32_t type);
 extern struct XDR_StructDefinition *XDR_definition_for_type(uint32_t type);
 
 extern int XDR_array_encoder(char *src, void *dst, size_t *used, size_t max,
@@ -167,6 +174,14 @@ extern void XDR_free_deallocator(void **goner, struct XDR_StructDefinition *);
 extern void XDR_struct_free_deallocator(void **goner,
       struct XDR_StructDefinition *def);
 extern void XDR_struct_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field);
+extern void XDR_struct_array_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field);
+extern void XDR_array_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field);
+extern void XDR_union_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field);
+extern void XDR_union_array_field_deallocator(void **goner,
       struct XDR_FieldDefinition *field);
 extern void XDR_free_union(struct XDR_Union *goner);
 

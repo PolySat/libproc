@@ -16,7 +16,7 @@ XDRUnion = namedtuple("XDRUnion", ["name", "discriminant", "members"])
 XDRUnionMember = namedtuple("XDRUnionMember", ["case", "declaration"])
 XDRNamespace = namedtuple("XDRNamespace", ["name"])
 XDRFieldDocumentation = namedtuple("XDRFieldDocs", ["key", "name", "description", "offset", "divisor", "unit"])
-XDRCommand = namedtuple("XDRCommand", ["name", "id", "summary", "param", "response"])
+XDRCommand = namedtuple("XDRCommand", ["name", "id", "summary", "param", "response", "types", "autoname"])
 XDRError = namedtuple("XDRError", ["id", "name", "description"])
 
 __all__ = [

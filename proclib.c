@@ -279,10 +279,9 @@ ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
    setup_signal_fd(proc);
 
    // initialize command handler: commands are loaded from .cmd.cfg file
-   if (cmd_handler_init(procName, &proc->cmds) == -1) {
+   if (cmd_handler_init(procName, proc, &proc->cmds) == -1) {
       return NULL;
    }
-   proc->cmds.proc = proc;
    // Add in XDR handlers
    for(; handlers && handlers->number; handlers++)
       CMD_set_xdr_cmd_handler(handlers->number, handlers->cb, handlers->arg);
@@ -326,7 +325,7 @@ void PROC_cleanup(ProcessData *proc)
    if (!proc) //Already clean
       return;
 
-   cmd_cleanup_cb_state(&proc->cmds, proc->evtHandler);
+   cmd_cleanup_cb_state(proc->cmds, proc->evtHandler);
    critical_state_cleanup(&proc->criticalState);
 
    // Clear errno to prevent false errors
@@ -1100,18 +1099,7 @@ int socket_write_cb(int fd, char type, void * arg)
 int PROC_loopback_cmd(struct ProcessData *proc,
             int cmdNum, void *data, size_t dataLen)
 {
-   struct sockaddr_in dummy;
-
-   if (cmdNum < 0 || cmdNum >= MAX_NUM_CMDS)
-      return -1;
-
-   if (!proc->cmds.cmds[cmdNum].cmd_cb)
-      return -2;
-
-   memset(&dummy, 0, sizeof(dummy));
-   proc->cmds.cmds[cmdNum].cmd_cb(proc->cmdFd, cmdNum, data, dataLen, &dummy);
-
-   return 0;
+   return CMD_loopback_cmd(proc->cmds, proc->cmdFd, cmdNum, data, dataLen);
 }
 
 int PROC_multi_cmd(ProcessData *proc, unsigned char cmd, void *data,
@@ -1233,21 +1221,14 @@ int PROC_set_cmd_handler(struct ProcessData *proc,
             int cmdNum, CMD_handler_t handler, uint32_t uid,
             uint32_t group, uint32_t protection)
 {
-   if (cmdNum < 0 || cmdNum >= MAX_NUM_CMDS)
-      return -1;
-
-   proc->cmds.cmds[cmdNum].cmd_cb = handler;
-   proc->cmds.cmds[cmdNum].uid = uid;
-   proc->cmds.cmds[cmdNum].group = group;
-   proc->cmds.cmds[cmdNum].prot = protection;
-
-   return 0;
+   return CMD_set_cmd_handler(proc->cmds, cmdNum, handler,
+         uid, group, protection);
 }
 
 int PROC_set_multicast_handler(struct ProcessData *proc, const char *service,
       int cmdNum, MCAST_handler_t handler, void *arg)
 {
-   cmd_set_multicast_handler(&proc->cmds, proc->evtHandler, service, cmdNum,
+   cmd_set_multicast_handler(proc->cmds, proc->evtHandler, service, cmdNum,
       handler, arg);
 
    return 0;
