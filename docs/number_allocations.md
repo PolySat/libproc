@@ -9,10 +9,13 @@ All enumeration, structure, and command numbers need to be globally unique in or
 |Built-in  |Commands   |0x00000100 |Internal commands           |
 |ADCS      |Commands   |0x00000200 |                            |
 |BDOT      |Commands   |0x00000300 |BDOT submodule of ADCS      |
+|TLE       |Commands   |0x00000320 |TLE submodule of ADCS       |
 |Built-in  |Structures |0x01000100 |Internal structures         |
 |ADCS      |Structures |0x01000200 |                            |
 |BDOT      |Structures |0x01000300 |BDOT submodule of ADCS      |
+|TLE       |Structures |0x01000320 |TLE submodule of ADCS       |
 |Built-in  |Errors     |0x02000100 |Internal errors             |
 |ADCS      |Errors     |0x02000200 |                            |
 |BDOT      |Errors     |0x02000300 |BDOT submodule of ADCS      |
+|TLE       |Errors     |0x02000320 |TLE submodule of ADCS       |
 

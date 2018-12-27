@@ -151,6 +151,8 @@ extern int XDR_encode_string(const char *src, char *dst,
       size_t *used, size_t max, void *len);
 extern int XDR_encode_float(float *src, char *dst,
       size_t *used, size_t max, void *len);
+extern int XDR_encode_double(double *src, char *dst,
+      size_t *used, size_t max, void *len);
 extern int XDR_encode_byte_array(char **src, char *dst,
       size_t *used, size_t max, void *len);
 
@@ -165,6 +167,8 @@ extern int XDR_encode_uint64_array(uint64_t **src, char *dst,
 extern int XDR_encode_union_array(struct XDR_Union **src, char *dst,
       size_t *used, size_t max, void *len);
 extern int XDR_encode_float_array(float **src, char *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_encode_double_array(double **src, char *dst,
       size_t *used, size_t max, void *len);
 extern int XDR_encode_string_array(char **src, char *dst,
       size_t *used, size_t max, void *len);
@@ -201,6 +205,8 @@ extern void XDR_print_field_string(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
 extern void XDR_print_field_float(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+extern void XDR_print_field_double(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
 
 extern void XDR_print_field_int32_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
@@ -227,6 +233,7 @@ extern void XDR_print_field_string_array(FILE *out, void *data,
       void *len);
 
 extern void XDR_scan_float(const char *in, void *dst, void *arg, void *len);
+extern void XDR_scan_double(const char *in, void *dst, void *arg, void *len);
 extern void XDR_scan_int32(const char *in, void *dst, void *arg, void *len);
 extern void XDR_scan_uint32(const char *in, void *dst, void *arg, void *len);
 extern void XDR_scan_int64(const char *in, void *dst, void *arg, void *len);
@@ -235,6 +242,8 @@ extern void XDR_scan_string(const char *in, void *dst, void *arg, void *len);
 extern void XDR_scan_byte(const char *in, void *dst, void *arg, void *len);
 
 extern void XDR_scan_float_array(const char *in, void *dst, void *arg,
+      void *len);
+extern void XDR_scan_double_array(const char *in, void *dst, void *arg,
       void *len);
 extern void XDR_scan_int32_array(const char *in, void *dst, void *arg,
       void *len);

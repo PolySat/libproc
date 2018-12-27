@@ -96,7 +96,7 @@ class Parser:
       resolvedIdentifier = P.Word(P.alphanums, P.alphanums + '_')
       resolvedIdentifier.setParseAction(self.resolveIdent)
 
-      type_name = P.Combine(identifier +  P.OneOrMore('::' + identifier))
+      type_name = P.Combine(identifier -  P.OneOrMore('::' + identifier))
       type_name.setParseAction(self.resolveIdent)
 
       decimal_constant = P.Word('-123456789', '0123456789') | '0'
@@ -157,11 +157,11 @@ class Parser:
       
       struct_body << s("{") + P.OneOrMore(g(declaration + g(P.Optional(fielddocumentation)) + s(";"))) + s("}")
 
-      constant_def = kw("const") - scopedUpperIdentifier + s("=") + constant + s(";")
-      namespace_def = kw("namespace") - identifier + s(";")
+      constant_def = kw("const") - scopedUpperIdentifier - s("=") - constant - s(";")
+      namespace_def = kw("namespace") - identifier - s(";")
       namespace_def.setParseAction(self.namespaceParse)
 
-      struct_def = kw("struct") - newscopedidentifier + g(struct_body) + P.Optional(s('=') + type_name) + s(";")
+      struct_def = kw("struct") - newscopedidentifier - g(struct_body) + P.Optional(s('=') - type_name) - s(";")
       struct_def.setParseAction(self.newStruct)
 
       command_options = \
@@ -172,20 +172,20 @@ class Parser:
 
       command_body = s("{") + command_options + s("}")
       
-      command_def = kw("command") + P.QuotedString('"') + g(command_body) + P.Optional(s('=') + type_name) + s(";")
+      command_def = kw("command") - P.QuotedString('"') - g(command_body) - P.Optional(s('=') + type_name) - s(";")
 
-      union_def = kw("union") - newscopedidentifier + s('{') + s('}') + s(";")
+      union_def = kw("union") - newscopedidentifier - s('{') + s('}') - s(";")
 
-      error_def = kw("error") + type_name + s('=') + P.QuotedString('"') + s(";")
+      error_def = kw("error") - type_name - s('=') + P.QuotedString('"') + s(";")
 
       type_def = \
-          kw("enum") - enumIdentifier + enum_body + s(";") | \
+          kw("enum") - enumIdentifier - enum_body - s(";") | \
           union_def | \
           struct_def | \
           command_def | \
           error_def
 
-      import_def = kw("import") + P.QuotedString('"') + s(";")
+      import_def = kw("import") - P.QuotedString('"') - s(";")
 
       definition = type_def | constant_def | import_def
 
