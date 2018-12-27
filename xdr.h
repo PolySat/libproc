@@ -170,7 +170,7 @@ extern int XDR_encode_float_array(float **src, char *dst,
       size_t *used, size_t max, void *len);
 extern int XDR_encode_double_array(double **src, char *dst,
       size_t *used, size_t max, void *len);
-extern int XDR_encode_string_array(char **src, char *dst,
+extern int XDR_encode_string_array(const char **src, char *dst,
       size_t *used, size_t max, void *len);
 
 extern void *XDR_malloc_allocator(struct XDR_StructDefinition*);

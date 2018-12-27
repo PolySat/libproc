@@ -372,14 +372,15 @@ int XDR_decode_union(char *src, struct XDR_Union *dst, size_t *inc, size_t max,
    return 0;
 } 
 
-int XDR_decode_string_array(char *src, char **dst,
+int XDR_decode_string(char *src, char **dst,
       size_t *used, size_t max, void *len)
 {
    // String arrays are not supported
    assert(0);
 }
 
-int XDR_decode_string(char *src, char **dst, size_t *inc, size_t max, void *len)
+int XDR_decode_string_array(char *src, char **dst, size_t *inc,
+      size_t max, void *len)
 {
    size_t used;
    char *str;
@@ -404,22 +405,25 @@ int XDR_decode_string(char *src, char **dst, size_t *inc, size_t max, void *len)
    return 0;
 }
 
-int XDR_encode_string_array(char **src, char *dst,
+int XDR_encode_string(const char *src, char *dst,
       size_t *used, size_t max, void *len)
 {
-   // String arrays are not supported
+   // Strings outside arrays are not supported
    assert(0);
 }
 
-int XDR_encode_string(const char *src, char *dst, size_t *used, size_t max,
-      void *len)
+int XDR_encode_string_array(const char **src_ptr, char *dst, size_t *used,
+      size_t max, void *len)
 {
    uint32_t str_len = 0, padding;
    int res;
+   const char *src = NULL;
 
    *used = 0;
-   if (src)
+   if (src_ptr && *src_ptr) {
+      src = *src_ptr;
       str_len = strlen(src);
+   }
    padding = (4 - (str_len % 4)) % 4;
 
    res = XDR_encode_uint32(&str_len, dst, used, max, NULL);
@@ -874,7 +878,7 @@ void XDR_print_field_byte_array(FILE *out, void *data_ptr,
       fprintf(out, "%02X", data[i]);
 }
 
-void XDR_print_field_string(FILE *out, void *data,
+void XDR_print_field_string_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *unused)
 {
@@ -884,11 +888,11 @@ void XDR_print_field_string(FILE *out, void *data,
       fprintf(out, "%s", *str);
 }
 
-void XDR_print_field_string_array(FILE *out, void *data,
+void XDR_print_field_string(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *len)
 {
-   // Grammar doesn't support a string array
+   // Grammar doesn't support a string outside an array
    assert(0);
 }
 
