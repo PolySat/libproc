@@ -101,7 +101,7 @@ The following options are available for fields.  These options can be specified 
 
 ### Number spaces
 All enumeration, structure, and command numbers need to be globally unique in order for the system to work correctly.  All the numeric values are 4 bytes long.  Numbers are allocated in 1-byte chunks to help minimize coordination overhead.  The high-order byte of all command numbers must be zero.  The number allocations are  
-documented in the [libproc number allocation table](https://tools.ietf.org/html/rfc4506).  This table must be updated prior to use any numbers.
+documented in the [libproc number allocation table](https://github.com/PolySat/libproc/blob/xdr-updates/docs/number_allocations.md).  This table must be updated prior to use any numbers.
 
 ## Example
 The following example shows a small schema, including structures, commands, and errors.
