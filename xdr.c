@@ -812,6 +812,27 @@ void XDR_print_field_float_array(FILE *out, void *data,
          &XDR_print_field_float, sizeof(float));
 }
 
+void XDR_print_field_char(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      void *unused)
+{
+   int32_t val;
+
+   if (!data)
+      return;
+   memcpy(&val, data, sizeof(val));
+
+   fprintf(out, "%c", val);
+}
+
+void XDR_print_field_char_array(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      void *len)
+{
+   XDR_array_field_printer(out, data, field, style, len, 
+         &XDR_print_field_char, sizeof(int32_t));
+}
+
 void XDR_print_field_int32(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *unused)
@@ -1004,6 +1025,22 @@ void XDR_scan_int32_array(const char *in, void *dst, void *arg,
       void *len)
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_int32,
+      arg, sizeof(int32_t));
+}
+
+void XDR_scan_char(const char *in, void *dst, void *arg, void *unused)
+{
+   int32_t val;
+   char c;
+   sscanf(in, "%c", &c);
+   val = c;
+   memcpy(dst, &val, sizeof(val));
+}
+
+void XDR_scan_char_array(const char *in, void *dst, void *arg,
+      void *len)
+{
+   XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_char,
       arg, sizeof(int32_t));
 }
 

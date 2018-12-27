@@ -115,6 +115,7 @@ class Parser:
           (P.Optional(kw("unsigned")) + kw("int")) | \
           (P.Optional(kw("unsigned")) + kw("hyper")) | \
           kw("float") | kw("double") | kw("quadruple") | kw("bool") | \
+          kw("char") | \
           s(kw("struct")) + struct_body | \
           identifier
 
@@ -122,6 +123,7 @@ class Parser:
           (P.Optional(kw("unsigned")) + kw("int")) | \
           (P.Optional(kw("unsigned")) + kw("hyper")) | \
           kw("float") | kw("double") | kw("quadruple") | kw("bool") | \
+          kw("char") | \
           s(kw("struct")) + struct_body | \
           resolvedIdentifier
 
@@ -129,6 +131,7 @@ class Parser:
           (P.Optional(kw("unsigned")) + kw("int")) | \
           (P.Optional(kw("unsigned")) + kw("hyper")) | \
           kw("float") | kw("double") | kw("quadruple") | kw("bool") | \
+          kw("char") | \
           scopedidentifier
 
       declaration = \
