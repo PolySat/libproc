@@ -40,11 +40,11 @@ cleanup_test: cleanup_test.c util.c priorityQueue.c debug.c
 cmd.c: cmd-pkt.h
 ipc.c: cmd-pkt.h
 
-cmd-pkt.h: cmd-pkt.x
-	xdrgen/xdrgen --target libproc --output cmd-pkt cmd-pkt.x
+cmd-pkt.h: cmd-pkt.xp
+	xdrgen/xdrgen --target libproc --output cmd-pkt cmd-pkt.xp
 
-cmd-pkt.c: cmd-pkt.x
-	xdrgen/xdrgen --target libproc --output cmd-pkt cmd-pkt.x
+cmd-pkt.c: cmd-pkt.xp
+	xdrgen/xdrgen --target libproc --output cmd-pkt cmd-pkt.xp
 
 
 install: all
