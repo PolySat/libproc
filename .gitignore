@@ -4,5 +4,5 @@
 libproc.dylib*
 .DS_Store
 .vscode
-cmd_schema.c
-cmd_schema.h
+cmd-pkt.c
+cmd-pkt.h

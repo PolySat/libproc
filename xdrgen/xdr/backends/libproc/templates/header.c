@@ -3,7 +3,7 @@
 #include "cmd.h"
 :: else:
 #include <polysat/cmd.h>
-#include <polysat/cmd_schema.h>
+#include <polysat/cmd-pkt.h>
 :: #endif
 #include "${header}"
 

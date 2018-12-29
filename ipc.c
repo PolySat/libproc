@@ -41,7 +41,7 @@
 #include <arpa/inet.h>
 #include <stdarg.h>
 #include "proclib.h"
-#include "cmd_schema.h"
+#include "cmd-pkt.h"
 
 #define WAIT_MS (5 * 1000)
 

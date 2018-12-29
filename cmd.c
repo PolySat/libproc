@@ -39,7 +39,7 @@
 #include "debug.h"
 #include "hashtable.h"
 #include "xdr.h"
-#include "cmd_schema.h"
+#include "cmd-pkt.h"
 
 struct DatareqCmd {
    struct CMD_XDRCommandInfo *cmd;
