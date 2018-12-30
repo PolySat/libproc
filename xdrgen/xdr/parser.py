@@ -27,6 +27,13 @@ class Parser:
             self.namespace = self.parent.namespace + t[1].upper() + '::'
       return t
 
+   def nonamespace(self, t):
+      self.namespace = ''
+      self.scopeMap['ipc::cmds::status'] = 'IPC::CMDS::STATUS'
+      self.scopeMap['ipc::cmds::data_req'] = 'IPC::CMDS::DATA_REQ'
+      self.scopeMap['ipc::datareq'] = 'IPC::DataReq'
+      return t;
+
    def scopeIdent(self, t):
       return self.namespace + t[0]
 
@@ -78,22 +85,22 @@ class Parser:
 # -:  self + And._ErrorStop() + other
       identifier = P.Word(P.alphanums, P.alphanums + '_').setName("identifier")
 
-      scopedidentifier = P.Word(P.alphanums, P.alphanums + '_')
+      scopedidentifier = P.Combine(identifier -  P.ZeroOrMore('::' + identifier))
       scopedidentifier.setParseAction(self.scopeIdent)
 
-      newscopedidentifier = P.Word(P.alphanums, P.alphanums + '_')
+      newscopedidentifier = P.Combine(identifier -  P.ZeroOrMore('::' + identifier))
       newscopedidentifier.setParseAction(self.scopeIdentDecl)
 
-      scopedUpperIdentifier = P.Word(P.alphanums, P.alphanums + '_')
+      scopedUpperIdentifier = P.Combine(identifier -  P.ZeroOrMore('::' + identifier))
       scopedUpperIdentifier.setParseAction(self.scopeIdentUpper)
 
-      enumIdentifier = P.Word(P.alphanums, P.alphanums + '_')
+      enumIdentifier = P.Combine(identifier -  P.ZeroOrMore('::' + identifier))
       enumIdentifier.setParseAction(self.enumStart)
 
       enumValueIdentifier = P.Word(P.alphanums, P.alphanums + '_')
       enumValueIdentifier.setParseAction(self.enumIdent)
 
-      resolvedIdentifier = P.Word(P.alphanums, P.alphanums + '_')
+      resolvedIdentifier = P.Combine(identifier -  P.ZeroOrMore('::' + identifier))
       resolvedIdentifier.setParseAction(self.resolveIdent)
 
       type_name = P.Combine(identifier -  P.OneOrMore('::' + identifier))
@@ -156,13 +163,16 @@ class Parser:
 
       const_expr_value = constant | scopedidentifier
       constant_expr = (const_expr_value + (kw('+') | kw('-')) + const_expr_value) | const_expr_value
-      enum_body = s("{") + g(P.delimitedList(g(enumValueIdentifier + s('=') + constant_expr))) + s("}")
+      enum_body = s("{") + g(P.delimitedList(g(enumValueIdentifier + s('=') + constant_expr))) + s(P.Optional(",")) + s("}")
       
       struct_body << s("{") + P.OneOrMore(g(declaration + g(P.Optional(fielddocumentation)) + s(";"))) + s("}")
 
       constant_def = kw("const") - scopedUpperIdentifier - s("=") - constant - s(";")
       namespace_def = kw("namespace") - identifier - s(";")
       namespace_def.setParseAction(self.namespaceParse)
+
+      nonamespace_def = kw("nonamespace") + s(";")
+      nonamespace_def.setParseAction(self.nonamespace)
 
       struct_def = kw("struct") - newscopedidentifier - g(struct_body) + P.Optional(s('=') - type_name) - s(";")
       struct_def.setParseAction(self.newStruct)
@@ -192,7 +202,8 @@ class Parser:
 
       definition = type_def | constant_def | import_def
 
-      self.specification = g(namespace_def) & P.ZeroOrMore(g(definition))
+      self.specification = g(namespace_def | nonamespace_def) & \
+                           P.ZeroOrMore(g(definition))
 
       self.specification.ignore(P.cStyleComment)
 
@@ -295,6 +306,8 @@ class Parser:
    def xdr_parse_definition(self, x):
       if x[0] == 'namespace':
          return [XDRNamespace(x[1])]
+      elif x[0] == 'nonamespace':
+         return []
       elif x[0] == 'import':
          fn = os.path.join(os.path.dirname(self.filename), x[1])
          p = Parser(fn, self)
@@ -345,7 +358,7 @@ class Parser:
       Given an input string, return the IR.
       """
       ast = self.xdr_parse_ast(src)
-#print(ast)
+#      print(ast)
 #print(self.scopeMap)
       ir = []
       for x in ast:

@@ -1,0 +1,8 @@
+:: def remove_prefix(text, prefix):
+::    return text[text.startswith(prefix) and len(prefix):]
+:: #enddef
+enum ${enum.name} {
+:: for m in enum.members:
+   ${remove_prefix(m.name, enum.name + '::')} = ${m.value},
+:: #endfor
+};

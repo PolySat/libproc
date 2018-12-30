@@ -1,0 +1,26 @@
+::    if m.documentation == None:
+   ${m.type} ${m.name}${arr};
+::    elif m.type == 'void':
+   void;
+::    else:
+   ${m.type} ${m.name}${arr} {
+::       if m.documentation.key != None and m.documentation.key != "":
+      key ${m.documentation.key};
+::       #endif
+::       if m.documentation.name != None and m.documentation.name != "":
+      name "${m.documentation.name}";
+::       #endif
+::       if m.documentation.description != None and m.documentation.description != "":
+      description "${m.documentation.description}";
+::       #endif
+::       if m.documentation.unit != None and m.documentation.unit != "":
+      unit "${m.documentation.unit}";
+::       #endif
+::       if m.documentation.offset != None and int(m.documentation.offset) != 0:
+      offset ${m.documentation.offset};
+::       #endif
+::       if m.documentation.divisor != None and int(m.documentation.divisor) != 0:
+      divisor ${m.documentation.divisor};
+::       #endif
+   };
+::    #endif

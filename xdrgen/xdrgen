@@ -9,7 +9,7 @@ from xdr.parser import *
 def main():
     parser = argparse.ArgumentParser(description='XDR compiler')
     parser.add_argument("input", metavar="FILE", type=argparse.FileType('r'), help="Input file")
-    parser.add_argument("--target", "-t", required=True, choices=["python", "lua","libproc"], help="Target language")
+    parser.add_argument("--target", "-t", required=True, choices=["python", "xp","libproc"], help="Target language")
     parser.add_argument("--output", "-o", metavar="PATH", help="Output directory")
 
     args = parser.parse_args()
