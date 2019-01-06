@@ -41,10 +41,10 @@ cmd.c: cmd-pkt.h
 ipc.c: cmd-pkt.h
 
 cmd-pkt.h: cmd-pkt.xp
-	xdrgen/xdrgen --target libproc --output cmd-pkt cmd-pkt.xp
+	poly-xdrgen --target libproc --output cmd-pkt cmd-pkt.xp
 
 cmd-pkt.c: cmd-pkt.xp
-	xdrgen/xdrgen --target libproc --output cmd-pkt cmd-pkt.xp
+	poly-xdrgen --target libproc --output cmd-pkt cmd-pkt.xp
 
 
 install: all
