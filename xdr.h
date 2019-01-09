@@ -9,8 +9,13 @@
 
 struct XDR_FieldDefinition;
 
+#ifdef __cplusplus
+enum XDR_PRINT_STYLE : short { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
+   XDR_PRINT_CSV_DATA };
+#else
 enum XDR_PRINT_STYLE { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
    XDR_PRINT_CSV_DATA };
+#endif
 
 typedef int (*XDR_Decoder)(char *src, void *dst, size_t *inc, size_t max,
       void *len);
