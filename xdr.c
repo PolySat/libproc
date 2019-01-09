@@ -393,7 +393,7 @@ int XDR_decode_string_array(char *src, char **dst, size_t *inc,
 
    *inc = used;
    padding = (4 - (str_len % 4)) % 4;
-   if (used + str_len + padding >= max)
+   if (used + str_len + padding > max)
       return -1;
 
    str = malloc(str_len + 1);
@@ -1103,8 +1103,12 @@ void XDR_scan_string(const char *in, void *dst, void *arg, void *unused)
 void XDR_scan_string_array(const char *in, void *dst, void *arg,
       void *len)
 {
-   // string arrays are no supported by the grammar
-   assert(0);
+   char **str = (char**)dst;
+
+   if (!*str)
+      *str = strdup(in);
+   else
+      strcpy(*str, in);
 }
 
 void XDR_scan_byte(const char *in, void *dst, void *arg, void *len)
