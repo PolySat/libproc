@@ -134,13 +134,11 @@ struct CMD_XDRCommandInfo {
    void *arg;
 };
 
-
 #ifdef __cplusplus
 enum XDR_PRINT_STYLE : short;
 #else
 enum XDR_PRINT_STYLE;
 #endif
-
 
 extern void CMD_register_commands(struct CMD_XDRCommandInfo*, int);
 extern void CMD_register_command(struct CMD_XDRCommandInfo*, int);
