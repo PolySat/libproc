@@ -7,6 +7,7 @@
 #include "xdr.h"
 #include "events.h"
 #include "hashtable.h"
+#include <inttypes.h>
 
 #define ASCII2HEX(c) ( ( (c) >= '0' && (c) <= '9' ? (c) - '0' : \
       ((c) >= 'A' && (c) <= 'F' ? (c) - 'A' + 10 : \
@@ -933,7 +934,7 @@ void XDR_print_field_int64(FILE *out, void *data,
    if (style == XDR_PRINT_HUMAN && 0 != field->conv_divisor)
       fprintf(out, "%lf", val/field->conv_divisor + field->conv_offset);
    else
-      fprintf(out, "%lu", val);
+      fprintf(out, "%"PRId64, val);
 }
 
 void XDR_print_field_int64_array(FILE *out, void *data,
@@ -957,7 +958,7 @@ void XDR_print_field_uint64(FILE *out, void *data,
    if (style == XDR_PRINT_HUMAN && 0 != field->conv_divisor)
       fprintf(out, "%lf", val/field->conv_divisor + field->conv_offset);
    else
-      fprintf(out, "%lu", val);
+      fprintf(out, "%"PRIu64, val);
 }
 
 void XDR_print_field_uint64_array(FILE *out, void *data,
@@ -1065,7 +1066,7 @@ void XDR_scan_uint32_array(const char *in, void *dst, void *arg,
 void XDR_scan_int64(const char *in, void *dst, void *arg, void *unused)
 {
    int64_t val;
-   sscanf(in, "%ld", &val);
+   sscanf(in, "%"SCNd64, &val);
    memcpy(dst, &val, sizeof(val));
 }
 
@@ -1079,7 +1080,7 @@ void XDR_scan_int64_array(const char *in, void *dst, void *arg,
 void XDR_scan_uint64(const char *in, void *dst, void *arg, void *unused)
 {
    uint64_t val;
-   sscanf(in, "%lu", &val);
+   sscanf(in, "%"SCNu64, &val);
    memcpy(dst, &val, sizeof(val));
 }
 
