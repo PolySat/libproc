@@ -7,8 +7,8 @@ include Make.rules.arm
 # Input/Output Variables
 SOURCES=priorityQueue.c events.c proclib.c ipc.c debug.c cmd.c config.c hashtable.c util.c md5.c critical.c eventTimer.c telm_dict.c zmqlite.c json.c cmd-pkt.c xdr.c
 LIBRARY_NAME=proc
-MAJOR_VERS=2
-MINOR_VERS=1.1
+MAJOR_VERS=3
+MINOR_VERS=0.1
 
 # Install Variables
 INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h eventTimer.h telm_dict.h zmqlite.h critical.h xdr.h cmd-pkt.h
@@ -28,7 +28,7 @@ LFLAGS=-shared -fPIC -Wl,-soname,$(SO_NAME)
 all: $(OBJECTS) $(LIBRARY)
 
 $(LIBRARY): $(LIB_NAME)
-	 ln -sf $(LIB_NAME) $(LIBRARY).$(SO_EXT)
+	 ln -sf $(LIB_NAME) $(LIBRARY)3.$(SO_EXT)
 	 ln -sf $(LIB_NAME) $(LIBRARY).$(SO_EXT).$(MAJOR_VERS)
 
 $(LIB_NAME): $(OBJECTS)
@@ -50,15 +50,15 @@ cmd-pkt.c: cmd-pkt.xp
 install: all
 	cp $(LIB_NAME) $(LIB_PATH)
 	$(INST_STRIP) $(LIB_PATH)/$(LIB_NAME)
-	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY).$(SO_EXT)
+	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY)3.$(SO_EXT)
 	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY).$(SO_EXT).$(MAJOR_VERS)
-	install -d $(INC_PATH)/polysat
-	cp $(INCLUDE) $(INC_PATH)/polysat
+	install -d $(INC_PATH)/polysat3
+	cp $(INCLUDE) $(INC_PATH)/polysat3
 #	ldconfig -linux-ld -n $(LIB_PATH)
 
 uninstall:
 	rm $(LIB_PATH)/$(LIBRARY)*
-	rm -rf $(INC_PATH)/polysat
+	rm -rf $(INC_PATH)/polysat3
 
 test:
 	make -C ./tests/unit/
