@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #define is_whitespace(c) ((c)==' ' || (c)=='\t' || (c)=='\n' || (c)=='\r')
 
@@ -239,7 +240,7 @@ static void json_ptr_itr_cb(const char *prop, const char *val, void *arg)
    struct JPtrItr *params = (struct JPtrItr*)arg;
 
    if (params && params->prop && !strcmp(params->prop, prop)) {
-      params->val = (void*)strtoll(val, NULL, 0);
+      params->val = (void*)(intptr_t)strtoll(val, NULL, 0);
       params->found = 1;
    }
 }
