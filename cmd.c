@@ -103,6 +103,10 @@ struct CommandCbArg {
 };
 
 struct CMD_XDRCommandInfo *CMD_xdr_cmd_by_number(uint32_t num);
+static void fakeStatusCommand(int socket, unsigned char cmd, void * data,
+      size_t dataLen, struct sockaddr_in * src);
+
+static ProcessData *cmdGProc = NULL;
 
 void heartbeat_populator(void *arg, XDR_tx_struct cb, void *cb_args)
 {
@@ -476,6 +480,7 @@ int cmd_handler_init(const char * procName, struct ProcessData *proc,
    for (i = 0; i < MAX_NUM_CMDS; i++) {
       (cmds->cmds + i)->cmd_cb = (CMD_handler_t)invalidCommand;
    }
+   (cmds->cmds + CMD_STATUS_REQUEST)->cmd_cb =(CMD_handler_t)fakeStatusCommand;
 
    // Iterate through the commands
    for (i = 0; root && i < root->cmds.len; i++) {
@@ -554,6 +559,7 @@ int cmd_handler_cb(int socket, char type, void * arg)
    struct CMD_XDRCommandInfo *cmd_info;
    uint32_t cmd_num;
    data[0] = 0;
+   cmdGProc = proc;
 
    // should only be read events, but make sure
    if (type == EVENT_FD_READ) {
@@ -633,6 +639,16 @@ int tx_cmd_handler_cb(int socket, char type, void * arg)
 
    return EVENT_KEEP;
 }
+
+static void fakeStatusCommand(int socket, unsigned char cmd, void * data,
+      size_t dataLen, struct sockaddr_in * src)
+{
+   char resp = 0;
+
+   PROC_cmd_sockaddr(cmdGProc, CMD_STATUS_RESPONSE, &resp,
+      sizeof(resp), src);
+}
+
 
 void invalidCommand(int socket, unsigned char cmd, void * data, size_t dataLen, struct sockaddr_in * src)
 {
