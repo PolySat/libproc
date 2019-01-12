@@ -72,6 +72,31 @@ void XDR_register_populator(XDR_populate_struct cb, void *arg, uint32_t type)
    def->populate_arg = arg;
 }
 
+void XDR_set_struct_print_function(XDR_print_func func, uint32_t type)
+{
+   struct XDR_StructDefinition *def = NULL;
+
+   def = XDR_definition_for_type(type);
+   if (!def)
+      return;
+
+   def->print_func = func;
+}
+
+void XDR_set_field_print_function(XDR_print_field_func func,
+      uint32_t struct_type, uint32_t field)
+{
+   struct XDR_StructDefinition *def = NULL;
+   struct XDR_FieldDefinition *fields;
+
+   def = XDR_definition_for_type(struct_type);
+   if (!def || !def->arg)
+      return;
+
+   fields = (struct XDR_FieldDefinition*)def->arg;
+   fields[field].printer = func;
+}
+
 int XDR_decode_byte_array(char *src, char **dst, size_t *used,
       size_t max, void *lenptr)
 {

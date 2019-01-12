@@ -70,6 +70,9 @@ extern void XDR_register_struct(struct XDR_StructDefinition*);
 extern void XDR_register_populator(XDR_populate_struct cb,
       void *arg, uint32_t type);
 extern struct XDR_StructDefinition *XDR_definition_for_type(uint32_t type);
+extern void XDR_set_struct_print_function(XDR_print_func func, uint32_t type);
+extern void XDR_set_field_print_function(XDR_print_field_func func,
+      uint32_t struct_type, uint32_t field);
 
 extern int XDR_array_encoder(char *src, void *dst, size_t *used, size_t max,
       int len, size_t increment, XDR_Encoder enc, void *enc_arg);
