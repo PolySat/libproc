@@ -27,7 +27,7 @@ typedef void (*XDR_print_field_func)(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *len);
 typedef void (*XDR_field_scanner)(const char *in, void *dst, void *arg,
       void *len);
-typedef void (*XDR_tx_struct)(void *data, void *arg);
+typedef void (*XDR_tx_struct)(void *data, void *arg, uint32_t error);
 typedef void (*XDR_populate_struct)(void *arg, XDR_tx_struct cb, void *cb_arg);
 
 struct XDR_Union {

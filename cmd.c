@@ -112,12 +112,13 @@ void heartbeat_populator(void *arg, XDR_tx_struct cb, void *cb_args)
       return;
 
    cmds->beats.heartbeats++;
-   cb(&cmds->beats, cb_args);
+   cb(&cmds->beats, cb_args, IPC_RESULTCODE_SUCCESS);
 }
 
-void data_req_populate_cb(void *data, void *arg)
+void data_req_populate_cb(void *data, void *arg, uint32_t error)
 {
    struct DataReqParams *params;
+   struct IPC_PopulatorError err;
 
    if (!arg || !data)
       return;
@@ -125,10 +126,23 @@ void data_req_populate_cb(void *data, void *arg)
    if (!params->dest)
       return;
 
-   if (params->direct_resp)
-      IPC_response(params->proc, params->cmd, params->type, data, params->from);
-   else
-      *params->dest = CMD_struct_to_opaque_struct(data, params->type);
+   if (params->direct_resp) {
+      if (error != IPC_RESULTCODE_SUCCESS)
+         IPC_error(params->proc, params->cmd, error, params->from);
+      else
+         IPC_response(params->proc, params->cmd, params->type,
+               data, params->from);
+   }
+   else {
+      if (error != IPC_RESULTCODE_SUCCESS) {
+         err.type = params->type;
+         err.error = error;
+         *params->dest = CMD_struct_to_opaque_struct(&err,
+               IPC_TYPES_POPULATOR_ERROR);
+      }
+      else
+         *params->dest = CMD_struct_to_opaque_struct(data, params->type);
+   }
 }
 
 void cmd_handle_data_req(struct ProcessData *proc, struct IPC_Command *cmd,

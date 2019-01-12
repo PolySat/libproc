@@ -18,7 +18,8 @@ enum types {
    RESPONSE = TYPE_BASE + 4,
    DATAREQ = TYPE_BASE + 5,
    RESPONSE_HDR = TYPE_BASE + 6,
-   HEARTBEAT = TYPE_BASE + 7
+   HEARTBEAT = TYPE_BASE + 7,
+   POPULATOR_ERROR = TYPE_BASE + 8,
 };
 
 command "proc-status" {
@@ -110,3 +111,12 @@ struct ResponseHeader {
    unsigned int ipcref;
    ResultCode result;
 } = types::RESPONSE_HDR;
+
+struct PopulatorError {
+   types type {
+      key struct_type;
+   };
+   ResultCode error {
+      key error_code;
+   };
+} = types::POPULATOR_ERROR;
