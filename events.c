@@ -45,6 +45,7 @@
 #include <dlfcn.h>
 #include "ipc.h"
 #include "json.h"
+#include <inttypes.h>
 
 #define EDBG_ENV_VAR "LIBPROC_DEBUGGER"
 
@@ -1508,7 +1509,7 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
 
    ipc_printf_buffer(json,
          "    {\n"
-         "      \"id\":%lu,\n"
+         "      \"id\":%"PRIdPTR",\n"
          "      \"name\":\"%s\",\n"
          "      \"function\":\"%s\",\n",
          (uintptr_t)data,
@@ -1525,7 +1526,7 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
 
    ipc_printf_buffer(json,
          "      \"event_length\":%ld.%06ld,\n"
-         "      \"arg_pointer\":%lu,\n"
+         "      \"arg_pointer\":%"PRIdPTR",\n"
          "      \"event_count\":%u\n"
          "    }",
          data->timeStep.tv_sec,
@@ -1571,10 +1572,10 @@ static void edbg_report_fd_event(struct IPCBuffer *json, struct EventCB *data,
 
    ipc_printf_buffer(json,
          "    {\n"
-         "      \"id\":%lu,\n"
+         "      \"id\":%"PRIdPTR",\n"
          "      \"name\":\"%s\",\n"
          "      \"filename\":\"%s\",\n"
-         "      \"arg_pointer\":%lu,\n",
+         "      \"arg_pointer\":%"PRIdPTR",\n",
          (uintptr_t)data, data->name[0] ? data->name : filename,
          filename, (uintptr_t)data->arg);
 
@@ -1654,11 +1655,11 @@ static void edbg_report_state(EVTHandler *ctx, uint8_t full_format)
    if (ctx->debuggerState == EDBG_STOPPED) {
       if (ctx->next_timed_event)
          ipc_printf_buffer(ctx->dbgBuffer,
-            "  \"next_step\" : { \"type\":\"Timed Event\", \"id\":%lu },\n",
+            "  \"next_step\" : { \"type\":\"Timed Event\", \"id\":%"PRIdPTR" },\n",
             (uintptr_t)ctx->next_timed_event );
       else if (ctx->next_fd_event) {
          ipc_printf_buffer(ctx->dbgBuffer,
-            "  \"next_step\" : { \"type\":\"FD Event\", \"id\":%lu },\n",
+            "  \"next_step\" : { \"type\":\"FD Event\", \"id\":%"PRIdPTR" },\n",
             (uintptr_t)ctx->next_fd_event );
       }
    }
