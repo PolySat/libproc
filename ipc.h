@@ -295,6 +295,10 @@ enum IPC_CB_TYPE { IPC_CB_TYPE_COOKED = 1, IPC_CB_TYPE_RAW = 2 };
 
 typedef void (*IPC_command_callback)(struct ProcessData *proc, int timeout, void *arg, char *resp_buff, size_t resp_len, enum IPC_CB_TYPE cb_type);
 
+extern int IPC_command_sync(uint32_t command,
+      void *params, uint32_t param_type,
+      struct sockaddr_in dest, IPC_command_callback cb, void *,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout);
 extern int IPC_command(struct ProcessData*, uint32_t command, void *params,
       uint32_t param_type,
       struct sockaddr_in dest, IPC_command_callback cb, void *,

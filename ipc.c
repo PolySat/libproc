@@ -698,7 +698,8 @@ static int ipc_blocking_command(char *txbuff, size_t txlen,
    return CMD_resolve_callback(NULL, cb, arg, cb_type, rxbuff, rxlen);
 }
 
-int IPC_command(ProcessData *proc, uint32_t command, void *params,
+static int IPC_command_internal(ProcessData *proc, uint32_t command,
+      void *params,
       uint32_t param_type,
       struct sockaddr_in dest, IPC_command_callback cb, void *arg,
       enum IPC_CB_TYPE cb_type, unsigned int timeout)
@@ -744,6 +745,26 @@ int IPC_command(ProcessData *proc, uint32_t command, void *params,
             cb_type, timeout);
 
    return 0;
+}
+
+int IPC_command_sync(uint32_t command, void *params,
+      uint32_t param_type,
+      struct sockaddr_in dest, IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+{
+   return IPC_command_internal(NULL, command, params, param_type,
+         dest, cb, arg, cb_type, timeout);
+}
+
+int IPC_command(ProcessData *proc, uint32_t command, void *params,
+      uint32_t param_type,
+      struct sockaddr_in dest, IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+{
+   if (!proc)
+      return -1;
+   return IPC_command_internal(proc, command, params, param_type,
+         dest, cb, arg, cb_type, timeout);
 }
 
 void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
