@@ -24,13 +24,13 @@
 #ifndef POLYSAT_H
 #define POLYSAT_H
 
-#include <polysat/proclib.h>
-#include <polysat/config.h>
-#include <polysat/debug.h>
-#include <polysat/events.h>
-#include <polysat/ipc.h>
-#include <polysat/cmd.h>
-#include <polysat/md5.h>
-#include <polysat/telm_dict.h>
+#include <polysat3/proclib.h>
+#include <polysat3/config.h>
+#include <polysat3/debug.h>
+#include <polysat3/events.h>
+#include <polysat3/ipc.h>
+#include <polysat3/cmd.h>
+#include <polysat3/md5.h>
+#include <polysat3/telm_dict.h>
 
 #endif
