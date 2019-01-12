@@ -967,7 +967,8 @@ int CMD_send_command_line_command(int argc, char **argv,
                continue;
             key = NULL;
             field->scanner(value, (char*)param + field->offset,
-                  command->parameter->arg, (char*)param + field->len_offset);
+                  command->parameter->arg, (char*)param + field->len_offset,
+                  field->inverse_conv);
             break;
          }
          if (key) {

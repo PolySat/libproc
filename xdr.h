@@ -25,8 +25,9 @@ typedef void (*XDR_print_func)(FILE *out, void *data, void *arg,
       enum XDR_PRINT_STYLE style);
 typedef void (*XDR_print_field_func)(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *len);
+typedef double (*XDR_conversion_func)(double);
 typedef void (*XDR_field_scanner)(const char *in, void *dst, void *arg,
-      void *len);
+      void *len, XDR_conversion_func conv);
 typedef void (*XDR_tx_struct)(void *data, void *arg, uint32_t error);
 typedef void (*XDR_populate_struct)(void *arg, XDR_tx_struct cb, void *cb_arg);
 
@@ -42,7 +43,8 @@ struct XDR_FieldDefinition {
    const char *key;
    const char *name;
    const char *unit;
-   double conv_offset, conv_divisor;
+   XDR_conversion_func conversion;
+   XDR_conversion_func inverse_conv;
    XDR_print_field_func printer;
    XDR_field_scanner scanner;
    void (*dealloc)(void **, struct XDR_FieldDefinition *field);
@@ -87,8 +89,8 @@ extern void XDR_array_field_printer(FILE *out, void *src_ptr,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *len_ptr, XDR_print_field_func print, size_t increment);
 extern void XDR_array_field_scanner(const char *in, void *dst_ptr, void *arg,
-      void *len_ptr,
-      XDR_field_scanner scan, void *enc_arg, size_t increment);
+      void *len_ptr, XDR_field_scanner scan, void *enc_arg,
+      size_t increment, XDR_conversion_func conv);
 extern void XDR_print_fields_func(FILE *out, void *data, void *arg,
       enum XDR_PRINT_STYLE style);
 
@@ -245,32 +247,42 @@ extern void XDR_print_field_string_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *len);
 
-extern void XDR_scan_float(const char *in, void *dst, void *arg, void *len);
-extern void XDR_scan_double(const char *in, void *dst, void *arg, void *len);
-extern void XDR_scan_char(const char *in, void *dst, void *arg, void *len);
-extern void XDR_scan_int32(const char *in, void *dst, void *arg, void *len);
-extern void XDR_scan_uint32(const char *in, void *dst, void *arg, void *len);
-extern void XDR_scan_int64(const char *in, void *dst, void *arg, void *len);
-extern void XDR_scan_uint64(const char *in, void *dst, void *arg, void *len);
-extern void XDR_scan_string(const char *in, void *dst, void *arg, void *len);
-extern void XDR_scan_byte(const char *in, void *dst, void *arg, void *len);
+extern void XDR_scan_float(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv);
+extern void XDR_scan_double(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv);
+extern void XDR_scan_char(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv);
+extern void XDR_scan_int32(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv);
+extern void XDR_scan_uint32(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv);
+extern void XDR_scan_int64(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv);
+extern void XDR_scan_uint64(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv);
+extern void XDR_scan_string(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv);
+extern void XDR_scan_byte(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv);
 
 extern void XDR_scan_float_array(const char *in, void *dst, void *arg,
-      void *len);
+      void *len, XDR_conversion_func conv);
 extern void XDR_scan_double_array(const char *in, void *dst, void *arg,
-      void *len);
+      void *len, XDR_conversion_func conv);
 extern void XDR_scan_char_array(const char *in, void *dst, void *arg,
-      void *len);
+      void *len, XDR_conversion_func conv);
 extern void XDR_scan_int32_array(const char *in, void *dst, void *arg,
-      void *len);
+      void *len, XDR_conversion_func conv);
 extern void XDR_scan_uint32_array(const char *in, void *dst, void *arg,
-      void *len);
+      void *len, XDR_conversion_func conv);
 extern void XDR_scan_int64_array(const char *in, void *dst, void *arg,
-      void *len);
+      void *len, XDR_conversion_func conv);
 extern void XDR_scan_uint64_array(const char *in, void *dst, void *arg,
-      void *len);
+      void *len, XDR_conversion_func conv);
 extern void XDR_scan_string_array(const char *in, void *dst, void *arg,
-      void *len);
-extern void XDR_scan_byte_array(const char *in, void *dst, void *arg, void *len);
+      void *len, XDR_conversion_func conv);
+extern void XDR_scan_byte_array(const char *in, void *dst, void *arg,
+      void *len, XDR_conversion_func conv);
 
 #endif

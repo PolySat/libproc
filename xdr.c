@@ -806,32 +806,30 @@ void XDR_print_field_double(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *unused)
 {
-   double val;
+   double *val = (double*)data;
 
-   if (!data)
+   if (!val)
       return;
-   memcpy(&val, data, sizeof(val));
 
-   if (style == XDR_PRINT_HUMAN && 0 != field->conv_divisor)
-      fprintf(out, "%lf", val/field->conv_divisor + field->conv_offset);
+   if (style == XDR_PRINT_HUMAN && field->conversion)
+      fprintf(out, "%lf", field->conversion(*val));
    else
-      fprintf(out, "%lf", val);
+      fprintf(out, "%lf", *val);
 }
 
 void XDR_print_field_float(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *unused)
 {
-   float val;
+   float *val = (float*)data;
 
-   if (!data)
+   if (!val)
       return;
-   memcpy(&val, data, sizeof(val));
 
-   if (style == XDR_PRINT_HUMAN && 0 != field->conv_divisor)
-      fprintf(out, "%lf", val/field->conv_divisor + field->conv_offset);
+   if (style == XDR_PRINT_HUMAN && field->conversion)
+      fprintf(out, "%lf", field->conversion(*val));
    else
-      fprintf(out, "%f", val);
+      fprintf(out, "%f", *val);
 }
 
 void XDR_print_field_float_array(FILE *out, void *data,
@@ -846,13 +844,12 @@ void XDR_print_field_char(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *unused)
 {
-   int32_t val;
+   int32_t *val = (int32_t*)data;
 
-   if (!data)
+   if (!val)
       return;
-   memcpy(&val, data, sizeof(val));
 
-   fprintf(out, "%c", val);
+   fprintf(out, "%c", *val);
 }
 
 void XDR_print_field_char_array(FILE *out, void *data,
@@ -867,16 +864,15 @@ void XDR_print_field_int32(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *unused)
 {
-   int32_t val;
+   int32_t *val = (int32_t*)data;
 
-   if (!data)
+   if (!val)
       return;
-   memcpy(&val, data, sizeof(val));
 
-   if (style == XDR_PRINT_HUMAN && 0 != field->conv_divisor)
-      fprintf(out, "%lf", val/field->conv_divisor + field->conv_offset);
+   if (style == XDR_PRINT_HUMAN && 0 != field->conversion)
+      fprintf(out, "%lf", field->conversion(*val));
    else
-      fprintf(out, "%d", val);
+      fprintf(out, "%d", *val);
 }
 
 void XDR_print_field_int32_array(FILE *out, void *data,
@@ -926,16 +922,15 @@ void XDR_print_field_uint32(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *unused)
 {
-   uint32_t val;
+   uint32_t *val = (uint32_t*)data;
 
-   if (!data)
+   if (!val)
       return;
-   memcpy(&val, data, sizeof(val));
 
-   if (style == XDR_PRINT_HUMAN && 0 != field->conv_divisor)
-      fprintf(out, "%lf", val/field->conv_divisor + field->conv_offset);
+   if (style == XDR_PRINT_HUMAN && field->conversion)
+      fprintf(out, "%lf", field->conversion(*val));
    else
-      fprintf(out, "%u", val);
+      fprintf(out, "%u", *val);
 }
 
 void XDR_print_field_uint32_array(FILE *out, void *data,
@@ -950,16 +945,15 @@ void XDR_print_field_int64(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *unused)
 {
-   int64_t val;
+   int64_t *val = (int64_t*)data;
 
-   if (!data)
+   if (!val)
       return;
-   memcpy(&val, data, sizeof(val));
 
-   if (style == XDR_PRINT_HUMAN && 0 != field->conv_divisor)
-      fprintf(out, "%lf", val/field->conv_divisor + field->conv_offset);
+   if (style == XDR_PRINT_HUMAN && field->conversion)
+      fprintf(out, "%lf", field->conversion(*val));
    else
-      fprintf(out, "%"PRId64, val);
+      fprintf(out, "%"PRId64, *val);
 }
 
 void XDR_print_field_int64_array(FILE *out, void *data,
@@ -974,16 +968,15 @@ void XDR_print_field_uint64(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       void *unused)
 {
-   uint64_t val;
+   uint64_t *val = (uint64_t*)data;
 
-   if (!data)
+   if (!val)
       return;
-   memcpy(&val, data, sizeof(val));
 
-   if (style == XDR_PRINT_HUMAN && 0 != field->conv_divisor)
-      fprintf(out, "%lf", val/field->conv_divisor + field->conv_offset);
+   if (style == XDR_PRINT_HUMAN && field->conversion)
+      fprintf(out, "%lf", field->conversion(*val));
    else
-      fprintf(out, "%"PRIu64, val);
+      fprintf(out, "%"PRIu64, *val);
 }
 
 void XDR_print_field_uint64_array(FILE *out, void *data,
@@ -1018,105 +1011,139 @@ void XDR_print_field_union_array(FILE *out, void *data,
          &XDR_print_field_union, sizeof(struct XDR_Union));
 }
 
-void XDR_scan_float(const char *in, void *dst, void *arg, void *unused)
+void XDR_scan_float(const char *in, void *dst, void *arg, void *unused,
+      XDR_conversion_func conv)
 {
-   float val;
-   sscanf(in, "%f", &val);
-   memcpy(dst, &val, sizeof(val));
+   float *val = (float*)dst;
+   sscanf(in, "%f", val);
+   if (conv)
+      *val = conv(*val);
 }
 
-void XDR_scan_float_array(const char *in, void *dst, void *arg, void *len)
+void XDR_scan_float_array(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv)
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_float,
-      arg, sizeof(float));
+      arg, sizeof(float), conv);
 }
 
-void XDR_scan_double(const char *in, void *dst, void *arg, void *unused)
+void XDR_scan_double(const char *in, void *dst, void *arg, void *unused,
+      XDR_conversion_func conv)
 {
-   double val;
-   sscanf(in, "%lf", &val);
-   memcpy(dst, &val, sizeof(val));
+   double *val = (double*)dst;
+   sscanf(in, "%lf", val);
+   if (conv)
+      *val = conv(*val);
 }
 
-void XDR_scan_double_array(const char *in, void *dst, void *arg, void *len)
+void XDR_scan_double_array(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv)
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_double,
-      arg, sizeof(double));
+      arg, sizeof(double), conv);
 }
 
-void XDR_scan_int32(const char *in, void *dst, void *arg, void *unused)
+void XDR_scan_int32(const char *in, void *dst, void *arg, void *unused,
+      XDR_conversion_func conv)
 {
-   int32_t val;
-   sscanf(in, "%d", &val);
-   memcpy(dst, &val, sizeof(val));
+   int32_t *val = (int32_t*)dst;
+   double dbl;
+
+   if (conv) {
+      sscanf(in, "%lf", &dbl);
+      *val = conv(dbl);
+   }
+   else
+      sscanf(in, "%d", val);
 }
 
 void XDR_scan_int32_array(const char *in, void *dst, void *arg,
-      void *len)
+      void *len, XDR_conversion_func conv)
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_int32,
-      arg, sizeof(int32_t));
+      arg, sizeof(int32_t), conv);
 }
 
-void XDR_scan_char(const char *in, void *dst, void *arg, void *unused)
+void XDR_scan_char(const char *in, void *dst, void *arg, void *unused,
+      XDR_conversion_func conv)
 {
-   int32_t val;
    char c;
    sscanf(in, "%c", &c);
-   val = c;
-   memcpy(dst, &val, sizeof(val));
+   *(int32_t*)dst = c;
 }
 
 void XDR_scan_char_array(const char *in, void *dst, void *arg,
-      void *len)
+      void *len, XDR_conversion_func conv)
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_char,
-      arg, sizeof(int32_t));
+      arg, sizeof(int32_t), conv);
 }
 
-void XDR_scan_uint32(const char *in, void *dst, void *arg, void *unused)
+void XDR_scan_uint32(const char *in, void *dst, void *arg, void *unused,
+      XDR_conversion_func conv)
 {
-   uint32_t val;
-   sscanf(in, "%u", &val);
-   memcpy(dst, &val, sizeof(val));
+   uint32_t *val = (uint32_t*)dst;
+   double dbl;
+
+   if (conv) {
+      sscanf(in, "%lf", &dbl);
+      *val = conv(dbl);
+   }
+   else
+      sscanf(in, "%u", val);
 }
 
 void XDR_scan_uint32_array(const char *in, void *dst, void *arg,
-      void *len)
+      void *len, XDR_conversion_func conv)
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_uint32,
-      arg, sizeof(uint32_t));
+      arg, sizeof(uint32_t), conv);
 }
 
-void XDR_scan_int64(const char *in, void *dst, void *arg, void *unused)
+void XDR_scan_int64(const char *in, void *dst, void *arg, void *unused,
+      XDR_conversion_func conv)
 {
-   int64_t val;
-   sscanf(in, "%"SCNd64, &val);
-   memcpy(dst, &val, sizeof(val));
+   int64_t *val = (int64_t*)dst;
+   double dbl;
+
+   if (conv) {
+      sscanf(in, "%lf", &dbl);
+      *val = conv(dbl);
+   }
+   else
+      sscanf(in, "%"SCNd64, val);
 }
 
 void XDR_scan_int64_array(const char *in, void *dst, void *arg,
-      void *len)
+      void *len, XDR_conversion_func conv)
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_int64,
-      arg, sizeof(int64_t));
+      arg, sizeof(int64_t), conv);
 }
 
-void XDR_scan_uint64(const char *in, void *dst, void *arg, void *unused)
+void XDR_scan_uint64(const char *in, void *dst, void *arg, void *unused,
+      XDR_conversion_func conv)
 {
-   uint64_t val;
-   sscanf(in, "%"SCNu64, &val);
-   memcpy(dst, &val, sizeof(val));
+   uint64_t *val = (uint64_t*)dst;
+   double dbl;
+
+   if (conv) {
+      sscanf(in, "%lf", &dbl);
+      *val = conv(dbl);
+   }
+   else
+      sscanf(in, "%"SCNu64, val);
 }
 
 void XDR_scan_uint64_array(const char *in, void *dst, void *arg,
-      void *len)
+      void *len, XDR_conversion_func conv)
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_uint64,
-      arg, sizeof(uint64_t));
+      arg, sizeof(uint64_t), conv);
 }
 
-void XDR_scan_string(const char *in, void *dst, void *arg, void *unused)
+void XDR_scan_string(const char *in, void *dst, void *arg, void *unused,
+      XDR_conversion_func conv)
 {
    char **str = (char**)dst;
 
@@ -1127,7 +1154,7 @@ void XDR_scan_string(const char *in, void *dst, void *arg, void *unused)
 }
 
 void XDR_scan_string_array(const char *in, void *dst, void *arg,
-      void *len)
+      void *len, XDR_conversion_func conv)
 {
    char **str = (char**)dst;
 
@@ -1137,7 +1164,8 @@ void XDR_scan_string_array(const char *in, void *dst, void *arg,
       strcpy(*str, in);
 }
 
-void XDR_scan_byte(const char *in, void *dst, void *arg, void *len)
+void XDR_scan_byte(const char *in, void *dst, void *arg, void *len,
+      XDR_conversion_func conv)
 {
    if (!in || !in[0] || !dst)
       return;
@@ -1147,7 +1175,8 @@ void XDR_scan_byte(const char *in, void *dst, void *arg, void *len)
       *(unsigned char*)dst = (ASCII2HEX(in[0]) << 4) | ASCII2HEX(in[1]);
 }
 
-void XDR_scan_byte_array(const char *in, void *dst_ptr, void *arg, void *len_ptr)
+void XDR_scan_byte_array(const char *in, void *dst_ptr, void *arg,
+      void *len_ptr, XDR_conversion_func conv)
 {
    unsigned char *dst = NULL;
    int i = 0, *len;
@@ -1249,7 +1278,8 @@ void XDR_free_union(struct XDR_Union *goner)
 
 void XDR_array_field_scanner(const char *in, void *dst_ptr, void *arg,
       void *len_ptr,
-      XDR_field_scanner scan, void *parg, size_t increment)
+      XDR_field_scanner scan, void *parg, size_t increment,
+      XDR_conversion_func conv)
 {
    char *dst = NULL;
    int i = 0, *len;
@@ -1278,7 +1308,7 @@ void XDR_array_field_scanner(const char *in, void *dst_ptr, void *arg,
       sep = strchr(first, ',');
       if (sep)
          *sep = 0;
-      scan(first, dst + i * increment, parg, NULL);
+      scan(first, dst + i * increment, parg, NULL, conv);
       if (sep)
          *sep = ',';
       i++;
