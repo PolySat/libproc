@@ -845,7 +845,7 @@ int CMD_usage_summary(struct CMD_MulticallInfo *mc, const char *name)
    return 1;
 }
 
-int CMD_send_command_line_command(int argc, char **argv,
+int CMD_send_command_line_command_internal(int argc, char **argv,
       struct CMD_MulticallInfo *mc, ProcessData *proc, IPC_command_callback cb,
       void *cb_arg, unsigned int timeout, const char *destProc,
       enum XDR_PRINT_STYLE *styleOut)
@@ -991,17 +991,42 @@ int CMD_send_command_line_command(int argc, char **argv,
    }
 
    // Send command and print response
-   if (command_num)
-      res = IPC_command(proc, command_num, param, param_type, dest, cb, cb_arg,
-         IPC_CB_TYPE_RAW, timeout);
-   else
+   if (command_num) {
+      if (!proc)
+         res = IPC_command_sync(command_num, param, param_type, dest, cb, cb_arg,
+            IPC_CB_TYPE_RAW, timeout);
+      else
+         res = IPC_command(proc, command_num, param, param_type, dest, cb, cb_arg,
+            IPC_CB_TYPE_RAW, timeout);
+   } else {
       res = -3;
+   }
 
    if (param && command->parameter &&
          (command->params != IPC_TYPES_DATAREQ || !command->types))
       command->parameter->deallocator(&param, command->parameter);
 
    return res;
+}
+
+int CMD_send_command_line_command(int argc, char **argv,
+      struct CMD_MulticallInfo *mc, ProcessData *proc, IPC_command_callback cb,
+      void *cb_arg, unsigned int timeout, const char *destProc,
+      enum XDR_PRINT_STYLE *styleOut)
+{
+   if (!proc)
+      return -1;
+   return CMD_send_command_line_command_internal(argc, argv, mc, proc, cb, cb_arg,
+         timeout, destProc, styleOut);
+}
+
+int CMD_send_command_line_command_sync(int argc, char **argv,
+      struct CMD_MulticallInfo *mc, IPC_command_callback cb,
+      void *cb_arg, unsigned int timeout, const char *destProc,
+      enum XDR_PRINT_STYLE *styleOut)
+{
+   return CMD_send_command_line_command_internal(argc, argv, mc, NULL, cb, cb_arg,
+         timeout, destProc, styleOut);
 }
 
 void CMD_register_commands(struct CMD_XDRCommandInfo *cmd, int override)

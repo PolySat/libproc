@@ -150,6 +150,10 @@ extern int CMD_send_command_line_command(int argc, char **argv,
       struct CMD_MulticallInfo *mc, struct ProcessData *proc,
       IPC_command_callback cb, void *cb_arg, unsigned int timeout,
       const char *destProc, enum XDR_PRINT_STYLE *styleOut);
+int CMD_send_command_line_command_sync(int argc, char **argv,
+      struct CMD_MulticallInfo *mc, IPC_command_callback cb,
+      void *cb_arg, unsigned int timeout, const char *destProc,
+      enum XDR_PRINT_STYLE *styleOut);
 extern int CMD_resolve_callback(struct ProcessData *proc, IPC_command_callback cb,
       void *arg, enum IPC_CB_TYPE cb_type, void *rxbuff, size_t rxlen);
 
