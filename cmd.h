@@ -108,7 +108,7 @@ void cmd_cleanup_cb_state(struct CommandCbArg *st, struct EventState *evt_loop);
 int tx_cmd_handler_cb(int socket, char type, void * arg);
 
 typedef void (*CMD_struct_itr)(uint32_t type, struct XDR_StructDefinition *,
-      char *buff, size_t len, void *arg1, int arg2);
+      char *buff, size_t len, void *arg1, int arg2, const char *parent);
 extern int CMD_iterate_structs(char *src, size_t len, CMD_struct_itr itr_cb,
       void *arg1, int arg2);
 

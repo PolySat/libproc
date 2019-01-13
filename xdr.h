@@ -21,10 +21,11 @@ typedef int (*XDR_Decoder)(char *src, void *dst, size_t *inc, size_t max,
       void *len);
 typedef int (*XDR_Encoder)(char *src, void *dst, size_t *inc, size_t max,
       void *len);
-typedef void (*XDR_print_func)(FILE *out, void *data, void *arg,
-      enum XDR_PRINT_STYLE style);
+typedef void (*XDR_print_func)(FILE *out, void *data, void *arg, const char *,
+      enum XDR_PRINT_STYLE style, int *line, int level);
 typedef void (*XDR_print_field_func)(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *len);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *len, int *line, int level);
 typedef double (*XDR_conversion_func)(double);
 typedef void (*XDR_field_scanner)(const char *in, void *dst, void *arg,
       void *len, XDR_conversion_func conv);
@@ -36,18 +37,22 @@ struct XDR_Union {
    void *data;
 };
 
-struct XDR_FieldDefinition {
+struct XDR_TypeFunctions {
    XDR_Decoder decoder;
    XDR_Encoder encoder;
+   XDR_print_field_func printer;
+   XDR_field_scanner scanner;
+   void (*field_dealloc)(void **, struct XDR_FieldDefinition *field);
+};
+
+struct XDR_FieldDefinition {
+   struct XDR_TypeFunctions *funcs;
    size_t offset;
    const char *key;
    const char *name;
    const char *unit;
    XDR_conversion_func conversion;
    XDR_conversion_func inverse_conv;
-   XDR_print_field_func printer;
-   XDR_field_scanner scanner;
-   void (*dealloc)(void **, struct XDR_FieldDefinition *field);
    uint32_t struct_id;
    const char *description;
    size_t len_offset;
@@ -84,15 +89,16 @@ extern int XDR_struct_encoder(void *src, char *dst, size_t *encoded_size,
       size_t max, uint32_t type, void *arg);
 extern void XDR_print_structure(uint32_t type,
       struct XDR_StructDefinition *str, char *buff, size_t len, void *arg1,
-      int arg2);
+      int arg2, const char *parent);
 extern void XDR_array_field_printer(FILE *out, void *src_ptr,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len_ptr, XDR_print_field_func print, size_t increment);
+      void *len_ptr, XDR_print_field_func print, size_t increment,
+      const char *parent, int *line, int level);
 extern void XDR_array_field_scanner(const char *in, void *dst_ptr, void *arg,
       void *len_ptr, XDR_field_scanner scan, void *enc_arg,
       size_t increment, XDR_conversion_func conv);
 extern void XDR_print_fields_func(FILE *out, void *data, void *arg,
-      enum XDR_PRINT_STYLE style);
+      const char*, enum XDR_PRINT_STYLE style, int *line, int level);
 
 
 // All decoder functions take the exact same set of parameters to
@@ -200,52 +206,69 @@ extern void XDR_union_array_field_deallocator(void **goner,
 extern void XDR_free_union(struct XDR_Union *goner);
 
 extern void XDR_print_field_char(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_int32(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_uint32(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_int64(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_uint64(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_union(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_byte_string(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_string(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_float(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_double(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_structure(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *len, int *line, int level);
 
 extern void XDR_print_field_char_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len);
+      const char *parent, void *len, int *line, int level);
 extern void XDR_print_field_int32_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len);
+      const char *parent, void *len, int *line, int level);
 extern void XDR_print_field_uint32_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len);
+      const char *parent, void *len, int *line, int level);
 extern void XDR_print_field_int64_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len);
+      const char *parent, void *len, int *line, int level);
 extern void XDR_print_field_uint64_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len);
+      const char *parent, void *len, int *line, int level);
 extern void XDR_print_field_union_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len);
+      const char *parent, void *len, int *line, int level);
 extern void XDR_print_field_byte_array(FILE *out, void *data,
-      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, void *);
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *, int *line, int level);
 extern void XDR_print_field_float_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len);
+      const char *parent, void *len, int *line, int level);
+extern void XDR_print_field_double_array(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *len, int *line, int level);
 extern void XDR_print_field_string_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len);
+      const char *parent, void *len, int *line, int level);
 
 extern void XDR_scan_float(const char *in, void *dst, void *arg, void *len,
       XDR_conversion_func conv);
@@ -284,5 +307,25 @@ extern void XDR_scan_string_array(const char *in, void *dst, void *arg,
       void *len, XDR_conversion_func conv);
 extern void XDR_scan_byte_array(const char *in, void *dst, void *arg,
       void *len, XDR_conversion_func conv);
+
+extern struct XDR_TypeFunctions xdr_float_functions;
+extern struct XDR_TypeFunctions xdr_float_arr_functions;
+extern struct XDR_TypeFunctions xdr_double_functions;
+extern struct XDR_TypeFunctions xdr_double_arr_functions;
+extern struct XDR_TypeFunctions xdr_char_functions;
+extern struct XDR_TypeFunctions xdr_char_arr_functions;
+extern struct XDR_TypeFunctions xdr_int32_functions;
+extern struct XDR_TypeFunctions xdr_int32_arr_functions;
+extern struct XDR_TypeFunctions xdr_uint32_functions;
+extern struct XDR_TypeFunctions xdr_uint32_arr_functions;
+extern struct XDR_TypeFunctions xdr_int64_functions;
+extern struct XDR_TypeFunctions xdr_int64_arr_functions;
+extern struct XDR_TypeFunctions xdr_uint64_functions;
+extern struct XDR_TypeFunctions xdr_uint64_arr_functions;
+extern struct XDR_TypeFunctions xdr_string_functions;
+extern struct XDR_TypeFunctions xdr_string_arr_functions;
+extern struct XDR_TypeFunctions xdr_byte_arr_functions;
+extern struct XDR_TypeFunctions xdr_union_functions;
+extern struct XDR_TypeFunctions xdr_union_arr_functions;
 
 #endif

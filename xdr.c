@@ -94,7 +94,7 @@ void XDR_set_field_print_function(XDR_print_field_func func,
       return;
 
    fields = (struct XDR_FieldDefinition*)def->arg;
-   fields[field].printer = func;
+   fields[field].funcs->printer = func;
 }
 
 int XDR_decode_byte_array(char *src, char **dst, size_t *used,
@@ -666,8 +666,8 @@ int XDR_struct_decoder(char *src, void *dst_void, size_t *inc,
    if (!field)
       return -1;
 
-   while (field->offset || field->decoder || field->encoder) {
-      if (field->decoder(src + used, dst + field->offset, &len,
+   while (field->offset || field->funcs) {
+      if (field->funcs->decoder(src + used, dst + field->offset, &len,
                max - used, dst + field->len_offset) < 0)
          return -1;
       used += len;
@@ -694,13 +694,13 @@ int XDR_struct_encoder(void *src_void, char *dst, size_t *inc,
    if (!field)
       return 0;
 
-   while (field->offset || field->decoder || field->encoder) {
+   while (field->offset || field->funcs) {
       if (!dst || res < 0)
-         field->encoder(src + field->offset, NULL, &len, max,
+         field->funcs->encoder(src + field->offset, NULL, &len, max,
                src + field->len_offset);
       else
-         res = field->encoder(src + field->offset, dst + used, &len, max-used,
-               src + field->len_offset);
+         res = field->funcs->encoder(src + field->offset,
+               dst + used, &len, max-used, src + field->len_offset);
       used += len;
       field++;
    }
@@ -761,6 +761,13 @@ void XDR_union_field_deallocator(void **goner,
       free(u->data);
 }
 
+void XDR_union_array_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field)
+{
+   // Needs to be written!!
+   assert(0);
+}
+
 void XDR_array_field_deallocator(void **goner,
       struct XDR_FieldDefinition *field)
 {
@@ -792,10 +799,10 @@ void XDR_struct_free_deallocator(void **goner, struct XDR_StructDefinition *def)
    fields = (struct XDR_FieldDefinition*)def->arg;
    to_free = (char*)*goner;
 
-   for (; fields && fields->decoder && fields->encoder; fields++) {
-      if (!fields->dealloc)
+   for (; fields && fields->funcs; fields++) {
+      if (!fields->funcs->field_dealloc)
          continue;
-      fields->dealloc( (void**)(to_free + fields->offset), fields);
+      fields->funcs->field_dealloc( (void**)(to_free + fields->offset), fields);
    }
 
    *goner = NULL;
@@ -804,7 +811,7 @@ void XDR_struct_free_deallocator(void **goner, struct XDR_StructDefinition *def)
 
 void XDR_print_field_double(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *unused)
+      const char *parent, void *unused, int *line, int level)
 {
    double *val = (double*)data;
 
@@ -819,7 +826,7 @@ void XDR_print_field_double(FILE *out, void *data,
 
 void XDR_print_field_float(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *unused)
+      const char *parent, void *unused, int *line, int level)
 {
    float *val = (float*)data;
 
@@ -834,15 +841,23 @@ void XDR_print_field_float(FILE *out, void *data,
 
 void XDR_print_field_float_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len)
+      const char *parent, void *len, int *line, int level)
 {
    XDR_array_field_printer(out, data, field, style, len, 
-         &XDR_print_field_float, sizeof(float));
+         &XDR_print_field_float, sizeof(float), parent, line, level);
+}
+
+void XDR_print_field_double_array(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *len, int *line, int level)
+{
+   XDR_array_field_printer(out, data, field, style, len, 
+         &XDR_print_field_double, sizeof(double), parent, line, level);
 }
 
 void XDR_print_field_char(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *unused)
+      const char *parent, void *unused, int *line, int level)
 {
    int32_t *val = (int32_t*)data;
 
@@ -854,15 +869,15 @@ void XDR_print_field_char(FILE *out, void *data,
 
 void XDR_print_field_char_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len)
+      const char *parent, void *len, int *line, int level)
 {
    XDR_array_field_printer(out, data, field, style, len, 
-         &XDR_print_field_char, sizeof(int32_t));
+         &XDR_print_field_char, sizeof(int32_t), parent, line, level);
 }
 
 void XDR_print_field_int32(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *unused)
+      const char *parent, void *unused, int *line, int level)
 {
    int32_t *val = (int32_t*)data;
 
@@ -877,15 +892,15 @@ void XDR_print_field_int32(FILE *out, void *data,
 
 void XDR_print_field_int32_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len)
+      const char *parent, void *len, int *line, int level)
 {
    XDR_array_field_printer(out, data, field, style, len, 
-         &XDR_print_field_int32, sizeof(int32_t));
+         &XDR_print_field_int32, sizeof(int32_t), parent, line, level);
 }
 
 void XDR_print_field_byte_array(FILE *out, void *data_ptr,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len)
+      const char *parent, void *len, int *line, int level)
 {
    unsigned char *data;
    int i;
@@ -902,7 +917,7 @@ void XDR_print_field_byte_array(FILE *out, void *data_ptr,
 
 void XDR_print_field_string_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *unused)
+      const char *parent, void *unused, int *line, int level)
 {
    char **str = (char **)data;
 
@@ -912,7 +927,7 @@ void XDR_print_field_string_array(FILE *out, void *data,
 
 void XDR_print_field_string(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len)
+      const char *parent, void *len, int *line, int level)
 {
    // Grammar doesn't support a string outside an array
    assert(0);
@@ -920,7 +935,7 @@ void XDR_print_field_string(FILE *out, void *data,
 
 void XDR_print_field_uint32(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *unused)
+      const char *parent, void *unused, int *line, int level)
 {
    uint32_t *val = (uint32_t*)data;
 
@@ -935,15 +950,15 @@ void XDR_print_field_uint32(FILE *out, void *data,
 
 void XDR_print_field_uint32_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len)
+      const char *parent, void *len, int *line, int level)
 {
    XDR_array_field_printer(out, data, field, style, len, 
-         &XDR_print_field_uint32, sizeof(uint32_t));
+         &XDR_print_field_uint32, sizeof(uint32_t), parent, line, level);
 }
 
 void XDR_print_field_int64(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *unused)
+      const char *parent, void *unused, int *line, int level)
 {
    int64_t *val = (int64_t*)data;
 
@@ -958,15 +973,15 @@ void XDR_print_field_int64(FILE *out, void *data,
 
 void XDR_print_field_int64_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len)
+      const char *parent, void *len, int *line, int level)
 {
    XDR_array_field_printer(out, data, field, style, len, 
-         &XDR_print_field_int64, sizeof(int64_t));
+         &XDR_print_field_int64, sizeof(int64_t), parent, line, level);
 }
 
 void XDR_print_field_uint64(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *unused)
+      const char *parent, void *unused, int *line, int level)
 {
    uint64_t *val = (uint64_t*)data;
 
@@ -981,15 +996,15 @@ void XDR_print_field_uint64(FILE *out, void *data,
 
 void XDR_print_field_uint64_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len)
+      const char *parent, void *len, int *line, int level)
 {
    XDR_array_field_printer(out, data, field, style, len, 
-         &XDR_print_field_uint64, sizeof(uint64_t));
+         &XDR_print_field_uint64, sizeof(uint64_t), parent, line, level);
 }
 
 void XDR_print_field_union(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *unused)
+      const char *parent, void *unused, int *line, int level)
 {
    struct XDR_Union val;
    struct XDR_StructDefinition *def = NULL;
@@ -1000,15 +1015,15 @@ void XDR_print_field_union(FILE *out, void *data,
 
    def = XDR_definition_for_type(val.type);
    if (def && def->print_func)
-      def->print_func(out, val.data, def->arg, style);
+      def->print_func(out, val.data, def->arg, parent, style, line, level);
 }
 
 void XDR_print_field_union_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len)
+      const char *parent, void *len, int *line, int level)
 {
    XDR_array_field_printer(out, data, field, style, len, 
-         &XDR_print_field_union, sizeof(struct XDR_Union));
+         &XDR_print_field_union, sizeof(struct XDR_Union), parent, line, level);
 }
 
 void XDR_scan_float(const char *in, void *dst, void *arg, void *unused,
@@ -1194,11 +1209,12 @@ void XDR_scan_byte_array(const char *in, void *dst_ptr, void *arg,
 }
 
 void XDR_print_structure(uint32_t type, struct XDR_StructDefinition *str,
-      char *buff, size_t len, void *arg, int arg2)
+      char *buff, size_t len, void *arg, int arg2, const char *parent)
 {
    void *data; 
    size_t used = 0;
    enum XDR_PRINT_STYLE style = (enum XDR_PRINT_STYLE)arg2;
+   int line = 0;
 
    if (!str || !str->print_func || !str->allocator || !str->deallocator)
       return;
@@ -1208,48 +1224,87 @@ void XDR_print_structure(uint32_t type, struct XDR_StructDefinition *str,
       return;
 
    if (str->decoder(buff, data, &used, len, str->arg) >= 0)
-      str->print_func((FILE*)arg, data, str->arg, style);
+      str->print_func((FILE*)arg, data, str->arg, parent, style, &line, 0);
 
    str->deallocator(&data, str);
 }
 
+void XDR_print_field_structure(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *len, int *line, int level)
+{
+   struct XDR_StructDefinition *str;
+
+   if (!data || !field || !field->struct_id)
+      return;
+   str = XDR_definition_for_type(field->struct_id);
+   if (!str || !str->print_func)
+      return;
+
+   if (line) {
+      *line += 1;
+      printf("\n");
+   }
+
+   str->print_func(out, data, str->arg, parent, style, line, level);
+}
+
 void XDR_print_fields_func(FILE *out, void *data_void, void *arg,
-      enum XDR_PRINT_STYLE style)
+      const char *parents_key, enum XDR_PRINT_STYLE style,
+      int *line, int level)
 {
    struct XDR_FieldDefinition *fields = (struct XDR_FieldDefinition*)arg;
    char *data = (char*)data_void;
    const char *name;
-   int line = 0;
+   int _line = 0;
+   int prev_line;
+   char key[1024];
 
-   for (; fields && fields->decoder && fields->encoder; fields++) {
-      if (!fields->printer)
+   if (!line)
+      line = &_line;
+
+   for (; fields && fields->funcs; fields++) {
+      if (!fields->funcs->printer)
          continue;
 
+      key[0] = 0;
+      if (fields->key) {
+         if (parents_key && parents_key[0]) {
+            snprintf(key, sizeof(key), "%s_%s", parents_key, fields->key);
+            key[sizeof(key)-1] = 0;
+         }
+         else
+            strcpy(key, fields->key);
+      }
+
       if (style == XDR_PRINT_KVP && fields->key) {
-         fprintf(out, "%s=", fields->key);
-         fields->printer(out, data + fields->offset, fields, style,
-               data + fields->len_offset);
+         fprintf(out, "%s=", key);
+         fields->funcs->printer(out, data + fields->offset, fields, style,
+               key, data + fields->len_offset, 0, 0);
          fprintf(out, "\n");
       }
       if (style == XDR_PRINT_HUMAN && (fields->key || fields->name)) {
          name = fields->name;
          if (!name)
-            name = fields->key;
+            name = key;
 
-         fprintf(out, "%03d:  %-32s", line++, name);
-         fields->printer(out, data + fields->offset, fields, style,
-               data + fields->len_offset);
+         fprintf(out, "%03d: %*c%-*s", (*line)++, 1 + 3*level, ' ',
+               32 - 3*level, name);
+         prev_line = *line;
+         fields->funcs->printer(out, data + fields->offset, fields, style,
+               key, data + fields->len_offset, line, level + 1);
          if (fields->unit)
             fprintf(out, "    [%s]\n", fields->unit);
-         else
+         else if (*line == prev_line)
             fprintf(out, "\n");
       }
-      if (style == XDR_PRINT_CSV_HEADER && fields->key && fields->printer) {
+      if (style == XDR_PRINT_CSV_HEADER && fields->key &&
+            fields->funcs->printer) {
          fprintf(out, "%s,", fields->key);
       }
-      if (style == XDR_PRINT_CSV_DATA && fields->key && fields->printer) {
-         fields->printer(out, data + fields->offset, fields, style,
-               data + fields->len_offset);
+      if (style == XDR_PRINT_CSV_DATA && fields->key && fields->funcs->printer){
+         fields->funcs->printer(out, data + fields->offset, fields, style,
+               key, data + fields->len_offset, 0, 0);
          fprintf(out, ",");
       }
    }
@@ -1317,7 +1372,8 @@ void XDR_array_field_scanner(const char *in, void *dst_ptr, void *arg,
 
 void XDR_array_field_printer(FILE *out, void *src_ptr,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
-      void *len_ptr, XDR_print_field_func print, size_t increment)
+      void *len_ptr, XDR_print_field_func print, size_t increment,
+      const char *parent, int *line, int level)
 {
    char *src = NULL;
    int i, len;
@@ -1332,7 +1388,7 @@ void XDR_array_field_printer(FILE *out, void *src_ptr,
    for (i = 0; i < len; i++) {
       if (i > 0)
          fprintf(out, ",");
-      print(out, src + i*increment, field, style, NULL);
+      print(out, src + i*increment, field, style, parent, NULL, line, level);
    }
 }
 
@@ -1388,3 +1444,118 @@ int XDR_array_decoder(char *src, void *dst, size_t *used, size_t max,
 
    return 0;
 }
+
+struct XDR_TypeFunctions xdr_float_functions = {
+   (XDR_Decoder)&XDR_decode_float, (XDR_Encoder)&XDR_encode_float,
+   &XDR_print_field_float, &XDR_scan_float,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_float_arr_functions = {
+   (XDR_Decoder)&XDR_decode_float_array, (XDR_Encoder)&XDR_encode_float_array,
+   &XDR_print_field_float_array, &XDR_scan_float_array,
+   &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_double_functions = {
+   (XDR_Decoder)&XDR_decode_double, (XDR_Encoder)&XDR_encode_double,
+   &XDR_print_field_double, &XDR_scan_double,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_double_arr_functions = {
+   (XDR_Decoder)&XDR_decode_double_array, (XDR_Encoder)&XDR_encode_double_array,
+   &XDR_print_field_double_array, &XDR_scan_double_array,
+   &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_char_functions = {
+   (XDR_Decoder)&XDR_decode_int32, (XDR_Encoder)&XDR_encode_int32,
+   &XDR_print_field_char, &XDR_scan_char,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_char_arr_functions = {
+   (XDR_Decoder)&XDR_decode_int32_array, (XDR_Encoder)&XDR_encode_int32_array,
+   &XDR_print_field_char_array, &XDR_scan_char_array,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_int32_functions = {
+   (XDR_Decoder)&XDR_decode_int32, (XDR_Encoder)&XDR_encode_int32,
+   &XDR_print_field_int32, &XDR_scan_int32,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_int32_arr_functions = {
+   (XDR_Decoder)&XDR_decode_int32_array, (XDR_Encoder)&XDR_encode_int32_array,
+   &XDR_print_field_int32_array, &XDR_scan_int32_array,
+   &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_uint32_functions = {
+   (XDR_Decoder)&XDR_decode_uint32, (XDR_Encoder)&XDR_encode_uint32,
+   &XDR_print_field_uint32, &XDR_scan_uint32,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_uint32_arr_functions = {
+   (XDR_Decoder)&XDR_decode_uint32_array, (XDR_Encoder)&XDR_encode_uint32_array,
+   &XDR_print_field_uint32_array, &XDR_scan_uint32_array,
+   &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_int64_functions = {
+   (XDR_Decoder)&XDR_decode_int64, (XDR_Encoder)&XDR_encode_int64,
+   &XDR_print_field_int64, &XDR_scan_int64,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_int64_arr_functions = {
+   (XDR_Decoder)&XDR_decode_int64_array, (XDR_Encoder)&XDR_encode_int64_array,
+   &XDR_print_field_int64_array, &XDR_scan_int64_array,
+   &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_uint64_functions = {
+   (XDR_Decoder)&XDR_decode_uint64, (XDR_Encoder)&XDR_encode_uint64,
+   &XDR_print_field_uint64, &XDR_scan_uint64,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_uint64_arr_functions = {
+   (XDR_Decoder)&XDR_decode_uint64_array, (XDR_Encoder)&XDR_encode_uint64_array,
+   &XDR_print_field_uint64_array, &XDR_scan_uint64_array,
+   &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_string_functions = {
+   (XDR_Decoder)&XDR_decode_string, (XDR_Encoder)&XDR_encode_string,
+   &XDR_print_field_string, &XDR_scan_string,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_string_arr_functions = {
+   (XDR_Decoder)&XDR_decode_string_array, (XDR_Encoder)&XDR_encode_string_array,
+   &XDR_print_field_string_array, &XDR_scan_string_array,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_byte_arr_functions = {
+   (XDR_Decoder)&XDR_decode_byte_array, (XDR_Encoder)&XDR_encode_byte_array,
+   &XDR_print_field_byte_array, &XDR_scan_byte_array,
+   &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_union_functions = {
+   (XDR_Decoder)&XDR_decode_union, (XDR_Encoder)&XDR_encode_union,
+   NULL, NULL,
+   &XDR_union_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_union_arr_functions = {
+   (XDR_Decoder)&XDR_decode_union, (XDR_Encoder)&XDR_encode_union,
+   NULL, NULL,
+   &XDR_union_array_field_deallocator
+};
+

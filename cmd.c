@@ -686,7 +686,7 @@ int CMD_iterate_structs(char *src, size_t len, CMD_struct_itr itr_cb, void *arg,
 
    if (type != IPC_TYPES_OPAQUE_STRUCT_ARR) {
       def = XDR_definition_for_type(type);
-      itr_cb(type, def, src, len, arg, arg2);
+      itr_cb(type, def, src, len, arg, arg2, "");
       return 0;
    }
 
@@ -780,8 +780,8 @@ int CMD_xdr_cmd_help(struct CMD_XDRCommandInfo *command)
          return -1;
       fields = (struct XDR_FieldDefinition *)command->parameter->arg;
 
-      for (field = fields; field && field->encoder; field++)
-         if (field->key && field->scanner)
+      for (field = fields; field && field->funcs; field++)
+         if (field->key && field->funcs->scanner)
             printf(" [%s=<value>]", field->key);
    }
    printf("\n");
@@ -791,8 +791,8 @@ int CMD_xdr_cmd_help(struct CMD_XDRCommandInfo *command)
    printf("   kvp | csv | human -- Output format for data\n\n");
    printf("   Valid parameter/value pairs are:\n");
 
-   for (field = fields; field && field->encoder; field++) {
-      if (field->key && field->scanner) {
+   for (field = fields; field && field->funcs; field++) {
+      if (field->key && field->funcs->scanner) {
          if (field->description)
             printf("     %24s -- %s\n", field->key, field->description);
          else
@@ -962,11 +962,12 @@ int CMD_send_command_line_command(int argc, char **argv,
 
          *value++ = 0;
          param_type = command->params;
-         for (field = fields; field->encoder; field++) {
-            if (!field->key || strcasecmp(field->key, key) || !field->scanner)
+         for (field = fields; field->funcs; field++) {
+            if (!field->key || strcasecmp(field->key, key) ||
+                  !field->funcs->scanner)
                continue;
             key = NULL;
-            field->scanner(value, (char*)param + field->offset,
+            field->funcs->scanner(value, (char*)param + field->offset,
                   command->parameter->arg, (char*)param + field->len_offset,
                   field->inverse_conv);
             break;
@@ -991,9 +992,14 @@ int CMD_send_command_line_command(int argc, char **argv,
    }
 
    // Send command and print response
-   if (command_num)
-      res = IPC_command(proc, command_num, param, param_type, dest, cb, cb_arg,
-         IPC_CB_TYPE_RAW, timeout);
+   if (command_num) {
+      if (!proc)
+         res = IPC_command_sync(command_num, param, param_type, dest,
+               cb, cb_arg, IPC_CB_TYPE_RAW, timeout);
+      else
+         res = IPC_command(proc, command_num, param, param_type, dest,
+               cb, cb_arg, IPC_CB_TYPE_RAW, timeout);
+   }
    else
       res = -3;
 
