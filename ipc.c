@@ -747,7 +747,7 @@ static int IPC_command_internal(ProcessData *proc, uint32_t command,
    return 0;
 }
 
-int IPC_command_sync(uint32_t command, void *params,
+int IPC_command_IPC_command_blocking(uint32_t command, void *params,
       uint32_t param_type,
       struct sockaddr_in dest, IPC_command_callback cb, void *arg,
       enum IPC_CB_TYPE cb_type, unsigned int timeout)
