@@ -12,6 +12,8 @@ struct XDR_FieldDefinition;
 #ifdef __cplusplus
 enum XDR_PRINT_STYLE : short { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
    XDR_PRINT_CSV_DATA };
+
+extern "C" {
 #else
 enum XDR_PRINT_STYLE { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
    XDR_PRINT_CSV_DATA };
@@ -339,5 +341,9 @@ extern struct XDR_TypeFunctions xdr_union_functions;
 extern struct XDR_TypeFunctions xdr_union_arr_functions;
 extern struct XDR_TypeFunctions xdr_int32_bitfield_functions;
 extern struct XDR_TypeFunctions xdr_uint32_bitfield_functions;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
