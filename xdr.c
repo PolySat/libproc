@@ -160,6 +160,24 @@ int XDR_decode_int32(char *src, int32_t *dst, size_t *inc, size_t max,
    return 0;
 }
 
+int XDR_decodebf_int32(char *srcp, int32_t *dst, size_t *inc, size_t max,
+      void *len)
+{
+   int32_t res = 0;
+   uint32_t *src = (uint32_t*)srcp;
+   int neg;
+
+   neg = ( (1 << (max-1)) & *src);
+   if (neg) {
+      res = -1;
+      res = res & ~( (1 << max) - 1 );
+   }
+   res = res | (*src & ((1 << max) - 1));
+   *dst = res;
+
+   return 0;
+}
+
 int XDR_decode_uint32_array(char *src, uint32_t **dst,
       size_t *used, size_t max, void *len)
 {
@@ -182,6 +200,16 @@ int XDR_decode_uint32(char *src, uint32_t *dst, size_t *inc, size_t max,
    memcpy(&net, src, sizeof(net));
    *dst = ntohl(net);
    *inc = sizeof(net);
+   return 0;
+}
+
+int XDR_decodebf_uint32(char *srcp, uint32_t *dst, size_t *inc, size_t max,
+      void *len)
+{
+   uint32_t *src = (uint32_t*)srcp;
+
+   *dst = (*src & ((1 << max) - 1));
+
    return 0;
 }
 
@@ -499,6 +527,16 @@ int XDR_encode_uint32(uint32_t *src, char *dst, size_t *used, size_t max,
    return 0;
 }
 
+int XDR_encodebf_uint32(uint32_t *src, char *dstp, size_t *used, size_t max,
+      void *len)
+{
+   uint32_t *dst = (uint32_t*)dstp;
+
+   *dst = *src & ((1 << max) - 1);
+
+   return 0;
+}
+
 int XDR_encode_int32_array(int32_t **src, char *dst,
       size_t *used, size_t max, void *len)
 {
@@ -680,6 +718,31 @@ int XDR_struct_decoder(char *src, void *dst_void, size_t *inc,
    return 0;
 }
 
+int XDR_bitfield_struct_decoder(char *src, void *dst_void, size_t *inc,
+      size_t max, void *arg)
+{
+   struct XDR_FieldDefinition *field = arg;
+   char *dst = (char*)dst_void;
+   uint32_t val;
+   uint32_t tmp;
+
+   if (XDR_decode_uint32(src, &val, inc, max, NULL) < 0)
+      return -1;
+
+   if (!field)
+      return -1;
+
+   while (field->offset || field->funcs) {
+      tmp = (val >> field->struct_id) & ((1 << field->len_offset) - 1);
+      if (field->funcs->decoder((char*)&tmp, dst + field->offset, NULL,
+               field->len_offset, NULL) < 0)
+         return -1;
+      field++;
+   }
+
+   return 0;
+}
+
 int XDR_struct_encoder(void *src_void, char *dst, size_t *inc,
       size_t max, uint32_t type, void *arg)
 {
@@ -708,6 +771,31 @@ int XDR_struct_encoder(void *src_void, char *dst, size_t *inc,
    *inc = used;
 
    return res;
+}
+
+int XDR_bitfield_struct_encoder(void *src_void, char *dst, size_t *inc,
+      size_t max, uint32_t type, void *arg)
+{
+   struct XDR_FieldDefinition *field = arg;
+   char *src = (char*)src_void;
+   uint32_t val = 0;
+   uint32_t tmp;
+
+   *inc = 0;
+
+   if (!field)
+      return 0;
+
+   while (field->offset || field->funcs) {
+      tmp = 0;
+      field->funcs->encoder(src + field->offset,
+               &tmp, NULL, field->len_offset, NULL);
+      tmp = tmp & ((1 << field->len_offset) - 1);
+      val = val | (tmp << field->struct_id);
+      field++;
+   }
+
+   return XDR_encode_uint32(&val, dst, inc, max, NULL);
 }
 
 void *XDR_malloc_allocator(struct XDR_StructDefinition *def)
@@ -1559,3 +1647,14 @@ struct XDR_TypeFunctions xdr_union_arr_functions = {
    &XDR_union_array_field_deallocator
 };
 
+struct XDR_TypeFunctions xdr_uint32_bitfield_functions = {
+   (XDR_Decoder)&XDR_decodebf_uint32, (XDR_Encoder)&XDR_encodebf_uint32,
+   &XDR_print_field_uint32, &XDR_scan_uint32,
+   NULL
+};
+
+struct XDR_TypeFunctions xdr_int32_bitfield_functions = {
+   (XDR_Decoder)&XDR_decodebf_int32, (XDR_Encoder)&XDR_encodebf_uint32,
+   &XDR_print_field_int32, &XDR_scan_int32,
+   NULL
+};

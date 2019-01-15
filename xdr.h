@@ -87,6 +87,8 @@ extern int XDR_array_decoder(char *src, void *dst, size_t *used, size_t max,
       int len, size_t increment, XDR_Decoder dec, void *dec_arg);
 extern int XDR_struct_encoder(void *src, char *dst, size_t *encoded_size,
       size_t max, uint32_t type, void *arg);
+extern int XDR_bitfield_struct_encoder(void *src, char *dst,
+      size_t *encoded_size, size_t max, uint32_t type, void *arg);
 extern void XDR_print_structure(uint32_t type,
       struct XDR_StructDefinition *str, char *buff, size_t len, void *arg1,
       int arg2, const char *parent);
@@ -116,6 +118,12 @@ extern void XDR_print_fields_func(FILE *out, void *data, void *arg,
 //     reserved for future use
 extern int XDR_struct_decoder(char *src, void *dst, size_t *used,
       size_t max, void *arg);
+extern int XDR_bitfield_struct_decoder(char *src, void *dst, size_t *used,
+      size_t max, void *arg);
+extern int XDR_decodebf_int32(char *src, int32_t *dst, size_t *used,
+      size_t max, void *len);
+extern int XDR_decodebf_uint32(char *src, uint32_t *dst, size_t *used,
+      size_t max, void *len);
 extern int XDR_decode_int32(char *src, int32_t *dst, size_t *used, size_t max,
       void *len);
 extern int XDR_decode_uint32(char *src, uint32_t *dst, size_t *used,
@@ -153,6 +161,8 @@ extern int XDR_decode_string_array(char *src, char **dst,
       size_t *used, size_t max, void *len);
 
 // Encode functions
+extern int XDR_encodebf_uint32(uint32_t *src, char *dst,
+      size_t *used, size_t max, void *len);
 extern int XDR_encode_uint32(uint32_t *src, char *dst,
       size_t *used, size_t max, void *len);
 extern int XDR_encode_int32(int32_t *src, char *dst,
@@ -327,5 +337,7 @@ extern struct XDR_TypeFunctions xdr_string_arr_functions;
 extern struct XDR_TypeFunctions xdr_byte_arr_functions;
 extern struct XDR_TypeFunctions xdr_union_functions;
 extern struct XDR_TypeFunctions xdr_union_arr_functions;
+extern struct XDR_TypeFunctions xdr_int32_bitfield_functions;
+extern struct XDR_TypeFunctions xdr_uint32_bitfield_functions;
 
 #endif
