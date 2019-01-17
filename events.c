@@ -1129,7 +1129,7 @@ void EVT_fd_set_name(EVTHandler *ctx, int fd, const char *fmt, ...)
    va_list ap;
    struct EventCB *curr;
 
-   for (curr = ctx->events[fd % ctx->hashSize]; curr; curr++) {
+   for (curr = ctx->events[fd % ctx->hashSize]; curr; curr = curr->next) {
       if (curr->fd == fd) {
          va_start(ap, fmt);
          vsnprintf(curr->name, sizeof(curr->name), fmt, ap);
