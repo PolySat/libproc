@@ -1388,7 +1388,12 @@ void XDR_print_fields_func(FILE *out, void *data_void, void *arg,
       }
       if (style == XDR_PRINT_CSV_HEADER && fields->key &&
             fields->funcs->printer) {
-         fprintf(out, "%s,", fields->key);
+         if (fields->struct_id > 0) {
+            fields->funcs->printer(out, data + fields->offset, fields, style,
+               key, data + fields->len_offset, 0, 0);
+         }
+         else
+            fprintf(out, "%s,", key);
       }
       if (style == XDR_PRINT_CSV_DATA && fields->key && fields->funcs->printer){
          fields->funcs->printer(out, data + fields->offset, fields, style,
