@@ -1337,6 +1337,36 @@ void XDR_print_field_structure(FILE *out, void *data,
    str->print_func(out, data, str->arg, parent, style, line, level);
 }
 
+void XDR_print_field_structure_array(FILE *out, void *src_ptr,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      void *len_ptr, size_t increment, const char *parent, int *line, int level)
+{
+   char *src = NULL;
+   int i, len;
+
+   if (!src_ptr || !len_ptr)
+      return;
+   src = *(char**)src_ptr;
+   len = *(int*)len_ptr;
+   if (!src)
+      return;
+
+   if (style == XDR_PRINT_HUMAN)
+      fprintf(out, "\n%03d: %*c[", (*line)++, 1 + 3*level, ' ');
+
+   for (i = 0; i < len; i++) {
+      XDR_print_field_structure(out, src + i*increment, field, style,
+            parent, NULL, line, level+1);
+      if (style == XDR_PRINT_HUMAN)
+         fprintf(out, "%03d:", *line);
+   }
+
+   if (style == XDR_PRINT_HUMAN) {
+      fprintf(out, " %*c]\n", 1 + 3*level, ' ');
+      (*line)++;
+   }
+}
+
 void XDR_print_fields_func(FILE *out, void *data_void, void *arg,
       const char *parents_key, enum XDR_PRINT_STYLE style,
       int *line, int level)
