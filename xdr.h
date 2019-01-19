@@ -251,6 +251,9 @@ extern void XDR_print_field_structure(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *len, int *line, int level);
 
+extern void XDR_print_field_structure_array(FILE *out, void *src_ptr,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      void *len_ptr, size_t increment, const char *parent, int *line, int level);
 extern void XDR_print_field_char_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *len, int *line, int level);
