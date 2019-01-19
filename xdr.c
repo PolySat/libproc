@@ -1359,6 +1359,8 @@ void XDR_print_field_structure_array(FILE *out, void *src_ptr,
             parent, NULL, line, level+1);
       if (style == XDR_PRINT_HUMAN)
          fprintf(out, "%03d:", *line);
+      if (i != (len-1) && (style == XDR_PRINT_CSV_DATA || style == XDR_PRINT_CSV_HEADER))
+         fprintf(out, ",");
    }
 
    if (style == XDR_PRINT_HUMAN) {
@@ -1422,13 +1424,17 @@ void XDR_print_fields_func(FILE *out, void *data_void, void *arg,
             fields->funcs->printer(out, data + fields->offset, fields, style,
                key, data + fields->len_offset, 0, 0);
          }
-         else
-            fprintf(out, "%s,", key);
+         else {
+            fprintf(out, "%s", key);
+            if ((fields+1) && (fields+1)->funcs)
+               fprintf(out, ",");
+         }
       }
       if (style == XDR_PRINT_CSV_DATA && fields->key && fields->funcs->printer){
          fields->funcs->printer(out, data + fields->offset, fields, style,
                key, data + fields->len_offset, 0, 0);
-         fprintf(out, ",");
+         if ((fields+1) && (fields+1)->funcs)
+            fprintf(out, ",");
       }
    }
 }
