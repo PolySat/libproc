@@ -1314,6 +1314,9 @@ void XDR_print_structure(uint32_t type, struct XDR_StructDefinition *str,
    if (str->decoder(buff, data, &used, len, str->arg) >= 0)
       str->print_func((FILE*)arg, data, str->arg, parent, style, &line, 0);
 
+   if (style == XDR_PRINT_CSV_DATA || style == XDR_PRINT_CSV_HEADER)
+      fprintf((FILE*)arg, ",");
+
    str->deallocator(&data, str);
 }
 
