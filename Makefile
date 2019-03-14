@@ -5,13 +5,13 @@ include Make.rules.$(PLAT)
 include Make.rules.arm
 
 # Input/Output Variables
-SOURCES=priorityQueue.c events.c proclib.c ipc.c debug.c cmd.c config.c hashtable.c util.c md5.c critical.c eventTimer.c telm_dict.c zmqlite.c json.c cmd-pkt.c xdr.c
+SOURCES=priorityQueue.c events.c proclib.c ipc.c debug.c cmd.c config.c hashtable.c util.c md5.c critical.c eventTimer.c telm_dict.c zmqlite.c json.c cmd-pkt.c xdr.c plugin.c
 LIBRARY_NAME=proc
 MAJOR_VERS=3
 MINOR_VERS=0.1
 
 # Install Variables
-INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h eventTimer.h telm_dict.h zmqlite.h critical.h xdr.h cmd-pkt.h
+INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h eventTimer.h telm_dict.h zmqlite.h critical.h xdr.h cmd-pkt.h plugin.h
 
 # Build Variables
 override CFLAGS+=$(SYMBOLS) -Wall -Werror -std=gnu99 -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS)

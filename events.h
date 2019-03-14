@@ -193,6 +193,16 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
 void *EVT_sched_remove(EVTHandler *handler, void *eventId);
 
 /**
+ * Remove a scheduled event.
+ *
+ * @param handler The event handler.
+ * @param event The event to query.
+ *
+ * @return The amount of time remaining before the event is triggered.
+ */
+struct timeval EVT_sched_remaining(EVTHandler *handler, void *eventId);
+
+/**
  * Update a scheduled event.  The new full time will elapse before
  *   the callback is called.
  *

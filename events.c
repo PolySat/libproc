@@ -987,6 +987,17 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
    return NULL;
 }
 
+struct timeval EVT_sched_remaining(EVTHandler *handler, void *eventId)
+{
+   ScheduleCB *evt = (ScheduleCB*)eventId;
+   struct timeval now, result;
+
+   handler->evt_timer->get_monotonic_time(handler->evt_timer, &now);
+   timersub(&evt->nextAwake, &now, &result);
+
+   return result;
+}
+
 /**
  * Remove a scheduled event.
  *

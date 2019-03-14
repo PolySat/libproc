@@ -32,5 +32,6 @@
 #include <polysat3/cmd.h>
 #include <polysat3/md5.h>
 #include <polysat3/telm_dict.h>
+#include <polysat3/plugin.h>
 
 #endif
