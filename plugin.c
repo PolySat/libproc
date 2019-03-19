@@ -1,5 +1,6 @@
 #include "plugin.h"
 #include "config.h"
+#include "debug.h"
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -38,7 +39,6 @@ static void load_plugin_file(const char *file)
    void *mod;
    plugin_init_func init_func = NULL;
 
-   // printf("      %s\n", file);
    mod = dlopen(file, RTLD_NOW | RTLD_GLOBAL);
    if (!mod)
       return;
@@ -47,8 +47,8 @@ static void load_plugin_file(const char *file)
    if (init_func)
       (*init_func)();
    else
-      printf("Failed to find symbol '%s' in %s: %s\n", PL_INIT_FUNCTION, file,
-                 dlerror());
+      DBG_print(DBG_LEVEL_WARN, "Failed to find symbol '%s' in %s: %s\n",
+            PL_INIT_FUNCTION, file, dlerror());
 }
 
 static void preload_directory(struct PluginDirectory *dir)
@@ -113,7 +113,6 @@ static struct PluginDirectoryList *configure_directory(const char *name)
 
    if (!name || !*name)
       return NULL;
-   // printf("  %s\n", name);
    dir = find_directory(name);
    if (!dir)
       return NULL;
@@ -144,8 +143,6 @@ static void configure_set(struct PluginSet *set)
    data->set = set;
    c = data->name_lc = strdup(set->prefix);
    while ((*c++ = tolower(*c)));
-
-   // printf("Set %s:\n", data->name_lc);
 
    if (set->initial_paths) {
       paths = strdup(set->initial_paths);
