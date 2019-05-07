@@ -265,9 +265,9 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    printf("INIT!!!\n");
    res = (struct EventState*)malloc(
          sizeof(struct EventState) + hashSize * sizeof(EventCBPtr));
-   if (!res){
+   if (!res)
       return NULL;
-   }
+   memset(res, 0, sizeof(struct EventState));
 
    memset(&res->gpio_intrs, 0, sizeof(res->gpio_intrs));
    res->debuggerStateCB = debug_cb;
