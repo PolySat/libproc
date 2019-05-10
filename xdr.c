@@ -1157,7 +1157,7 @@ void XDR_scan_int32(const char *in, void *dst, void *arg, void *unused,
       *val = conv(dbl);
    }
    else
-      sscanf(in, "%d", val);
+      sscanf(in, "%i", val);
 }
 
 void XDR_scan_int32_array(const char *in, void *dst, void *arg,
@@ -1193,7 +1193,7 @@ void XDR_scan_uint32(const char *in, void *dst, void *arg, void *unused,
       *val = conv(dbl);
    }
    else
-      sscanf(in, "%u", val);
+      sscanf(in, "%i", val);
 }
 
 void XDR_scan_uint32_array(const char *in, void *dst, void *arg,
