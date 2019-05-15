@@ -1401,10 +1401,12 @@ void XDR_print_fields_func(FILE *out, void *data_void, void *arg,
       }
 
       if (style == XDR_PRINT_KVP && fields->key) {
-         fprintf(out, "%s=", key);
+         if (fields->funcs->printer != &XDR_print_field_structure)
+            fprintf(out, "%s=", key);
          fields->funcs->printer(out, data + fields->offset, fields, style,
                key, data + fields->len_offset, 0, 0);
-         fprintf(out, "\n");
+         if (fields->funcs->printer != &XDR_print_field_structure)
+            fprintf(out, "\n");
       }
       if (style == XDR_PRINT_HUMAN && (fields->key || fields->name)) {
          name = fields->name;
