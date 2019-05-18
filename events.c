@@ -246,6 +246,17 @@ EVTHandler *EVT_create_handler()
    return (EVTHandler *)EVT_initWithSize(19);
 }
 
+struct timeval EVT_sched_remaining(EVTHandler *handler, void *eventId)
+{
+   ScheduleCB *evt = (ScheduleCB*)eventId;
+   struct timeval now, result;
+
+   handler->evt_timer->get_monotonic_time(handler->evt_timer, &now);
+   timersub(&evt->nextAwake, &now, &result);
+
+   return result;
+}
+
 static int EVT_remove_internal(struct EventState *ctx, struct EventCB **curr,
       int event)
 {
