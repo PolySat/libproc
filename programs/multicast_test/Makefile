@@ -4,7 +4,7 @@ C=gcc
 CFLAGS=-Wall -pedantic -std=c99 -g
 LDFLAGS=-lproc -ldl
 
-all: $(SOURCES) multi_src multi_sink ex_r ex_t
+all: $(SOURCES) multi_src multi_sink #ex_r ex_t
 
 multi_src: multi_src.c
 	 $(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)

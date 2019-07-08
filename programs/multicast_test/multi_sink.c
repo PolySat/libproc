@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <polysat/polysat.h>
 #include <string.h>
+#include <signal.h>
 
 #define BUF_LEN 2048
 
@@ -47,7 +48,7 @@ static void mcast_handler(void *arg, int socket, unsigned char cmd,
 
 int main(int argc, char *argv[])
 {
-   gProc = PROC_init("test2");
+   gProc = PROC_init("test2",WD_DISABLED);
 
    // Add a signal handler call back for SIGINT signal
    PROC_signal(gProc, SIGINT, &sigint_handler, gProc);

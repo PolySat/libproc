@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <polysat/polysat.h>
 #include <string.h>
+#include <signal.h>
 
 #define BUF_LEN 2048
 
@@ -43,7 +44,7 @@ int main(int argc, char *argv[])
 {
    char buf[BUF_LEN+1];
 
-   gProc = PROC_init("test1");
+   gProc = PROC_init("test1", WD_DISABLED);
 
    PROC_multi_cmd(gProc, 10, buf, 0);
 

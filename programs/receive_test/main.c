@@ -37,10 +37,11 @@ int main(int argc, char *argv[])
    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
    addr.sin_port = htons(5001);
 
-   while (scanf("%s", buf) == 1)
+   while (scanf("%s",buf) == 1)
    {
       buf[BUF_LEN] = 0;
-      socket_write(sfd, buf, strlen(buf), &addr);
+      socket_read(sfd, buf, strlen(buf), &addr);
+      printf("socket output:%s\n ",buf);
    }
 
    socket_close(sfd);

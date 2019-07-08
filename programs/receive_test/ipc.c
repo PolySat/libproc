@@ -23,9 +23,6 @@
  *
  * @author Greg Manyak
  */
-#ifdef _cplusplus
-extern "C"{
-#endif
 #include "ipc.h"
 #include "debug.h"
 #include <netdb.h>
@@ -411,6 +408,3 @@ int socket_resolve_host(const char *host, struct in_addr *addr)
 
    return 1;
 }
-#ifdef _cplusplus
-}
-#endif
