@@ -12,6 +12,7 @@ extern "C" {
 #include <stdio.h>
 #include <string.h>
 #include <polysat/polysat.h>
+#include <time.h>
 /*#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -31,17 +32,22 @@ int main(int argc, char *argv[])
    char buf[BUF_LEN+1];
    int sfd;
 
+
    sfd = socket_init(0);
 
    addr.sin_family = AF_INET;
    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
    addr.sin_port = htons(5001);
 
-   while (scanf("%s",buf) == 1)
+    printf("hello!\n");
+   while (1)
    {
+      sleep(1);
       buf[BUF_LEN] = 0;
+    //modifies to contain address of packet sender
       socket_read(sfd, buf, strlen(buf), &addr);
-      printf("socket output:%s\n ",buf);
+      fprintf(stdout, "socket output:%s\n ",buf);
+      fflush(stdout);
    }
 
    socket_close(sfd);
