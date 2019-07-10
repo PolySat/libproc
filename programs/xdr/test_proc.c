@@ -26,12 +26,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
-#include "zmqlite.h"
-#include "events.h"
-#include "debug.h"
-#include "proclib.h"
-#include "ipc.h"
-#include "cmd_schema.h"
+#include <polysat3/polysat.h>
+#include <polysat3/cmd-pkt.h>
 #include "test_schema.h"
 
 struct ProcessData *gProc = NULL;
@@ -43,8 +39,9 @@ static void params_cmd_handler(struct ProcessData *proc,
       struct IPC_Command *cmd,
       struct sockaddr_in *fromAddr, void *arg, int fd);
 
+//maps generated command numbers to c functions
 struct XDR_CommandHandlers handlers[] = {
-   { IPC_COMMANDS_STATUS, &status_cmd_handler, NULL},
+   { IPC_CMDS_STATUS, &status_cmd_handler, NULL},
    { IPC_TEST_COMMANDS_PTEST, &params_cmd_handler, NULL},
    { 0, NULL, NULL }
 };
@@ -52,10 +49,13 @@ struct XDR_CommandHandlers handlers[] = {
 static void status_cmd_handler(struct ProcessData *proc, struct IPC_Command *cmd,
       struct sockaddr_in *fromAddr, void *arg, int fd)
 {
+    //status struct to send back
    struct IPC_TEST_Status status;
 
    status.foo = 123;
    status.bar = 464;
+    
+    //pass enum to associate with struct being sent
    IPC_response(proc, cmd, IPC_TEST_DATA_TYPES_STATUS, &status, fromAddr);
    printf("Status command!!\n");
 }
@@ -68,7 +68,7 @@ static void params_cmd_handler(struct ProcessData *proc, struct IPC_Command *cmd
    if (params)
       printf("v1=%d, v2=%d, v3=%d, v4=%d\n", params->val1, params->val2, params->val3, params->val4);
 
-   IPC_response(proc, cmd, IPC_DATA_TYPES_VOID, NULL, fromAddr);
+   IPC_response(proc, cmd, IPC_TYPES_VOID, NULL, fromAddr);
    printf("Params command!!\n");
 }
 

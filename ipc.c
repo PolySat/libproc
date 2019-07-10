@@ -710,6 +710,7 @@ static int IPC_command_internal(ProcessData *proc, uint32_t command,
    size_t len;
    int res;
    size_t buff_len = 1024;
+    //steps to encode the command
 
    cmd.cmd = command;
    cmd.ipcref = next_cmd_ref++;
@@ -738,6 +739,63 @@ static int IPC_command_internal(ProcessData *proc, uint32_t command,
       free(buff);
       return res;
    }
+    //before this, find address 
+
+   PROC_cmd_raw_sockaddr(proc, buff, len, &dest);
+   if (cb)
+      CMD_add_response_cb(proc, cmd.ipcref, dest, cb, arg,
+            cb_type, timeout);
+
+   return 0;
+}
+
+static int IPC_multi_command_internal(ProcessData *proc, uint32_t command,
+      void *params,
+      uint32_t param_type,
+      IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+{
+   struct IPC_Command cmd;
+   static uint32_t next_cmd_ref = 1;
+   uint16_t port = socket_multicast_port_by_name(proc->name);
+   char *buff;
+   size_t len;
+   int res;
+   size_t buff_len = 1024;
+    //steps to encode the command
+
+   cmd.cmd = command;
+   cmd.ipcref = next_cmd_ref++;
+   cmd.parameters.type = param_type;
+   cmd.parameters.data = params;
+   buff = malloc(buff_len);
+
+   if (IPC_Command_encode(&cmd, buff, &len, buff_len, NULL) < 0) {
+      if (len > buff_len) {
+         free(buff);
+         buff_len = len;
+         buff = malloc(buff_len);
+         if (!buff)
+            return -1;
+         if (IPC_Command_encode(&cmd, buff, &len, len, NULL) < 0) {
+            free(buff);
+            return -1;
+         }
+      }
+      else
+         return -1;
+   }
+
+   if (!proc) {
+      res = ipc_blocking_command(buff, len, dest, cb, arg, cb_type, timeout);
+      free(buff);
+      return res;
+   }
+    //before this, find address 
+
+    //changing the address of the sock_addr fed in to the multicast
+    //socket associated with the process
+   dest.sin_addr = socket_multicast_addr_by_name(proc->name);
 
    PROC_cmd_raw_sockaddr(proc, buff, len, &dest);
    if (cb)

@@ -96,6 +96,7 @@ int cmd_handler_cb(int socket, char type, void *arg);
 
 void cmd_handler_cleanup(struct CommandCbArg **cmds);
 
+//look here to subscribe to multicasts
 void cmd_set_multicast_handler(struct CommandCbArg *st,
    struct EventState *evt_loop, const char *service, int cmdNum,
    MCAST_handler_t handler, void *arg);

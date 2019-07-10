@@ -218,7 +218,7 @@ static int multicast_cmd_handler_cb(int socket, char type, void * arg)
 
    // should only be read events, but make sure
    if (type == EVENT_FD_READ) {
-      // read from the socket to get the command and it's data
+      // read from the socket to get the command and its data
       dataLen = socket_read(socket, data, MAX_IP_PACKET_SIZE, &src);
 
       // make sure something was actually read
@@ -249,6 +249,7 @@ static struct McastCommandState *find_mcast_state(struct CommandCbArg *st,
     return NULL;
 }
 
+//look here to subscribe to multicasts
 void cmd_set_multicast_handler(struct CommandCbArg *st,
    struct EventState *evt_loop, const char *service, int cmdNum,
    MCAST_handler_t handler, void *arg)
@@ -276,6 +277,9 @@ void cmd_set_multicast_handler(struct CommandCbArg *st,
       }
 
       // Join multicast group
+      //need to decode for xdr, will be similar to xdr receive func
+      //maintains a table of callbacks, may want a second table for xdr callbacks
+      //this would require a second function to handle receiving xdr multicasts
       mreq.imr_interface.s_addr = htonl(INADDR_ANY);
       mreq.imr_multiaddr.s_addr = addr.s_addr;
       if (setsockopt(state->fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq,
