@@ -40,16 +40,23 @@ int sigint_handler(int signum, void *arg)
    return EVENT_KEEP;
 }
 
+static void mcast_handler(void *arg, int socket, unsigned char cmd,
+   void *data, size_t dataLen, struct sockaddr_in *fromAddr)
+{
+   printf("Multicast CMD: %d\n", cmd);
+}
+
 int main(int argc, char *argv[])
 {
-   char buf[BUF_LEN+1];
-
-   gProc = PROC_init("test1", WD_DISABLED);
-
-   PROC_multi_cmd(gProc, 10, buf, 0);
+   gProc = PROC_init("test2",WD_DISABLED);
 
    // Add a signal handler call back for SIGINT signal
    PROC_signal(gProc, SIGINT, &sigint_handler, gProc);
+
+   PROC_set_multicast_handler(gProc, "test1", -1, &mcast_handler, gProc);
+   PROC_set_multicast_handler(gProc, "test1", -1, &mcast_handler, gProc);
+   PROC_set_multicast_handler(gProc, "test1", 10, &mcast_handler, gProc);
+   PROC_set_multicast_handler(gProc, "test1", 11, &mcast_handler, gProc);
 
    EVT_start_loop(PROC_evt(gProc));
 
