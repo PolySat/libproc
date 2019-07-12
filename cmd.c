@@ -61,12 +61,22 @@ struct MulticastCommand {
    struct MulticastCommand *next;
 };
 
+struct XDRMulticastCommand {
+   uint32_t cmdNum;
+   CMD_XDR_handler_t callback;
+   void *opaque;
+
+   struct XDRMulticastCommand *next;
+};
+
 struct McastCommandState {
    struct in_addr srcAddr;
    uint16_t port;
    int fd;
    struct MulticastCommand *cmds;
+   struct XDRMulticastCommand *xdrCmds;
    struct McastCommandState *next;
+   ProcessData *proc;
 };
 
 struct CMDResponseCb {
@@ -208,9 +218,14 @@ static int multicast_cmd_handler_cb(int socket, char type, void * arg)
 {
    unsigned char data[MAX_IP_PACKET_SIZE];
    struct MulticastCommand *cmd = NULL;
+   struct XDRMulticastCommand *xdrCmd = NULL;
    struct McastCommandState *state = (struct McastCommandState*)arg;
    size_t dataLen;
    struct sockaddr_in src;
+   uint32_t cmd_num;
+   size_t used = 0;
+   struct CommandCbArg *cmds = state->proc->cmds;
+   struct IPC_Command xdr_cmd;
    data[0] = 0;
 
    if (!state)
@@ -223,12 +238,43 @@ static int multicast_cmd_handler_cb(int socket, char type, void * arg)
 
       // make sure something was actually read
       if (dataLen > 0) {
-         DBG_print(DBG_LEVEL_INFO, "MCast Received command 0x%02x", *data);
+         // Command 0 was never used.  Now it is used to tell the difference
+         //  between the old command format and the newer XDR format
+         if (*data == 0) {
+            if (XDR_decode_uint32((char*)data, &cmd_num,
+                     &used, dataLen, NULL) < 0)
+               DBG_print(DBG_LEVEL_WARN, "Failed to decode XDR uint32 of "
+                     "length %lu\n", dataLen);
+            else if (cmd_num == IPC_CMDS_RESPONSE)
+               DBG_print(DBG_LEVEL_WARN, "Multicast traffic can't have responses, ignoring\n");
+            else if (IPC_Command_decode((char*)data, &xdr_cmd,
+                     &used, dataLen, NULL) < 0) {
+               cmds->beats.commands++;
+               DBG_print(DBG_LEVEL_WARN, "Failed to decode XDR multicast "
+                     "command of length %lu\n", dataLen);
+            }
+            else {
+               cmds->beats.multi_commands++;
+               for (xdrCmd = state->xdrCmds; xdrCmd; xdrCmd = xdrCmd->next) {
+                  if (xdrCmd->cmdNum == xdr_cmd.cmd) {
+                     if (xdrCmd->callback)
+                        xdrCmd->callback(cmds->proc, &xdr_cmd, &src,
+                              xdrCmd->opaque, socket);
+                     break;
+                  }
+               }
 
-         for (cmd = state->cmds; cmd; cmd = cmd->next) {
-            if (cmd->cmdNum < 0 || cmd->cmdNum == *data)
-               cmd->callback(cmd->callbackParam, socket, *data, &data[1],
-                  dataLen - 1, &src);
+               XDR_free_union(&xdr_cmd.parameters);
+            }
+         }
+         else {
+            DBG_print(DBG_LEVEL_INFO, "Legacy MCast Received command 0x%02x",
+                  *data);
+
+            for (cmd = state->cmds; cmd; cmd = cmd->next)
+               if (cmd->cmdNum < 0 || cmd->cmdNum == *data)
+                  cmd->callback(cmd->callbackParam, socket, *data, &data[1],
+                     dataLen - 1, &src);
          }
       }
    }
@@ -249,36 +295,49 @@ static struct McastCommandState *find_mcast_state(struct CommandCbArg *st,
     return NULL;
 }
 
-//look here to subscribe to multicasts
-void cmd_set_multicast_handler(struct CommandCbArg *st,
-   struct EventState *evt_loop, const char *service, int cmdNum,
-   MCAST_handler_t handler, void *arg)
+static struct McastCommandState **find_mcast_state_prevptr(
+      struct CommandCbArg *st, struct in_addr addr, uint16_t port)
 {
-   struct MulticastCommand *cmd;
+    struct McastCommandState **curr;
+
+    port = htons(port);
+    for (curr = &st->mcast; curr && *curr; curr = &(*curr)->next)
+       if ((*curr)->port == port && (*curr)->srcAddr.s_addr == addr.s_addr)
+          return curr;
+
+    return NULL;
+}
+
+//look here to subscribe to multicasts
+static struct McastCommandState *create_mcast_state(struct CommandCbArg *st,
+      struct EventState *evt_loop, const char *service)
+{
    struct in_addr addr = socket_multicast_addr_by_name(service);
    uint16_t port = socket_multicast_port_by_name(service);
-   struct McastCommandState *state;
+   struct McastCommandState *state = NULL;
    struct ip_mreq mreq;
 
    if (!addr.s_addr || !port)
-      return;
+      return NULL;
 
    state = find_mcast_state(st, addr, port);
    if (!state) {
       state = (struct McastCommandState*)malloc(sizeof(*state));
       memset(state, 0, sizeof(*state));
 
+      state->proc = st->proc;
       state->srcAddr = addr;
       state->port = htons(port);
       state->fd = socket_init(port);
       if (state->fd <= 0) {
          free(state);
-         return;
+         return NULL;
       }
 
       // Join multicast group
       //need to decode for xdr, will be similar to xdr receive func
-      //maintains a table of callbacks, may want a second table for xdr callbacks
+      //maintains a table of callbacks, may want a second table for
+      // xdr callbacks
       //this would require a second function to handle receiving xdr multicasts
       mreq.imr_interface.s_addr = htonl(INADDR_ANY);
       mreq.imr_multiaddr.s_addr = addr.s_addr;
@@ -286,7 +345,7 @@ void cmd_set_multicast_handler(struct CommandCbArg *st,
 		 sizeof(struct ip_mreq)) == -1) {
          ERR_REPORT(DBG_LEVEL_WARN, "Failed to join multicast group for %s\n",
             service);
-         return;
+         return NULL;
       }
 
       EVT_fd_add(evt_loop, state->fd, EVENT_FD_READ, multicast_cmd_handler_cb,
@@ -295,6 +354,20 @@ void cmd_set_multicast_handler(struct CommandCbArg *st,
       state->next = st->mcast;
       st->mcast = state;
    }
+
+   return state;
+}
+
+void cmd_set_multicast_handler(struct CommandCbArg *st,
+   struct EventState *evt_loop, const char *service, int cmdNum,
+   MCAST_handler_t handler, void *arg)
+{
+   struct MulticastCommand *cmd;
+   struct McastCommandState *state = NULL;
+
+   state = create_mcast_state(st, evt_loop, service);
+   if (!state)
+      return;
 
    cmd = (struct MulticastCommand*)malloc(sizeof(*cmd));
    memset(cmd, 0, sizeof(*cmd));
@@ -307,18 +380,77 @@ void cmd_set_multicast_handler(struct CommandCbArg *st,
    state->cmds = cmd;
 }
 
-void cmd_remove_multicast_handler(struct CommandCbArg *st,
+void cmd_set_multicast_xdr_handler(struct CommandCbArg *st,
+   struct EventState *evt_loop, const char *service, uint32_t cmdNum,
+   CMD_XDR_handler_t handler, void *opaque)
+{
+   struct XDRMulticastCommand *cmd;
+   struct McastCommandState *state = NULL;
+
+   state = create_mcast_state(st, evt_loop, service);
+   if (!state)
+      return;
+
+   cmd = (struct XDRMulticastCommand*)malloc(sizeof(*cmd));
+   memset(cmd, 0, sizeof(*cmd));
+
+   cmd->cmdNum = cmdNum;
+   cmd->callback = handler;
+   cmd->opaque = opaque;
+
+   cmd->next = state->xdrCmds;
+   state->xdrCmds = cmd;
+}
+
+static void cleanup_mcast_state_single(struct McastCommandState **goner,
+      struct EventState *evt_loop)
+{
+   struct McastCommandState *state;
+   struct MulticastCommand *cmd;
+   struct XDRMulticastCommand *xdrCmd;
+   struct ip_mreq mreq;
+
+   if (!goner || !*goner)
+      return;
+   state = *goner;
+
+   while ((cmd = state->cmds)) {
+      state->cmds = cmd->next;
+      free(cmd);
+   }
+
+   while ((xdrCmd = state->xdrCmds)) {
+      state->xdrCmds = xdrCmd->next;
+      free(xdrCmd);
+   }
+
+   if (state->fd > 0) {
+      EVT_fd_remove(evt_loop, state->fd, EVENT_FD_READ);
+
+      mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+      mreq.imr_multiaddr.s_addr = state->srcAddr.s_addr;
+      setsockopt(state->fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq,
+                           sizeof(struct ip_mreq));
+      close(state->fd);
+   }
+   state->fd = 0;
+
+   *goner = state->next;
+   free(state);
+}
+
+void cmd_remove_multicast_handlers(struct CommandCbArg *st,
    const char *service, int cmdNum, struct EventState *evt_loop)
 {
    struct MulticastCommand **itr, *cmd;
-   struct McastCommandState **st_itr, *state;
-   struct ip_mreq mreq;
+   struct McastCommandState **statePtr, *state;
    struct in_addr addr = socket_multicast_addr_by_name(service);
    uint16_t port = socket_multicast_port_by_name(service);
 
-   state = find_mcast_state(st, addr, port);
-   if (!state)
+   statePtr = find_mcast_state_prevptr(st, addr, port);
+   if (!statePtr || !*statePtr)
       return;
+   state = *statePtr;
 
    // Remove all matching entries
    itr = &state->cmds;
@@ -334,55 +466,45 @@ void cmd_remove_multicast_handler(struct CommandCbArg *st,
    }
 
    // Clean up the socket if there are no more commands registered
-   if (!state->cmds) {
-      if (state->fd > 0) {
-         EVT_fd_remove(evt_loop, state->fd, EVENT_FD_READ);
+   if (!state->cmds && !state->xdrCmds)
+      cleanup_mcast_state_single(statePtr, evt_loop);
+}
 
-         mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-         mreq.imr_multiaddr.s_addr = addr.s_addr;
-         setsockopt(state->fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq,
-	                             sizeof(struct ip_mreq));
-         close(state->fd);
-      }
-      state->fd = 0;
+void cmd_remove_multicast_xdr_handlers(struct CommandCbArg *st,
+   const char *service, uint32_t cmdNum, struct EventState *evt_loop)
+{
+   struct XDRMulticastCommand **itr, *cmd;
+   struct McastCommandState **statePtr, *state;
+   struct in_addr addr = socket_multicast_addr_by_name(service);
+   uint16_t port = socket_multicast_port_by_name(service);
 
-      for (st_itr = &st->mcast; st_itr && *st_itr; ) {
-         state = *st_itr;
-         if (!state->fd) {
-            *st_itr = state->next;
-            free(state);
-         }
-         else
-            st_itr = &state->next;
+   statePtr = find_mcast_state_prevptr(st, addr, port);
+   if (!statePtr || !*statePtr)
+      return;
+   state = *statePtr;
+
+   // Remove all matching entries
+   itr = &state->xdrCmds;
+   while (itr && *itr) {
+      cmd = *itr;
+      if ( cmd->cmdNum == cmdNum) {
+         *itr = cmd->next;
+         free(cmd);
+         continue;
       }
+
+      itr = &cmd->next;
    }
+
+   // Clean up the socket if there are no more commands registered
+   if (!state->cmds && !state->xdrCmds)
+      cleanup_mcast_state_single(statePtr, evt_loop);
 }
 
 void cmd_cleanup_cb_state(struct CommandCbArg *st, struct EventState *evt_loop)
 {
-   struct McastCommandState *state;
-   struct MulticastCommand *cmd;
-   struct ip_mreq mreq;
-
-   while ((state = st->mcast)) {
-      while ((cmd = state->cmds)) {
-         state->cmds = cmd->next;
-         free(cmd);
-      }
-
-      if (state->fd > 0) {
-         EVT_fd_remove(evt_loop, state->fd, EVENT_FD_READ);
-
-         mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-         mreq.imr_multiaddr.s_addr = state->srcAddr.s_addr;
-         setsockopt(state->fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq,
-	                             sizeof(struct ip_mreq));
-         close(state->fd);
-      }
-
-      st->mcast = state->next;
-      free(state);
-   }
+   while (st->mcast)
+      cleanup_mcast_state_single(&st->mcast, evt_loop);
 }
 
 // Structure to hold a single command

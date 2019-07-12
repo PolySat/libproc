@@ -1234,6 +1234,29 @@ int PROC_set_multicast_handler(struct ProcessData *proc, const char *service,
    return 0;
 }
 
+int PROC_set_multicast_xdr_handler(struct ProcessData *proc,const char *service,
+      uint32_t cmdNum, CMD_XDR_handler_t handler, void *opaque)
+{
+   cmd_set_multicast_xdr_handler(proc->cmds, proc->evtHandler, service, cmdNum,
+      handler, opaque);
+
+   return 0;
+}
+
+void PROC_remove_multicast_handlers(struct ProcessData *proc,
+      const char *service, int cmdNum)
+{
+   cmd_remove_multicast_handlers(proc->cmds, service, cmdNum,
+         proc->evtHandler);
+}
+
+void PROC_remove_multicast_xdr_handlers(struct ProcessData *proc,
+      const char *service, uint32_t cmdNum)
+{
+   cmd_remove_multicast_xdr_handlers(proc->cmds, service, cmdNum,
+         proc->evtHandler);
+}
+
 static int write_event_callback(int fd, char type, void *arg)
 {
    struct ProcessData *proc = (struct ProcessData*)arg;

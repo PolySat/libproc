@@ -307,6 +307,8 @@ extern void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
       uint32_t param_type, void *params, struct sockaddr_in *dest);
 extern void IPC_error(struct ProcessData *proc, struct IPC_Command *cmd,
       uint32_t error_code, struct sockaddr_in *dest);
+extern int IPC_multi_command(struct ProcessData *proc, uint32_t command,
+      void *params, uint32_t param_type);
 
 #ifdef __cplusplus
 }

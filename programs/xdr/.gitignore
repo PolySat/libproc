@@ -2,3 +2,6 @@ cpp_client
 dbg_client
 dbg_target
 zmq_server
+multi_listener
+test-util
+test_proc

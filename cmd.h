@@ -100,9 +100,14 @@ void cmd_handler_cleanup(struct CommandCbArg **cmds);
 void cmd_set_multicast_handler(struct CommandCbArg *st,
    struct EventState *evt_loop, const char *service, int cmdNum,
    MCAST_handler_t handler, void *arg);
+void cmd_set_multicast_xdr_handler(struct CommandCbArg *st,
+   struct EventState *evt_loop, const char *service, uint32_t cmdNum,
+   CMD_XDR_handler_t handler, void *opaque);
 
-void cmd_remove_multicast_handler(struct CommandCbArg *st,
+void cmd_remove_multicast_handlers(struct CommandCbArg *st,
    const char *service, int cmdNum, struct EventState *evt_loop);
+void cmd_remove_multicast_xdr_handlers(struct CommandCbArg *st,
+   const char *service, uint32_t cmdNum, struct EventState *evt_loop);
 
 void cmd_cleanup_cb_state(struct CommandCbArg *st, struct EventState *evt_loop);
 

@@ -46,6 +46,21 @@ struct XDR_CommandHandlers handlers[] = {
    { 0, NULL, NULL }
 };
 
+static int generate_mcast(void *opaque)
+{
+   struct ProcessData *proc = (struct ProcessData*)opaque;
+   static struct IPC_TEST_Mcast data = { 0, 0 };
+
+   data.val1++;
+   data.val2 += 2;
+
+   printf("Sending multicast XDR packet!\n");
+   IPC_multi_command(proc, IPC_TEST_COMMANDS_MCAST_TEST, &data,
+         IPC_TEST_DATA_TYPES_MCAST);
+
+   return EVENT_KEEP;
+}
+
 static void status_cmd_handler(struct ProcessData *proc, struct IPC_Command *cmd,
       struct sockaddr_in *fromAddr, void *arg, int fd)
 {
@@ -86,6 +101,7 @@ int main(int argc, char *argv[])
 
    // Add a signal handler call back for SIGINT signal
    DBG_setLevel(DBG_LEVEL_ALL);
+   EVT_sched_add(PROC_evt(gProc), EVT_ms2tv(3000), &generate_mcast, gProc);
    PROC_signal(gProc, SIGINT, &sigint_handler, gProc);
 
    EVT_start_loop(PROC_evt(gProc));

@@ -245,7 +245,7 @@ int PROC_signal(struct ProcessData *proc, int sigNum, PROC_signal_cb cb,
 int PROC_set_cmd_handler(struct ProcessData *proc,
       int cmdNum, CMD_handler_t handler, uint32_t uid, uint32_t group, uint32_t protection);
 
-/** Replace the command handler for the given multicast command with a new one.
+/** Add a command handler for the given multicast command.
  * @param proc The process state
  * @param service The name of the service to receive multicast packets from
  * @param port The port number the command is sent over.  Pass 0 to use
@@ -257,6 +257,36 @@ int PROC_set_cmd_handler(struct ProcessData *proc,
  */
 int PROC_set_multicast_handler(struct ProcessData *proc, const char *service,
       int cmdNum, MCAST_handler_t handler, void *arg);
+
+/** Add a command handler for the given XDR formatted multicast command.
+ * @param proc The process state
+ * @param service The name of the service to receive multicast packets from
+ * @param port The port number the command is sent over.  Pass 0 to use
+ *              the service's default port.
+ * @param cmdNum The command number to replace.  Use a negative value to
+ *                   register for all commands.
+ * @param handler The function pointer of the new command handler
+ * @param opaque The opaque value to pass back into the callback
+ */
+int PROC_set_multicast_xdr_handler(struct ProcessData *proc,const char *service,      uint32_t cmdNum, CMD_XDR_handler_t handler, void *opaque);
+
+/** Removes all legacy multicast handlers for the given command.
+ * @param proc The process state
+ * @param service The name of the service to receive multicast packets from
+ * @param cmdNum The command number to replace.  Use a negative value to
+ *                   register for all commands.
+ */
+void PROC_remove_multicast_handlers(struct ProcessData *proc,
+      const char *service, int cmdNum);
+
+/** Removes all XDR multicast handlers for the given command.
+ * @param proc The process state
+ * @param service The name of the service to receive multicast packets from
+ * @param cmdNum The command number to replace.  Use a negative value to
+ *                   register for all commands.
+ */
+void PROC_remove_multicast_xdr_handlers(struct ProcessData *proc,
+      const char *service, uint32_t cmdNum);
 
 /**
  * Returns the process' assigned UDP port id

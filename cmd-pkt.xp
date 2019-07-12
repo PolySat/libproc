@@ -68,6 +68,11 @@ struct Heartbeat {
       key proc_heartbeats;
       description "The number of heartbeat commands received by the process";
    };
+   unsigned hyper multi_commands {
+      name "Multicast Commands";
+      key proc_multi_commands;
+      description "The number of multicast commands received by the process";
+   };
 } = types::HEARTBEAT;
 
 enum ResultCode {

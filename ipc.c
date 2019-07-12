@@ -262,10 +262,14 @@ struct in_addr socket_multicast_addr_by_name(const char * service)
 int socket_get_addr_by_name(const char * service)
 {
    // Look up in the /etc/services file for the port number
-   struct servent * serviceEntry = getservbyname(service, "udp");
+   struct servent * serviceEntry;
    struct ServiceNames *curr;
    int port;
 
+   if (!service)
+      return -1;
+
+   serviceEntry = getservbyname(service, "udp");
    // if lookup failed, use the internal list
    if (serviceEntry == 0) {
       for (curr = serverNameList; curr->name; curr++) {
@@ -749,20 +753,29 @@ static int IPC_command_internal(ProcessData *proc, uint32_t command,
    return 0;
 }
 
-static int IPC_multi_command_internal(ProcessData *proc, uint32_t command,
-      void *params,
-      uint32_t param_type,
-      IPC_command_callback cb, void *arg,
-      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+int IPC_multi_command(ProcessData *proc, uint32_t command,
+      void *params, uint32_t param_type)
 {
    struct IPC_Command cmd;
    static uint32_t next_cmd_ref = 1;
-   uint16_t port = socket_multicast_port_by_name(proc->name);
+   uint16_t port;
+   struct sockaddr_in addr;
    char *buff;
    size_t len;
-   int res;
    size_t buff_len = 1024;
     //steps to encode the command
+
+   if (!proc)
+      return -1;
+
+   memset((char*)&addr, 0, sizeof(addr));
+   port = socket_multicast_port_by_name(proc->name);
+   addr.sin_addr = socket_multicast_addr_by_name(proc->name);
+   addr.sin_family = AF_INET;
+   addr.sin_port = htons(port);
+
+   if (port == 0 || !addr.sin_addr.s_addr)
+      return -1;
 
    cmd.cmd = command;
    cmd.ipcref = next_cmd_ref++;
@@ -786,21 +799,12 @@ static int IPC_multi_command_internal(ProcessData *proc, uint32_t command,
          return -1;
    }
 
-   if (!proc) {
-      res = ipc_blocking_command(buff, len, dest, cb, arg, cb_type, timeout);
-      free(buff);
-      return res;
-   }
     //before this, find address 
 
     //changing the address of the sock_addr fed in to the multicast
     //socket associated with the process
-   dest.sin_addr = socket_multicast_addr_by_name(proc->name);
 
-   PROC_cmd_raw_sockaddr(proc, buff, len, &dest);
-   if (cb)
-      CMD_add_response_cb(proc, cmd.ipcref, dest, cb, arg,
-            cb_type, timeout);
+   PROC_cmd_raw_sockaddr(proc, buff, len, &addr);
 
    return 0;
 }
