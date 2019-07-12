@@ -33,5 +33,6 @@
 #include <polysat3/md5.h>
 #include <polysat3/telm_dict.h>
 #include <polysat3/plugin.h>
+#include <polysat3/pseudo_threads.h>
 
 #endif

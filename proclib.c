@@ -44,6 +44,7 @@
 #include "critical.h"
 #include <pthread.h>
 #include "ipc.h"
+#include "pseudo_threads.h"
 
 #define READ_BUFF_MIN 4096
 #define READ_BUFF_MAX (READ_BUFF_MIN * 4)
@@ -277,6 +278,7 @@ ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
    EVT_set_debugger_port(proc->evtHandler, socket_get_addr_by_name(proc->name));
    //set up sigPipe to take signals. Signals will be treated as an event with cb 'signal_fd_cb'
    setup_signal_fd(proc);
+   PT_init(proc->evtHandler);
 
    // initialize command handler: commands are loaded from .cmd.cfg file
    if (cmd_handler_init(procName, proc, &proc->cmds) == -1) {

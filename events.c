@@ -46,6 +46,7 @@
 #include "ipc.h"
 #include "json.h"
 #include <inttypes.h>
+#include "pseudo_threads.h"
 
 #define EDBG_ENV_VAR "LIBPROC_DEBUGGER"
 
@@ -773,6 +774,10 @@ char EVT_start_loop(EVTHandler *ctx)
    edbg_init(ctx);
 
    while(ctx->keepGoing) {
+      PT_run_all();
+      if (!ctx->keepGoing)
+         break;
+
       real_event = 0;
       // Process any single-step events
       if (ctx->dbg_step && ctx->next_timed_event) {
