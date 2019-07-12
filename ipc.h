@@ -303,6 +303,10 @@ extern int IPC_command(struct ProcessData*, uint32_t command, void *params,
       uint32_t param_type,
       struct sockaddr_in dest, IPC_command_callback cb, void *,
       enum IPC_CB_TYPE cb_type, unsigned int timeout);
+extern int IPC_multi_command(struct ProcessData*, uint32_t command, void *params,
+      uint32_t param_type,
+      IPC_command_callback cb, void *,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout);
 extern void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
       uint32_t param_type, void *params, struct sockaddr_in *dest);
 extern void IPC_error(struct ProcessData *proc, struct IPC_Command *cmd,

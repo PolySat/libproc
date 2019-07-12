@@ -30,7 +30,6 @@
 
 #define BUF_LEN 2048
 
-
 struct ProcessData *gProc = NULL;
 
 // Simple SIGINT handler example
@@ -40,25 +39,24 @@ int sigint_handler(int signum, void *arg)
    EVT_exit_loop(PROC_evt(arg));
    return EVENT_KEEP;
 }
-int timed_multi(void *arg){
-   char buf[BUF_LEN+1] = "message!";
 
-   PROC_multi_cmd((struct ProcessData *)arg, 10, buf, 0);
-   return EVENT_KEEP;
-
+static void mcast_handler(void *arg, int socket, unsigned char cmd,
+   void *data, size_t dataLen, struct sockaddr_in *fromAddr)
+{
+   printf("Multicast CMD: %d\n", cmd);
 }
 
 int main(int argc, char *argv[])
 {
-
-   char buf[BUF_LEN+1] = "message!";
-   gProc = PROC_init("test1", WD_DISABLED);
-
-   PROC_multi_cmd(gProc, 10, buf, 0);
+   gProc = PROC_init("test2",WD_DISABLED);
 
    // Add a signal handler call back for SIGINT signal
    PROC_signal(gProc, SIGINT, &sigint_handler, gProc);
-   EVT_sched_add(PROC_evt(gProc), EVT_ms2tv(1000),&timed_multi,gProc);
+
+   PROC_set_multicast_handler(gProc, "test1", -1, &mcast_handler, gProc);
+   PROC_set_multicast_handler(gProc, "test1", -1, &mcast_handler, gProc);
+   PROC_set_multicast_handler(gProc, "test1", 10, &mcast_handler, gProc);
+   PROC_set_multicast_handler(gProc, "test1", 11, &mcast_handler, gProc);
 
    EVT_start_loop(PROC_evt(gProc));
 

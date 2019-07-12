@@ -748,7 +748,70 @@ static int IPC_command_internal(ProcessData *proc, uint32_t command,
 
    return 0;
 }
+static int IPC_multi_command_internal(ProcessData *proc, uint32_t command,
+      void *params,
+      uint32_t param_type,
+      IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+{
+   struct IPC_Command cmd;
+   uint16_t port;
+   static uint32_t next_cmd_ref = 1;
+   char *buff;
+   size_t len;
+   int retval = 0;
+   size_t buff_len = 1024;
+   struct sockaddr_in addr;
+    //steps to encode the command
 
+   cmd.cmd = command;
+   cmd.ipcref = next_cmd_ref++;
+   cmd.parameters.type = param_type;
+   cmd.parameters.data = params;
+   buff = malloc(buff_len);
+
+   if (IPC_Command_encode(&cmd, buff, &len, buff_len, NULL) < 0) {
+      if (len > buff_len) {
+         free(buff);
+         buff_len = len;
+         buff = malloc(buff_len);
+         if (!buff)
+            return -1;
+         if (IPC_Command_encode(&cmd, buff, &len, len, NULL) < 0) {
+            free(buff);
+            return -1;
+         }
+      }
+      else
+         return -1;
+   }
+   if(!proc){
+      ERRNO_WARN("proc null in non-blocking IPC multicast\n");
+      return -1;
+   }
+   memset((char*)&addr, 0, sizeof(addr));
+   port = socket_multicast_port_by_name(proc->name);
+   addr.sin_addr = socket_multicast_addr_by_name(proc->name);
+
+   if (port > 0 && addr.sin_addr.s_addr) {
+      addr.sin_family = AF_INET;
+      addr.sin_port = htons(port);
+
+      printf("Sending to %s / %d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+
+      retval = PROC_cmd_raw_sockaddr(proc, buff,len, &addr);
+   }
+   
+   //before this, find address 
+
+   //PROC_cmd_raw_sockaddr(proc, buff, len, &dest);
+   if (cb)
+      CMD_add_response_cb(proc, cmd.ipcref, addr, cb, arg,
+            cb_type, timeout);
+
+   return retval;
+}
+/*
 static int IPC_multi_command_internal(ProcessData *proc, uint32_t command,
       void *params,
       uint32_t param_type,
@@ -803,7 +866,7 @@ static int IPC_multi_command_internal(ProcessData *proc, uint32_t command,
             cb_type, timeout);
 
    return 0;
-}
+}*/
 
 int IPC_command_blocking(uint32_t command, void *params,
       uint32_t param_type,
@@ -823,6 +886,16 @@ int IPC_command(ProcessData *proc, uint32_t command, void *params,
       return -1;
    return IPC_command_internal(proc, command, params, param_type,
          dest, cb, arg, cb_type, timeout);
+}
+int IPC_multi_command(ProcessData *proc, uint32_t command, void *params,
+      uint32_t param_type,
+      IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+{
+   if (!proc)
+      return -1;
+   return IPC_multi_command_internal(proc, command, params, param_type,
+         cb, arg, cb_type, timeout);
 }
 
 void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,

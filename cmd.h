@@ -146,6 +146,7 @@ extern void CMD_register_command(struct CMD_XDRCommandInfo*, int);
 extern void CMD_set_xdr_cmd_handler(uint32_t num, CMD_XDR_handler_t cb,
       void *arg);
 extern int CMD_xdr_cmd_help(struct CMD_XDRCommandInfo *command);
+extern struct CMD_XDRCommandInfo *CMD_xdr_cmd_by_name(const char *name);
 extern int CMD_mc_cmd_help(struct CMD_MulticallInfo *command);
 extern int CMD_send_command_line_command(int argc, char **argv,
       struct CMD_MulticallInfo *mc, struct ProcessData *proc,
