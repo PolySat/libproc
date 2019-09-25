@@ -1,5 +1,6 @@
 # Makefile for Process Library
 
+XDRGEN?=poly-xdrgen
 PLAT=$(shell uname -s)
 include Make.rules.$(PLAT)
 include Make.rules.arm
@@ -41,10 +42,10 @@ cmd.c: cmd-pkt.h
 ipc.c: cmd-pkt.h
 
 cmd-pkt.h: cmd-pkt.xp
-	poly-xdrgen --target libproc --output cmd-pkt cmd-pkt.xp
+	$(XDRGEN) --target libproc --output cmd-pkt cmd-pkt.xp
 
 cmd-pkt.c: cmd-pkt.xp
-	poly-xdrgen --target libproc --output cmd-pkt cmd-pkt.xp
+	$(XDRGEN) --target libproc --output cmd-pkt cmd-pkt.xp
 
 
 install: all
