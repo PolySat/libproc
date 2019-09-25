@@ -749,6 +749,8 @@ static int IPC_command_internal(ProcessData *proc, uint32_t command,
    return 0;
 }
 
+#if 0
+// What is this for???
 static int IPC_multi_command_internal(ProcessData *proc, uint32_t command,
       void *params,
       uint32_t param_type,
@@ -804,6 +806,7 @@ static int IPC_multi_command_internal(ProcessData *proc, uint32_t command,
 
    return 0;
 }
+#endif
 
 int IPC_command_blocking(uint32_t command, void *params,
       uint32_t param_type,
