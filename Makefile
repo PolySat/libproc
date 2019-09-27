@@ -29,7 +29,7 @@ LFLAGS=-shared -fPIC -Wl,-soname,$(SO_NAME)
 all: $(OBJECTS) $(LIBRARY)
 
 $(LIBRARY): $(LIB_NAME)
-	 ln -sf $(LIB_NAME) $(LIBRARY)3.$(SO_EXT)
+	 ln -sf $(LIB_NAME) $(LIBRARY).$(SO_EXT)
 	 ln -sf $(LIB_NAME) $(LIBRARY).$(SO_EXT).$(MAJOR_VERS)
 
 $(LIB_NAME): $(OBJECTS)
@@ -51,15 +51,15 @@ cmd-pkt.c: cmd-pkt.xp
 install: all
 	cp $(LIB_NAME) $(LIB_PATH)
 	$(INST_STRIP) $(LIB_PATH)/$(LIB_NAME)
-	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY)3.$(SO_EXT)
+	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY).$(SO_EXT)
 	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY).$(SO_EXT).$(MAJOR_VERS)
-	install -d $(INC_PATH)/polysat3
-	cp $(INCLUDE) $(INC_PATH)/polysat3
+	install -d $(INC_PATH)/polysat
+	cp $(INCLUDE) $(INC_PATH)/polysat
 #	ldconfig -linux-ld -n $(LIB_PATH)
 
 uninstall:
 	rm $(LIB_PATH)/$(LIBRARY)*
-	rm -rf $(INC_PATH)/polysat3
+	rm -rf $(INC_PATH)/polysat
 
 test:
 	make -C ./tests/unit/

@@ -467,13 +467,13 @@ int cmd_handler_init(const char * procName, struct ProcessData *proc,
       sprintf(cfgFile, "./%s.cmd.cfg", procName);
 
       // Open the configuration file with the commands
-      if (!CFG3_locateConfigFile(cfgFile)) {
+      if (!CFG_locateConfigFile(cfgFile)) {
          DBG_print(DBG_LEVEL_WARN, "No command configuration file found\n");
          cmds->cmds = NULL;
          return EXIT_SUCCESS;
       }
       // Parse the commands
-      root = (struct CFG_Root*) CFG3_parseFile(&CFG_OBJNAME(Root));
+      root = (struct CFG_Root*) CFG_parseFile(&CFG_OBJNAME(Root));
 
       DBG_print(DBG_LEVEL_INFO, "%s found config file\n", procName);
    }
@@ -509,7 +509,7 @@ int cmd_handler_init(const char * procName, struct ProcessData *proc,
    }
 
    if (root) {
-      CFG3_freeArray(&root->cmds, &CFG_CommandDesc_free);
+      CFG_freeArray(&root->cmds, &CFG_CommandDesc_free);
       free(root);
    }
 

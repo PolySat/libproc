@@ -42,12 +42,12 @@ struct CFG_buffered_obj
 
 static char gConfigPath[PATH_MAX+1] = "";
 
-const char *CFG3_getPath()
+const char *CFG_getPath()
 {
    return gConfigPath;
 }
 
-int CFG3_locateConfigFile(const char *name)
+int CFG_locateConfigFile(const char *name)
 {
    char path[PATH_MAX+1];
    struct stat sb;
@@ -388,7 +388,7 @@ static void *ParseObject(struct CFG_Context *ctx, struct CFG_ParseObj *parObj,
    return data;
 }
 
-void *CFG3_cfg_for_object_buffer(struct CFG_buffered_obj *obj)
+void *CFG_cfg_for_object_buffer(struct CFG_buffered_obj *obj)
 {
    struct CFG_ParseObj fake_root;
    struct CFG_ParseValue fake_keys[2];
@@ -406,7 +406,7 @@ void *CFG3_cfg_for_object_buffer(struct CFG_buffered_obj *obj)
    fake_keys[0] = obj->val;
    fake_root.keys = fake_keys;
 
-   fake_keys[0].cb.cb = &CFG3_PtrCpyCB;
+   fake_keys[0].cb.cb = &CFG_PtrCpyCB;
    fake_keys[0].cb.p1 = NULL;
    fake_keys[0].cb.p2 = NULL;
 
@@ -422,12 +422,12 @@ void *CFG3_cfg_for_object_buffer(struct CFG_buffered_obj *obj)
    return obj->parsed_cfg;
 }
 
-void *CFG3_parseFile(struct CFG_ParseObj *rootObj)
+void *CFG_parseFile(struct CFG_ParseObj *rootObj)
 {
-   return CFG3_parseFileAtPath(rootObj, gConfigPath);
+   return CFG_parseFileAtPath(rootObj, gConfigPath);
 }
 
-void *CFG3_parseFileAtPath(struct CFG_ParseObj *rootObj, const char *path)
+void *CFG_parseFileAtPath(struct CFG_ParseObj *rootObj, const char *path)
 {
    struct CFG_Context ctx;
    void *data = NULL;
@@ -462,7 +462,7 @@ void *CFG3_parseFileAtPath(struct CFG_ParseObj *rootObj, const char *path)
    return data;
 }
 
-void *CFG3_MallocCB(const char *key, const char *value, void *data, void *p1,
+void *CFG_MallocCB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    size_t sz = (size_t)p1;
@@ -476,7 +476,7 @@ void *CFG3_MallocCB(const char *key, const char *value, void *data, void *p1,
    return res;
 }
 
-void *CFG3_StrdupCB(const char *key, const char *value, void *data, void *p1,
+void *CFG_StrdupCB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    void *dest_v = data + (p1 - ((void*)0));
@@ -491,7 +491,7 @@ void *CFG3_StrdupCB(const char *key, const char *value, void *data, void *p1,
    return data;
 }
 
-void *CFG3_uint32_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_uint32_CB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    void *dest_v = data + (p1 - ((void*)0));
@@ -507,7 +507,7 @@ void *CFG3_uint32_CB(const char *key, const char *value, void *data, void *p1,
    return data;
 }
 
-void *CFG3_uint16_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_uint16_CB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    void *dest_v = data + (p1 - ((void*)0));
@@ -523,7 +523,7 @@ void *CFG3_uint16_CB(const char *key, const char *value, void *data, void *p1,
    return data;
 }
 
-void *CFG3_int32_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_int32_CB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    void *dest_v = data + (p1 - ((void*)0));
@@ -539,7 +539,7 @@ void *CFG3_int32_CB(const char *key, const char *value, void *data, void *p1,
    return data;
 }
 
-void *CFG3_int16_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_int16_CB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    void *dest_v = data + (p1 - ((void*)0));
@@ -555,7 +555,7 @@ void *CFG3_int16_CB(const char *key, const char *value, void *data, void *p1,
    return data;
 }
 
-void *CFG3_float_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_float_CB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    void *dest_v = data + (p1 - ((void*)0));
@@ -571,7 +571,7 @@ void *CFG3_float_CB(const char *key, const char *value, void *data, void *p1,
    return data;
 }
 
-void *CFG3_InetAtonCB(const char *key, const char *value, void *data, void *p1,
+void *CFG_InetAtonCB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    void *dest_v = data + (p1 - ((void*)0));
@@ -585,7 +585,7 @@ void *CFG3_InetAtonCB(const char *key, const char *value, void *data, void *p1,
    return data;
 }
 
-void *CFG3_PtrCpyCB(const char *key, const char *value, void *data, void *p1,
+void *CFG_PtrCpyCB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    void *dest_v = data + (p1 - ((void*)0));
@@ -596,7 +596,7 @@ void *CFG3_PtrCpyCB(const char *key, const char *value, void *data, void *p1,
    return data;
 }
 
-void *CFG3_PtrArrayAppendCB(const char *key, const char *value, void *data, void *p1,
+void *CFG_PtrArrayAppendCB(const char *key, const char *value, void *data, void *p1,
             void *p2)
 {
    void *dest_v = data + (p1 - ((void*)0));
@@ -622,7 +622,7 @@ void *CFG3_PtrArrayAppendCB(const char *key, const char *value, void *data, void
    return data;
 }
 
-void CFG3_freeArray(struct CFG_Array *arr, CFG_objFreeCb_t freeCb)
+void CFG_freeArray(struct CFG_Array *arr, CFG_objFreeCb_t freeCb)
 {
    if (arr && arr->data) {
       for(int i = 0; freeCb && i < arr->len; i++)
@@ -635,14 +635,14 @@ void CFG3_freeArray(struct CFG_Array *arr, CFG_objFreeCb_t freeCb)
    }
 }
 
-struct CFG_ParseObj *CFG3_static_obj(
+struct CFG_ParseObj *CFG_static_obj(
       const char *params, void *arg, int *buffer_obj)
 {
    *buffer_obj = 0;
    return (struct CFG_ParseObj*)arg;
 }
 
-struct CFG_ParseObj *CFG3_static_arr_obj(
+struct CFG_ParseObj *CFG_static_arr_obj(
       const char *params, void *arg, int *buffer_obj)
 {
    *buffer_obj = 0;

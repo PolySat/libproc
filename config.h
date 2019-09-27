@@ -65,44 +65,44 @@ struct CFG_Array {
    void **data;
 };
 
-void *CFG3_MallocCB(const char *key, const char *value, void *data, void *p1,
+void *CFG_MallocCB(const char *key, const char *value, void *data, void *p1,
       void *p2);
-void *CFG3_StrdupCB(const char *key, const char *value, void *data, void *p1,
+void *CFG_StrdupCB(const char *key, const char *value, void *data, void *p1,
       void *p2);
-void *CFG3_InetAtonCB(const char *key, const char *value, void *data, void *p1,
+void *CFG_InetAtonCB(const char *key, const char *value, void *data, void *p1,
       void *p2);
-void *CFG3_uint32_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_uint32_CB(const char *key, const char *value, void *data, void *p1,
       void *p2);
-void *CFG3_uint16_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_uint16_CB(const char *key, const char *value, void *data, void *p1,
       void *p2);
-void *CFG3_int32_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_int32_CB(const char *key, const char *value, void *data, void *p1,
       void *p2);
-void *CFG3_int16_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_int16_CB(const char *key, const char *value, void *data, void *p1,
       void *p2);
-void *CFG3_float_CB(const char *key, const char *value, void *data, void *p1,
+void *CFG_float_CB(const char *key, const char *value, void *data, void *p1,
       void *p2);
-void *CFG3_PtrCpyCB(const char *key, const char *value, void *data, void *p1,
+void *CFG_PtrCpyCB(const char *key, const char *value, void *data, void *p1,
       void *p2);
-void *CFG3_PtrArrayAppendCB(const char *key, const char *value, void *data,
+void *CFG_PtrArrayAppendCB(const char *key, const char *value, void *data,
       void *p1, void *p2);
 
-#define CFG_MALLOC(x) { &CFG3_MallocCB, (void*)(sizeof(x)), NULL }
+#define CFG_MALLOC(x) { &CFG_MallocCB, (void*)(sizeof(x)), NULL }
 #define CFG_NULL { NULL, NULL, NULL }
 #define CFG_NULLK { NULL, NULL, NULL, CFG_NULL }
-#define CFG_OBJ(n, obj, str, field) { n, &CFG3_static_obj, obj, { &CFG3_PtrCpyCB, (void*)offsetof(str,field), NULL } }
-#define CFG_OBJLIST(n, objlist, str, field) { n, &CFG3_static_arr_obj, objlist, { &CFG3_PtrCpyCB, (void*)offsetof(str,field), NULL } }
-#define CFG_OBJARR(n, obj, str, field) { n, &CFG3_static_obj, obj, { &CFG3_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
+#define CFG_OBJ(n, obj, str, field) { n, &CFG_static_obj, obj, { &CFG_PtrCpyCB, (void*)offsetof(str,field), NULL } }
+#define CFG_OBJLIST(n, objlist, str, field) { n, &CFG_static_arr_obj, objlist, { &CFG_PtrCpyCB, (void*)offsetof(str,field), NULL } }
+#define CFG_OBJARR(n, obj, str, field) { n, &CFG_static_obj, obj, { &CFG_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
 
 #define CFG_OBJLISTARR(n, objlist, str, field) { n, &CFG_static_obj, objlist, { &CFG_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
 
 #define CFG_OBJCB(n, obj, cb) { n, &CFG_static_obj, obj, { &cb, NULL, NULL } }
-#define CFG_STRDUP(n, str, field) { n, NULL, NULL, { &CFG3_StrdupCB, (void*)offsetof(str,field), NULL } }
-#define CFG_UINT32(n, str, field) { n, NULL, NULL, { &CFG3_uint32_CB, (void*)offsetof(str,field), NULL } }
-#define CFG_UINT16(n, str, field) { n, NULL, NULL, { &CFG3_uint16_CB, (void*)offsetof(str,field), NULL } }
-#define CFG_INT32(n, str, field) { n, NULL, NULL, { &CFG3_int32_CB, (void*)offsetof(str,field), NULL } }
-#define CFG_INT16(n, str, field) { n, NULL, NULL, { &CFG3_int16_CB, (void*)offsetof(str,field), NULL } }
-#define CFG_FLOAT(n, str, field) { n, NULL, NULL, { &CFG3_float_CB, (void*)offsetof(str,field), NULL } }
-#define CFG_INET_ATON(n, str, field) { n, NULL, NULL, { &CFG3_InetAtonCB, (void*)offsetof(str,field), NULL } }
+#define CFG_STRDUP(n, str, field) { n, NULL, NULL, { &CFG_StrdupCB, (void*)offsetof(str,field), NULL } }
+#define CFG_UINT32(n, str, field) { n, NULL, NULL, { &CFG_uint32_CB, (void*)offsetof(str,field), NULL } }
+#define CFG_UINT16(n, str, field) { n, NULL, NULL, { &CFG_uint16_CB, (void*)offsetof(str,field), NULL } }
+#define CFG_INT32(n, str, field) { n, NULL, NULL, { &CFG_int32_CB, (void*)offsetof(str,field), NULL } }
+#define CFG_INT16(n, str, field) { n, NULL, NULL, { &CFG_int16_CB, (void*)offsetof(str,field), NULL } }
+#define CFG_FLOAT(n, str, field) { n, NULL, NULL, { &CFG_float_CB, (void*)offsetof(str,field), NULL } }
+#define CFG_INET_ATON(n, str, field) { n, NULL, NULL, { &CFG_InetAtonCB, (void*)offsetof(str,field), NULL } }
 
 #define CFG_OBJNAME(x) CFG__##x##__obj
 #define CFG_VALNAME(x) CFG__##x##__keys
@@ -122,7 +122,7 @@ static struct CFG_ParseObj CFG_OBJNAME(x) = { "", ini, fin, CFG_VALNAME(x) };
  * \returns The full POSIX path of the current configuration file.  If there is
  * no file the string is empty and the pointer is non-NULL.
  **/
-const char *CFG3_getPath();
+const char *CFG_getPath();
 
 /**
  * \brief Locates the configuration file with the given name.  It searches in
@@ -130,18 +130,18 @@ const char *CFG3_getPath();
  *  in that order.
  * \returns True if a configuration file is located and false otherwise.
  **/
-int CFG3_locateConfigFile(const char *name);
+int CFG_locateConfigFile(const char *name);
 
 /**
  * \brief This function parses the configuration file
  **/
-void *CFG3_parseFile(struct CFG_ParseObj *);
+void *CFG_parseFile(struct CFG_ParseObj *);
 
 /**
  * \brief This function parses the configuration file located at the
  * given path.  This bypassed the normal directory search order.
  **/
-void *CFG3_parseFileAtPath(struct CFG_ParseObj *, const char *path);
+void *CFG_parseFileAtPath(struct CFG_ParseObj *, const char *path);
 
 /// Prototype for a function that knows how to clean up memory for a struct
 typedef void (*CFG_objFreeCb_t)(void*);
@@ -149,23 +149,23 @@ typedef void (*CFG_objFreeCb_t)(void*);
 /**
  * \brief Free any heap memory associated with an array structure
  **/
-void CFG3_freeArray(struct CFG_Array *arr, CFG_objFreeCb_t freeCb);
+void CFG_freeArray(struct CFG_Array *arr, CFG_objFreeCb_t freeCb);
 
 /**
   * \brief Object description function that always returns the pointer 
   *           from the lookup_arg field.
   **/
-struct CFG_ParseObj *CFG3_static_obj(
+struct CFG_ParseObj *CFG_static_obj(
       const char *name, void *arg, int *buffer_obj);
 
 /**
   * \brief Object description function that loops through an array of static
   *           object descriptions and matches based on name.
   **/
-struct CFG_ParseObj *CFG3_static_arr_obj(
+struct CFG_ParseObj *CFG_static_arr_obj(
       const char *name, void *arg, int *buffer_obj);
 
-void *CFG3_cfg_for_object_buffer(struct CFG_buffered_obj *obj);
+void *CFG_cfg_for_object_buffer(struct CFG_buffered_obj *obj);
 #ifdef __cplusplus
 }
 #endif
