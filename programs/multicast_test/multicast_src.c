@@ -17,21 +17,40 @@
  */
 
 /**
- * @file polysat.h PolySat Library Source File
+ * Test code for process command handling.
  *
- * Includes all degraded (standard) library header files.
+ * Don't input any lines over BUF_LEN or a buffer overrun will occur.
+ *
+ * @author Greg Eddington
  */
-#ifndef POLYSAT_H
-#define POLYSAT_H
+#include <stdio.h>
+#include <polysat/polysat.h>
+#include <string.h>
 
-#include <polysat/proclib.h>
-#include <polysat/config.h>
-#include <polysat/debug.h>
-#include <polysat/events.h>
-#include <polysat/ipc.h>
-#include <polysat/cmd.h>
-#include <polysat/md5.h>
-#include <polysat/telm_dict.h>
-#include <polysat/plugin.h>
+#define BUF_LEN 2048
 
-#endif
+struct ProcessData *gProc = NULL;
+
+// Simple SIGINT handler example
+int sigint_handler(int signum, void *arg)
+{
+   DBG("SIGINT handler!\n");
+   EVT_exit_loop(PROC_evt(arg));
+   return EVENT_KEEP;
+}
+
+int main(int argc, char *argv[])
+{
+   char buf[BUF_LEN+1];
+
+   gProc = PROC_init("test1");
+
+   PROC_multi_cmd(gProc, 10, buf, 0);
+
+   // Add a signal handler call back for SIGINT signal
+   PROC_signal(gProc, SIGINT, &sigint_handler, gProc);
+
+   EVT_start_loop(PROC_evt(gProc));
+
+   return 0;
+}

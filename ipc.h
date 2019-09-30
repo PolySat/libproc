@@ -62,6 +62,17 @@ int socket_named_init(const char * service);
 int socket_init(int port);
 
 /**
+ * Initializes a listening TCP socket on the specified port.
+ *
+ * @param   port Host order port number to open socket on.
+ *
+ * @return  A socket file descriptor.
+ *
+ * @retval  -1  On error.
+ */
+int socket_tcp_init(int port);
+
+/**
  * Reads data from a specified socket fd.
  * Loads source of data into src pointer.
  *
@@ -183,11 +194,119 @@ int socket_get_name_by_addr(struct sockaddr_in * addr, char * buf, size_t bufSiz
 int socket_send_packet_and_read_response(const char *dstAddr,
       const char *dstProc, void *txCmd, size_t txCmdLen,
       void *rxResp, size_t rxRespLen, int responseTimeoutMS);
+int socket_send_packet_and_read_xdr(const char *dstAddr,
+      const char *dstProc, void *txCmd, size_t txCmdLen,
+      void *rxResp, size_t rxRespLen, int responseTimeoutMS);
 
 /**
   * Resolve a host name or dotted-quad into an in_addr
   */
 int socket_resolve_host(const char *host, struct in_addr *addr);
+
+// Structure to use for buffering output prior to sending to a socket
+struct IPCBuffer;
+
+/**
+  * Allocates a new IPCBuffer
+  *
+  * @return The newly allocated buffer or NULL if an error occurs.
+  */
+struct IPCBuffer *ipc_alloc_buffer(void);
+
+/**
+  * Destroys an IPC buffer.  An IPC buffer can not be used after it is
+  * destroyed.
+  *
+  * @param goner The buffer to destroy.
+  */
+void ipc_destroy_buffer(struct IPCBuffer **goner);
+
+/**
+  * Removes all accumulated data from a buffer, reseting it to a 0 length.
+  *
+  * @param buffer The buffer to reset
+  */
+void ipc_reset_buffer(struct IPCBuffer *buffer);
+
+/**
+ * Writes the contents of the data to the provided file descriptor
+ *     synchronously.  Does not write empty buffers.
+ *
+ * @param   fd      The file descriptor to write to.
+ * @param   buffer  The data to send.
+ *
+ * @return  Error indication flag
+ *
+ * @retval  -1  On error.
+ */
+int ipc_write_buffer_sync(int fd, struct IPCBuffer *buffer);
+
+/**
+  * Appends the contents of the format string to an IPC buffer
+  *
+  * @param buffer The buffer to add the string to
+  * @param fmt The format specifier
+  * @param ... The parameters for the format specifier
+  *
+  * @return The number of bytes added to the string
+  */
+int ipc_printf_buffer(struct IPCBuffer *buffer, const char *fmt, ...)
+     __attribute__ ((format (printf, 2, 3)));
+
+/**
+  * Appends the contents of the buffer to an IPC buffer
+  *
+  * @param buffer The buffer to add the string to
+  * @param data The data to append
+  * @param len The size of the data to append
+  *
+  * @return The number of bytes added to the string
+  */
+int ipc_append_buffer(struct IPCBuffer *buffer, const void *data, int len);
+
+/**
+  * Returns the number of bytes in the buffer.
+  *
+  * @param buffer The buffer whose size you want to know
+  *
+  * @return The number of bytes in the buffer
+  */
+size_t ipc_buffer_size(struct IPCBuffer *buffer);
+
+typedef size_t (*ipc_buffer_cb)(const char *data, size_t dataLen, void *arg);
+/**
+  * This function processes data contained in a buffer via a callback function.
+  * The buffer is processed until the callback indicates there is nothing else
+  * that can be processed.
+  *
+  * @param buffer The buffer to process data from
+  * @param cb The callback function to use to process the data.  The function
+  *           returns the number of bytes processed.  It will be called in a
+  *           loop until it returns 0.
+  * @param arg The parameter to pass into the callback function
+  *
+  * @return The number of bytes processed from the buffer
+  */
+int ipc_process_buffer(struct IPCBuffer *buffer, ipc_buffer_cb cb, void *arg);
+
+struct ProcessData;
+struct IPC_Command;
+enum IPC_CB_TYPE { IPC_CB_TYPE_COOKED = 1, IPC_CB_TYPE_RAW = 2 };
+
+typedef void (*IPC_command_callback)(struct ProcessData *proc, int timeout, void *arg, char *resp_buff, size_t resp_len, enum IPC_CB_TYPE cb_type);
+
+extern int IPC_command_blocking(uint32_t command,
+      void *params, uint32_t param_type,
+      struct sockaddr_in dest, IPC_command_callback cb, void *,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout);
+extern int IPC_command(struct ProcessData*, uint32_t command, void *params,
+      uint32_t param_type,
+      struct sockaddr_in dest, IPC_command_callback cb, void *,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout);
+extern void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
+      uint32_t param_type, void *params, struct sockaddr_in *dest);
+extern void IPC_error(struct ProcessData *proc, struct IPC_Command *cmd,
+      uint32_t error_code, struct sockaddr_in *dest);
 
 #ifdef __cplusplus
 }

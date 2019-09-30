@@ -27,6 +27,7 @@
 #include "events.h"
 #include "ipc.h"
 #include "cmd.h"
+#include "critical.h"
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -43,6 +44,9 @@ extern "C" {
 /// Path where all of the .proc files are stored
 #define PROC_FILE_PATH "/var/run"
 
+#define SCHEDULE_KEY_MAX 128
+#define NOT_SCHEDULED -1
+
 
 enum WatchdogMode {
    /// Constant for enabling the watchdog when initializing a process.
@@ -52,13 +56,33 @@ enum WatchdogMode {
 };
 
 /** Type which contains event handler information **/
-typedef struct ProcessData ProcessData;
+typedef struct ProcessData {
+   EVTHandler *evtHandler;
+   int keyToIdMap[SCHEDULE_KEY_MAX];
+   //Socket
+   int cmdFd, txFd;
+   int sigPipe[2];
+   struct ProcSignalCB *signalCBHead;
+   struct ProcChild *childHead;
+   struct ProcWriteNode *writeListHead;
+   char *name;
+   int cmdPort;
+   void *callbackContext;
+   //cmds holds the parsed, .cmd.cfg file call backs along with other info
+   struct CommandCbArg *cmds;
+   struct CSState criticalState;
+} ProcessData;
 
 /** Returns the EVTHandler context for the process.  Needed to directly call
   * EVT_* functions.
   **/
 EVTHandler *PROC_evt(ProcessData *proc);
 
+struct XDR_CommandHandlers {
+   uint32_t number;
+   CMD_XDR_handler_t cb;
+   void *arg;
+};
 /**
  * Initializes the process and creates an event handler which can
  * be used by the process to register callbacks.
@@ -69,12 +93,16 @@ EVTHandler *PROC_evt(ProcessData *proc);
  *
  * @param procName The unique process name.
  * @param wdMode Software watchdog mode.
+ * @param handlers An array, terminated with an all-zero entry, of XDR
+ *                  command handlers to register with the CMD system
  *
  * @return A ProcessData struct which can be used to register callbacks.
  *
  * @retval Initialzed ProcessData struct on success
  * @retval Null		Error
  */
+ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
+      struct XDR_CommandHandlers *handlers);
 ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode);
 
 /**
@@ -112,6 +140,8 @@ void PROC_set_context(ProcessData *proc, void *ctx);
  */
 
 int PROC_cmd(ProcessData *proc, unsigned char cmd, void *data, size_t dataLen, const char *dest);
+int PROC_cmd_raw_sockaddr(ProcessData *proc, void *data, size_t dataLen,
+      struct sockaddr_in *dest);
 
 /**
  * Sends an CMD message over the process' secondary IPC socket to the
@@ -421,7 +451,6 @@ char CHLD_stderr_reader(ProcChild *child, CHLD_buf_stream_cb_t, void *arg);
 */
 int thread_function(ProcessData *proc, void *fcn_ptr, void *arg, void *cb_fcn,
 void *cb_arg);
-
 
 #ifdef __cplusplus
 }

@@ -33,16 +33,23 @@ extern "C" {
 typedef void *(*CFG_parseCB_t)(const char *key, const char *value, void *data,
       void *p1, void *p2);
 
+struct CFG_ParseObj;
+struct CFG_buffered_obj;
+typedef struct CFG_ParseObj *(*CFG_objlookup_cb_t)(const char *name,
+      void *arg, int *buffer_obj);
+
 struct CFG_ParseCB
 {
    CFG_parseCB_t cb;
    void *p1, *p2;
 };
 
+
 struct CFG_ParseValue
 {
    const char *name;
-   struct CFG_ParseObj *subObj, **subObjArr;
+   CFG_objlookup_cb_t lookup_cb;
+   void *lookup_arg;
    struct CFG_ParseCB cb;
 };
 
@@ -82,13 +89,13 @@ void *CFG_PtrArrayAppendCB(const char *key, const char *value, void *data,
 #define CFG_MALLOC(x) { &CFG_MallocCB, (void*)(sizeof(x)), NULL }
 #define CFG_NULL { NULL, NULL, NULL }
 #define CFG_NULLK { NULL, NULL, NULL, CFG_NULL }
-#define CFG_OBJ(n, obj, str, field) { n, obj, NULL, { &CFG_PtrCpyCB, (void*)offsetof(str,field), NULL } }
-#define CFG_OBJLIST(n, objlist, str, field) { n, NULL, objlist, { &CFG_PtrCpyCB, (void*)offsetof(str,field), NULL } }
-#define CFG_OBJARR(n, obj, str, field) { n, obj, NULL, { &CFG_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
+#define CFG_OBJ(n, obj, str, field) { n, &CFG_static_obj, obj, { &CFG_PtrCpyCB, (void*)offsetof(str,field), NULL } }
+#define CFG_OBJLIST(n, objlist, str, field) { n, &CFG_static_arr_obj, objlist, { &CFG_PtrCpyCB, (void*)offsetof(str,field), NULL } }
+#define CFG_OBJARR(n, obj, str, field) { n, &CFG_static_obj, obj, { &CFG_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
 
-#define CFG_OBJLISTARR(n, objlist, str, field) { n, NULL, objlist, { &CFG_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
+#define CFG_OBJLISTARR(n, objlist, str, field) { n, &CFG_static_obj, objlist, { &CFG_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
 
-#define CFG_OBJCB(n, obj, cb) { n, obj, NULL, { &cb, NULL, NULL } }
+#define CFG_OBJCB(n, obj, cb) { n, &CFG_static_obj, obj, { &cb, NULL, NULL } }
 #define CFG_STRDUP(n, str, field) { n, NULL, NULL, { &CFG_StrdupCB, (void*)offsetof(str,field), NULL } }
 #define CFG_UINT32(n, str, field) { n, NULL, NULL, { &CFG_uint32_CB, (void*)offsetof(str,field), NULL } }
 #define CFG_UINT16(n, str, field) { n, NULL, NULL, { &CFG_uint16_CB, (void*)offsetof(str,field), NULL } }
@@ -144,6 +151,21 @@ typedef void (*CFG_objFreeCb_t)(void*);
  **/
 void CFG_freeArray(struct CFG_Array *arr, CFG_objFreeCb_t freeCb);
 
+/**
+  * \brief Object description function that always returns the pointer 
+  *           from the lookup_arg field.
+  **/
+struct CFG_ParseObj *CFG_static_obj(
+      const char *name, void *arg, int *buffer_obj);
+
+/**
+  * \brief Object description function that loops through an array of static
+  *           object descriptions and matches based on name.
+  **/
+struct CFG_ParseObj *CFG_static_arr_obj(
+      const char *name, void *arg, int *buffer_obj);
+
+void *CFG_cfg_for_object_buffer(struct CFG_buffered_obj *obj);
 #ifdef __cplusplus
 }
 #endif
