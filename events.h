@@ -193,7 +193,7 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
 void *EVT_sched_remove(EVTHandler *handler, void *eventId);
 
 /**
- * Remove a scheduled event.
+ * Reterive the amount of time until a scheduled event occurs.
  *
  * @param handler The event handler.
  * @param event The event to query.
