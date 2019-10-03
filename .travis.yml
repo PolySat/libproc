@@ -15,5 +15,6 @@ install:
   - git clone https://github.com/polysat/polyxdr ~/polyxdr
   - cd ~/polyxdr
   - sudo python3 setup.py install
+  - source ~/.bashrc
 
 script: make
