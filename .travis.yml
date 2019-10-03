@@ -15,7 +15,7 @@ install:
   - git clone https://github.com/polysat/polyxdr
   - cd polyxdr
   # polyxdr should really have a requirements.txt file
-  - pip3 install nose tenjin pyparsing
+  - pip install nose tenjin pyparsing
   - sudo python3 setup.py install
   - source ~/.bashrc
   - cd ..
