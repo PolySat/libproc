@@ -16,5 +16,6 @@ install:
   - cd ~/polyxdr
   - sudo python3 setup.py install
   - source ~/.bashrc
+  - cd ~/Polysat/libproc
 
 script: make
