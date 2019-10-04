@@ -11,7 +11,7 @@ compiler:
   - gcc
 
 install:
-  - sudo apt-get install python3
+  - sudo apt-get install python3.7
   - git clone https://github.com/polysat/polyxdr
   - cd polyxdr
   - sudo python3 setup.py install
