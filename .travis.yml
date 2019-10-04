@@ -1,6 +1,5 @@
 language: c
-dist: trusty
-sudo: false
+dist: xenial
 
 os:
   - linux
@@ -12,12 +11,10 @@ compiler:
   - gcc
 
 install:
+  - sudo apt-get install python3
   - git clone https://github.com/polysat/polyxdr
   - cd polyxdr
-  # polyxdr should really have a requirements.txt file
-  - pip install nose tenjin pyparsing --user
-  - sudo python setup.py install
-  - source ~/.bashrc
+  - sudo python3 setup.py install
   - cd ..
 
 script: make
