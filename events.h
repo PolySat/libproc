@@ -325,16 +325,16 @@ class EventManager
       struct EventState *state() { return ctx; }
 
       void AddEvent(int fd, EVT_fd_cb cb, void *p, int event,
-            EVT_fd_cb cleanup = nullptr)
+            EVT_fd_cb cleanup = NULL)
          { EVT_fd_add_with_cleanup(ctx, fd, event, cb, cleanup, p); }
       void AddReadEvent(int fd, EVT_fd_cb cb, void *p,
-            EVT_fd_cb cleanup = nullptr)
+            EVT_fd_cb cleanup = NULL)
          { AddEvent(fd, cb, p, EVENT_FD_READ, cleanup); }
       void AddWriteEvent(int fd, EVT_fd_cb cb, void *p,
-            EVT_fd_cb cleanup = nullptr)
+            EVT_fd_cb cleanup = NULL)
          { AddEvent(fd, cb, p, EVENT_FD_WRITE, cleanup); }
       void AddErrorEvent(int fd, EVT_fd_cb cb, void *p,
-            EVT_fd_cb cleanup = nullptr)
+            EVT_fd_cb cleanup = NULL)
          { AddEvent(fd, cb, p, EVENT_FD_ERROR, cleanup); }
 
       template<class T>
