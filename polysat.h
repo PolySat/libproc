@@ -31,5 +31,7 @@
 #include <polysat/ipc.h>
 #include <polysat/cmd.h>
 #include <polysat/md5.h>
+#include <polysat/telm_dict.h>
+#include <polysat/plugin.h>
 
 #endif

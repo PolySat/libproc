@@ -43,9 +43,7 @@
 #include <time.h>
 #include "critical.h"
 #include <pthread.h>
-
-#define SCHEDULE_KEY_MAX 128
-#define NOT_SCHEDULED -1
+#include "ipc.h"
 
 #define READ_BUFF_MIN 4096
 #define READ_BUFF_MAX (READ_BUFF_MIN * 4)
@@ -58,23 +56,6 @@ static int setup_signal_fd(ProcessData *proc);
 
 //When a socket is written to, this is the call back that is called
 static int socket_write_cb(int fd, char type, void * arg);
-
-struct ProcessData {
-   EVTHandler *evtHandler;
-   int keyToIdMap[SCHEDULE_KEY_MAX];
-   //Socket
-   int cmdFd, txFd;
-   int sigPipe[2];
-   struct ProcSignalCB *signalCBHead;
-   struct ProcChild *childHead;
-   struct ProcWriteNode *writeListHead;
-   char *name;
-   int cmdPort;
-   void *callbackContext;
-   //cmds holds the parsed, .cmd.cfg file call backs along with other info
-   struct CommandCbArg cmds;
-   struct CSState criticalState;
-};
 
 /* Structure which defines a signal callback */
 struct ProcSignalCB
@@ -124,6 +105,8 @@ struct CSState *proc_get_cs_state(ProcessData *proc)
 
 static ProcessData *watchProc = NULL;
 static int proc_cmd_sockaddr_internal(ProcessData *proc, int fd, unsigned char cmd, void *data, size_t dataLen, struct sockaddr_in *dest);
+int proc_cmd_sockaddr_raw_internal(ProcessData *proc, int fd, void *data,
+      size_t dataLen, struct sockaddr_in *dest);
 
 static void watchdog_reg_info(int fd, unsigned char cmd, void *data,
    size_t dataLen, struct sockaddr_in *src)
@@ -172,8 +155,21 @@ int PROC_udp_id(ProcessData *proc)
    return proc->cmdPort;
 }
 
-//Initializes a ProcessData object
+static void PROC_debugger_state(struct IPCBuffer *buff, void *arg)
+{
+   ProcessData *proc = (ProcessData*)arg;
+
+   ipc_printf_buffer(buff, "  \"process_name\": \"%s\",\n", proc->name);
+}
+
 ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
+{
+   return PROC_init_xdr(procName, wdMode, NULL);
+}
+
+//Initializes a ProcessData object
+ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
+      struct XDR_CommandHandlers *handlers)
 {
    ProcessData *proc;
    char filepath[80];
@@ -181,6 +177,7 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
    int fd;
    FILE *inp;
    int oldPid = -1;
+
 #ifdef TIME_TEST
    struct timeval startTime;
    struct timeval endTime;
@@ -193,8 +190,6 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
    if (!proc)
       return NULL;
    memset(proc, 0, sizeof(*proc));
-   proc->signalCBHead = NULL;                           //Redundant?
-   proc->childHead = NULL;
 
    // Allocate enough space for process name and terminating null byte
    if (procName) {
@@ -278,18 +273,24 @@ ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
          "Failed to open TX socket for %s\n", procName);
 
    // Initialize event handler and return it
-   proc->evtHandler = EVT_create_handler();
+   proc->evtHandler = EVT_create_handler(PROC_debugger_state, proc);
+   EVT_set_debugger_port(proc->evtHandler, socket_get_addr_by_name(proc->name));
    //set up sigPipe to take signals. Signals will be treated as an event with cb 'signal_fd_cb'
    setup_signal_fd(proc);
 
    // initialize command handler: commands are loaded from .cmd.cfg file
-   if (cmd_handler_init(procName, &proc->cmds) == -1) {
+   if (cmd_handler_init(procName, proc, &proc->cmds) == -1) {
       return NULL;
    }
+   // Add in XDR handlers
+   for(; handlers && handlers->number; handlers++)
+      CMD_set_xdr_cmd_handler(handlers->number, handlers->cb, handlers->arg);
    //Event for when something (probably a command) appears on the fd
-   EVT_fd_add(proc->evtHandler, proc->cmdFd, EVENT_FD_READ, cmd_handler_cb, &proc->cmds);
+   EVT_fd_add(proc->evtHandler, proc->cmdFd, EVENT_FD_READ, cmd_handler_cb, proc);
+   EVT_fd_set_name(proc->evtHandler, proc->cmdFd, "UDP Command Socket");
    //Event for when something (probably a command response) appears on the fd
    EVT_fd_add(proc->evtHandler, proc->txFd, EVENT_FD_READ, tx_cmd_handler_cb, proc);
+   EVT_fd_set_name(proc->evtHandler, proc->txFd, "UDP Request Socket");
    //Set up SIGCHLD signal handler
    PROC_signal(proc, SIGCHLD, &sigchld_handler, proc);
 
@@ -324,7 +325,7 @@ void PROC_cleanup(ProcessData *proc)
    if (!proc) //Already clean
       return;
 
-   cmd_cleanup_cb_state(&proc->cmds, proc->evtHandler);
+   cmd_cleanup_cb_state(proc->cmds, proc->evtHandler);
    critical_state_cleanup(&proc->criticalState);
 
    // Clear errno to prevent false errors
@@ -495,6 +496,7 @@ static void PROC_signal_handler(int sigNum, siginfo_t *si, void *p)
 static int setup_signal_fd(ProcessData *proc)
 {
    int currFlags;
+   int res;
    if (-1 != signalWriteFD)
       return 0;
 
@@ -509,8 +511,10 @@ static int setup_signal_fd(ProcessData *proc)
       return -1;
 
    signalWriteFD = proc->sigPipe[1];
-   return EVT_fd_add(proc->evtHandler, proc->sigPipe[0],
+   res = EVT_fd_add(proc->evtHandler, proc->sigPipe[0],
          EVENT_FD_READ, signal_fd_cb, proc);
+   EVT_fd_set_name(proc->evtHandler, proc->sigPipe[0], "Signal Pipe");
+   return res;
 }
 
 int PROC_signal(struct ProcessData *proc, int sigNum, PROC_signal_cb cb,
@@ -703,8 +707,8 @@ ProcChild *PROC_fork_child_fd(struct ProcessData *proc, int inFd_read, int inFd_
    char **argv = NULL;
    pid_t childPid;
 
-   if(vasprintf(&cmd, cmdFmt, ap) <= 0) {
-      DBG_print(DBG_LEVEL_WARN, "Unsuccessful memory allocation\n");
+   if(vasprintf(&cmd, cmdFmt, ap) < 0) {
+      ERR_REPORT(DBG_LEVEL_WARN, "vasprintf failure\n");
       goto err_cleanup;
    }
 
@@ -871,6 +875,8 @@ void CHLD_close_fd(ProcChild *child, int fd)
 
 char CHLD_ignore_stderr(ProcChild *child)
 {
+   int res;
+
    if (!child)
       return 0;
    if (child->stderr_fd < 0)
@@ -878,12 +884,17 @@ char CHLD_ignore_stderr(ProcChild *child)
    if (!child->parentData)
       return 1;
 
-   return EVT_fd_add(child->parentData->evtHandler, child->stderr_fd,
+   res = EVT_fd_add(child->parentData->evtHandler, child->stderr_fd,
          EVENT_FD_READ, dump_child_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stderr_fd,
+         "child %u stderr dump", child->procId);
+   return res;
 }
 
 char CHLD_ignore_stdout(ProcChild *child)
 {
+   int res;
+
    if (!child)
       return 0;
    if (child->stdout_fd < 0)
@@ -891,8 +902,11 @@ char CHLD_ignore_stdout(ProcChild *child)
    if (!child->parentData)
       return 1;
 
-   return EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
+   res = EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
          EVENT_FD_READ, dump_child_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stdout_fd,
+         "child %u stdout dump", child->procId);
+   return res;
 }
 
 char CHLD_death_notice(ProcChild *child, CHLD_death_cb_t deathCb, void *arg)
@@ -1014,6 +1028,8 @@ static int child_read_data(int fd, char type, void *arg)
 
 char CHLD_stdout_reader(ProcChild *child, CHLD_buf_stream_cb_t cb, void *arg)
 {
+   int res;
+
    if (!child)
       return 0;
    if (child->stdout_fd < 0)
@@ -1024,12 +1040,17 @@ char CHLD_stdout_reader(ProcChild *child, CHLD_buf_stream_cb_t cb, void *arg)
    child->streamState[0].cb = cb;
    child->streamState[0].arg = arg;
 
-   return EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
+   res = EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
          EVENT_FD_READ, child_read_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stdout_fd,
+         "child %u stdout reader", child->procId);
+   return res;
 }
 
 char CHLD_stderr_reader(ProcChild *child, CHLD_buf_stream_cb_t cb, void *arg)
 {
+   int res;
+
    if (!child)
       return 0;
    if (child->stderr_fd < 0)
@@ -1040,8 +1061,12 @@ char CHLD_stderr_reader(ProcChild *child, CHLD_buf_stream_cb_t cb, void *arg)
    child->streamState[1].cb = cb;
    child->streamState[1].arg = arg;
 
-   return EVT_fd_add(child->parentData->evtHandler, child->stderr_fd,
+   res = EVT_fd_add(child->parentData->evtHandler, child->stderr_fd,
          EVENT_FD_READ, child_read_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stderr_fd,
+         "child %u stderr reader", child->procId);
+
+   return res;
 }
 
 struct MsgData {
@@ -1074,18 +1099,7 @@ int socket_write_cb(int fd, char type, void * arg)
 int PROC_loopback_cmd(struct ProcessData *proc,
             int cmdNum, void *data, size_t dataLen)
 {
-   struct sockaddr_in dummy;
-
-   if (cmdNum < 0 || cmdNum >= MAX_NUM_CMDS)
-      return -1;
-
-   if (!proc->cmds.cmds[cmdNum].cmd_cb)
-      return -2;
-
-   memset(&dummy, 0, sizeof(dummy));
-   proc->cmds.cmds[cmdNum].cmd_cb(proc->cmdFd, cmdNum, data, dataLen, &dummy);
-
-   return 0;
+   return CMD_loopback_cmd(proc->cmds, proc->cmdFd, cmdNum, data, dataLen);
 }
 
 int PROC_multi_cmd(ProcessData *proc, unsigned char cmd, void *data,
@@ -1129,7 +1143,6 @@ static int proc_cmd_internal(ProcessData *proc, int fd, unsigned char cmd, void 
    return retval;
 }
 
-
 int PROC_cmd(ProcessData *proc, unsigned char cmd, void *data, size_t dataLen, const char *dest)
 {
    return proc_cmd_internal(proc, proc->cmdFd, cmd, data, dataLen, dest);
@@ -1145,27 +1158,26 @@ int PROC_cmd_sockaddr(ProcessData *proc, unsigned char cmd, void *data, size_t d
    return proc_cmd_sockaddr_internal(proc, proc->cmdFd, cmd, data, dataLen, dest);
 }
 
+int PROC_cmd_raw_sockaddr(ProcessData *proc, void *data, size_t dataLen,
+      struct sockaddr_in *dest)
+{
+   return proc_cmd_sockaddr_raw_internal(proc, proc->cmdFd, data, dataLen, dest);
+}
+
 int PROC_cmd_sockaddr_secondary(ProcessData *proc, unsigned char cmd, void *data, size_t dataLen, struct sockaddr_in *dest)
 {
    return proc_cmd_sockaddr_internal(proc, proc->txFd, cmd, data, dataLen, dest);
 }
 
-int proc_cmd_sockaddr_internal(ProcessData *proc, int fd, unsigned char cmd, void *data, size_t dataLen, struct sockaddr_in *dest)
+int proc_cmd_sockaddr_raw_internal(ProcessData *proc, int fd, void *data,
+      size_t dataLen, struct sockaddr_in *dest)
 {
    int retval = 0;
    struct MsgData *msg = (struct MsgData*)malloc(sizeof(struct MsgData));
 
    // create buffer large enough to fit data + command
-   msg->data = (char*)malloc(dataLen+1);
-
-   // set first byte of data to be the command
-   msg->data[0] = cmd;
-
-   // new length is total data + 1 byte for the command
-   msg->dataLen = dataLen + 1;
-
-   // copy the data/arguments into the buffer
-   memcpy((msg->data)+1, data, dataLen);
+   msg->data = data;
+   msg->dataLen = dataLen;
 
    // send the data
    errno = 0;
@@ -1182,31 +1194,41 @@ int proc_cmd_sockaddr_internal(ProcessData *proc, int fd, unsigned char cmd, voi
       msg->proc = proc;
       msg->dest = *dest;
       // schedule a write for when buffer is available
-      EVT_fd_add(PROC_evt(proc), fd, EVENT_FD_WRITE, socket_write_cb, (void*)msg);
+      EVT_fd_add(PROC_evt(proc), fd, EVENT_FD_WRITE, socket_write_cb,
+            (void*)msg);
+      retval = msg->dataLen;
    }
 
    return retval;
+}
+
+int proc_cmd_sockaddr_internal(ProcessData *proc, int fd, unsigned char cmd, void *data, size_t dataLen, struct sockaddr_in *dest)
+{
+   char *d;
+
+   // create buffer large enough to fit data + command
+   d = (char*)malloc(dataLen+1);
+
+   // set first byte of data to be the command
+   d[0] = cmd;
+
+   // copy the data/arguments into the buffer
+   memcpy(d+1, data, dataLen);
+   return proc_cmd_sockaddr_raw_internal(proc, fd, d, dataLen + 1, dest);
 }
 
 int PROC_set_cmd_handler(struct ProcessData *proc,
             int cmdNum, CMD_handler_t handler, uint32_t uid,
             uint32_t group, uint32_t protection)
 {
-   if (cmdNum < 0 || cmdNum >= MAX_NUM_CMDS)
-      return -1;
-
-   proc->cmds.cmds[cmdNum].cmd_cb = handler;
-   proc->cmds.cmds[cmdNum].uid = uid;
-   proc->cmds.cmds[cmdNum].group = group;
-   proc->cmds.cmds[cmdNum].prot = protection;
-
-   return 0;
+   return CMD_set_cmd_handler(proc->cmds, cmdNum, handler,
+         uid, group, protection);
 }
 
 int PROC_set_multicast_handler(struct ProcessData *proc, const char *service,
       int cmdNum, MCAST_handler_t handler, void *arg)
 {
-   cmd_set_multicast_handler(&proc->cmds, proc->evtHandler, service, cmdNum,
+   cmd_set_multicast_handler(proc->cmds, proc->evtHandler, service, cmdNum,
       handler, arg);
 
    return 0;
@@ -1401,4 +1423,3 @@ cleanup:
    free(data);
    return 1;
 }
-

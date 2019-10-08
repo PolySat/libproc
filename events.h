@@ -25,6 +25,11 @@
 #define EVENTS_H
 
 #include <time.h>
+#include <sys/select.h>
+
+#include "priorityQueue.h"
+#include "ipc.h"
+#include "zmqlite.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,9 +45,17 @@ extern "C" {
 #define EVENT_KEEP     1 // Keep an event
 #define EVENT_REMOVE   2 // Remove an event
 
-// Type which contains event handler information
-struct EventState;
-typedef struct EventState EVTHandler;
+typedef void (*EVT_debug_state_cb)(struct IPCBuffer*, void*);
+
+enum EVTDebuggerState {
+   /// The debugger is disabled
+   EDBG_DISABLED = 1,
+   /// The debuger is enabled
+   EDBG_ENABLED = 2,
+   /// The debugger is enabled and the process is stopped
+   EDBG_STOPPED = 3,
+};
+
 
 // A callback for a file descriptor event
 typedef int (*EVT_fd_cb)(int fd, char type, void *arg);
@@ -50,12 +63,17 @@ typedef int (*EVT_fd_cb)(int fd, char type, void *arg);
 // A callback for a scheduled event
 typedef int (*EVT_sched_cb)(void *arg);
 
+// Type which contains event handler information
+struct EventState;
+typedef struct EventState EVTHandler;
+
 /**
  * Create an event handler.
+ * @param arg Context parameter passed to debugging related functions.
  *
  * @return The event handler.
  */
-EVTHandler *EVT_create_handler();
+EVTHandler *EVT_create_handler(EVT_debug_state_cb debug_cb, void *arg);
 
 /**
  * Free an event handler.
@@ -111,7 +129,19 @@ char EVT_fd_add_with_cleanup(EVTHandler *handler, int fd, int type,
  * @param type Type of file descriptor event (EVENT_FD_READ, EVENT_FD_WRITE,
  * or EVENT_FD_ERROR).
  */
+
 void EVT_fd_remove(EVTHandler *handler, int fd, int type);
+
+/**
+ * Provide a debugging name for a file descriptor
+ *
+ * @param handler The event handler.
+ * @param fd The file descriptor.
+ * @param fmt The format specifier for the name
+ * @param ... The parameters to the format specifier
+ */
+void EVT_fd_set_name(EVTHandler *handler, int fd, const char *fmt, ...)
+                     __attribute__ ((format (printf, 3, 4)));
 
 /**
   * Convert a millisecond value into a timeval suitable for registering
@@ -163,6 +193,16 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
 void *EVT_sched_remove(EVTHandler *handler, void *eventId);
 
 /**
+ * Reterive the amount of time until a scheduled event occurs.
+ *
+ * @param handler The event handler.
+ * @param event The event to query.
+ *
+ * @return The amount of time remaining before the event is triggered.
+ */
+struct timeval EVT_sched_remaining(EVTHandler *handler, void *eventId);
+
+/**
  * Update a scheduled event.  The new full time will elapse before
  *   the callback is called.
  *
@@ -185,6 +225,16 @@ char EVT_sched_update(EVTHandler *handler, void *eventId, struct timeval time);
  * @return 0 on success, other value if it is not found
  */
 char EVT_sched_update_partial_credit(EVTHandler *handler, void *eventId, struct timeval time);
+
+/**
+ * Provide a debugging name for a scheduled event.
+ *
+ * @param event The event to name.
+ * @param fmt The format specifier for the name
+ * @param ... The parameters to the format specifier
+ */
+void EVT_sched_set_name(void *eventId, const char *fmt, ...)
+                     __attribute__ ((format (printf, 2, 3)));
 
 /**
  * Starts the main event loop.  Control of the program is given to the
@@ -300,6 +350,22 @@ int EVT_add_pending_reboot_cb(EVTHandler *handler ,EVT_sched_cb cb, void *arg);
   */
 int EVT_remove_pending_reboot_cb(EVTHandler *handler, EVT_sched_cb cb, void *arg);
 
+/** Sets the debugger's initial state to the provided paramater.  Can be
+  * used to programatically enable remote event debugging.  This must be called
+  * before entering the event loop, otherwise it has no effect.
+  * @param handler The event handler.
+  * @param st The state to use when initializing the debugger.
+  */
+void EVT_set_initial_debugger_state(EVTHandler *handler,
+      enum EVTDebuggerState st);
+
+/** Sets the TCP port used by the event debugger.
+  *
+  * @param handler The event handler.
+  * @param port The port number to use
+  */
+void EVT_set_debugger_port(EVTHandler *handler, int port);
+
 #ifdef __cplusplus
 }
 
@@ -307,7 +373,7 @@ class EventManager
 {
    public:
       EventManager() : free_state(true) {
-         ctx = EVT_create_handler();
+         ctx = EVT_create_handler(NULL, NULL);
       }
 
       EventManager(struct EventState *state) : ctx(state),

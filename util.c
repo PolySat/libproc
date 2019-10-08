@@ -27,6 +27,7 @@
 #include <sys/time.h>
 
 #include "util.h"
+#include "ipc.h"
 #include "priorityQueue.h"
 #include "debug.h"
 

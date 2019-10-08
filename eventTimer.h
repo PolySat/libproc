@@ -57,7 +57,7 @@ struct EventTimer {
     * in nextAwake elapses.
     */
    int (*block)(struct EventTimer *et, struct timeval *nextAwake,
-          ET_block_cb blockcb, void *arg);
+         int pauseWhileBlocked, ET_block_cb blockcb, void *arg);
 
    /**
     * Return the current gmt time.
@@ -81,6 +81,11 @@ struct EventTimer {
  * @param The initial clock time.
  */
 struct EventTimer *ET_default_init();
+
+/**
+ * Create an event timer for use with the debugger. Standard libproc execution.
+ */
+struct EventTimer *ET_rtdebug_init();
 
 /**
  * Create a virtual event manager, which executes timed events as fast as possible.

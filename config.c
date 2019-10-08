@@ -32,6 +32,14 @@
 #include "config.h"
 #include "debug.h"
 
+struct CFG_buffered_obj
+{
+   void *parsed_cfg;
+   char *buff;
+   size_t len;
+   struct CFG_ParseValue val;
+};
+
 static char gConfigPath[PATH_MAX+1] = "";
 
 const char *CFG_getPath()
@@ -82,6 +90,11 @@ int CFG_locateConfigFile(const char *name)
 struct CFG_Context {
    FILE *file;
    int lineNum;
+   char *accum;
+   size_t used, len;
+   char *replay;
+   int stop;
+   int allow_buffering;
    char buff[1024*4];
 };
 
@@ -97,6 +110,22 @@ static int NextLine(struct CFG_Context *ctx)
 {
    int len, start, i;
    int skipFlag = 0; //If full line is not read in, skip last bit of junk
+   char *sep;
+
+   if (ctx->replay) {
+      sep = strchr(ctx->replay, '\n');
+      if (sep)
+         *sep++ = 0;
+      strncpy(ctx->buff, ctx->replay, sizeof(ctx->buff));
+      ctx->buff[sizeof(ctx->buff) - 1] = 0;
+      ctx->replay = sep;
+      if (!sep)
+         ctx->stop = 1;
+      ctx->lineNum++;
+      return 1;
+   }
+   if (ctx->stop)
+      return 1;
 
    for ( ; NULL != fgets(ctx->buff, sizeof(ctx->buff), ctx->file);
                ++ctx->lineNum) {
@@ -145,7 +174,7 @@ static void *processKeyValueLine(struct CFG_Context *ctx,
    for(curr = keys; curr && curr->name; curr++) {
       if (!strcasecmp(curr->name, key)) {
          found = 1;
-         if (curr->subObj) {
+         if (curr->lookup_cb) {
             DBG_print(DBG_LEVEL_WARN, "Warning: Option name '%s' can not be a "
                   "sub-object at line %d\n", key, ctx->lineNum);
          } else {
@@ -162,6 +191,27 @@ static void *processKeyValueLine(struct CFG_Context *ctx,
    return data;
 }
 
+static void accumulate_line(struct CFG_Context *ctx)
+{
+   int len = strlen(ctx->buff);
+
+   if (!ctx->accum || !ctx->len) {
+      ctx->len = 1024;
+      ctx->accum = malloc(ctx->len);
+      ctx->used = 0;
+   }
+
+   if (len >= ctx->len - ctx->used - 3) {
+      ctx->len *= 2;
+      ctx->accum = realloc(ctx->accum, ctx->len);
+   }
+
+   memcpy(&ctx->accum[ctx->used], ctx->buff, len);
+   ctx->used += len;
+   ctx->accum[ctx->used++] = '\n';
+   ctx->accum[ctx->used] = 0;
+}
+
 static void *ParseObject(struct CFG_Context *ctx, struct CFG_ParseObj *parObj,
       void *parData)
 {
@@ -170,9 +220,11 @@ static void *ParseObject(struct CFG_Context *ctx, struct CFG_ParseObj *parObj,
    char *objLcl, *paramsLcl = NULL;
    int more;
    struct CFG_ParseValue *curr = NULL;
-   struct CFG_ParseObj *child = NULL, **itr = NULL;
+   struct CFG_ParseObj *child = NULL;
    void *data = NULL;
    char subobj_type_buff[256];
+   int buffer_obj = ctx->allow_buffering;
+   struct CFG_buffered_obj *obj_buff = NULL;
 
    subobj_type_buff[0] = 0;
    if (obj[strlen(obj)-1] != '>') {
@@ -203,38 +255,46 @@ static void *ParseObject(struct CFG_Context *ctx, struct CFG_ParseObj *parObj,
        }
    }
 
-
-   if (parObj) {
+   if (parObj && !ctx->accum) {
       for(curr = parObj->keys; curr->name; curr++) {
          if (!strcasecmp(obj, curr->name))
             break;
       }
       if (!curr->name)
          curr = NULL;
-      if (curr && !curr->subObj && !curr->subObjArr) {
+      if (curr && !curr->lookup_cb) {
          DBG_print(DBG_LEVEL_WARN, "Warning: Option %s not a sub"
                "-object ,line %d\n", obj, ctx->lineNum);
          curr = NULL;
-      } else if (curr && curr->subObj) {
-         child = curr->subObj;
       }
-      else if (curr && !curr->subObj && curr->subObjArr) {
+      else if (curr && curr->lookup_cb) {
          snprintf(subobj_type_buff, sizeof(subobj_type_buff), "__type_%s", obj);
          subobj_type_buff[sizeof(subobj_type_buff)-1] = 0;
-
-         child = NULL;
-         itr = curr->subObjArr;
-         while(*itr) {
-            if (!strcasecmp((*itr)->subtype, paramsLcl)) {
-               child = *itr;
-               break;
-            }
-            itr++;
+         child = curr->lookup_cb(paramsLcl, curr->lookup_arg, &buffer_obj);
+         if (buffer_obj) {
+            obj_buff = (struct CFG_buffered_obj*) malloc(sizeof(*obj_buff));
+            memset(obj_buff, 0, sizeof(*obj_buff));
+            obj_buff->val = *curr;
          }
       }
    }
 
-   if (!child)
+   if (ctx->accum || (!child && obj_buff)) {
+      char *oterm = &obj[strlen(obj)];
+      if (params) {
+         *oterm = ' ';
+         params[strlen(params)] = '>';
+      }
+      else
+         *oterm = '>';
+
+      accumulate_line(ctx);
+      *oterm = 0;
+      if (params)
+         params[strlen(params) - 1] = 0;
+   }
+
+   if (!child && !ctx->accum)
       DBG_print(DBG_LEVEL_WARN, "Warning: Description for '%s/%s' not found, "
             "line %d\n", obj, paramsLcl, ctx->lineNum);
 
@@ -242,30 +302,37 @@ static void *ParseObject(struct CFG_Context *ctx, struct CFG_ParseObj *parObj,
       data = (*child->initCb.cb)(objLcl, paramsLcl, data,
             child->initCb.p1, child->initCb.p2);
 
-   if (child && paramsLcl) {
+   if (paramsLcl) {
       struct CFG_ParseValue *currLine = NULL;
-      for(currLine = parObj->keys; currLine && currLine->name; currLine++) {
-         if (!strcasecmp(currLine->name, subobj_type_buff)) {
-            if (currLine->cb.cb)
-               (*currLine->cb.cb)(subobj_type_buff, paramsLcl, parData,
-                           currLine->cb.p1, currLine->cb.p2);
-            break;
+      if (parObj) {
+         for(currLine = parObj->keys; currLine && currLine->name; currLine++) {
+            if (!strcasecmp(currLine->name, subobj_type_buff)) {
+               if (currLine->cb.cb)
+                  (*currLine->cb.cb)(subobj_type_buff, paramsLcl, parData,
+                              currLine->cb.p1, currLine->cb.p2);
+               break;
+            }
          }
       }
 
-      for(currLine = child->keys; currLine && currLine->name; currLine++) {
-         if (!strcasecmp(currLine->name, "__type")) {
-            if (currLine->cb.cb)
-               (*currLine->cb.cb)("__type", paramsLcl, data,
-                           currLine->cb.p1, currLine->cb.p2);
-            break;
+      if (child) {
+         for(currLine = child->keys; currLine && currLine->name; currLine++) {
+            if (!strcasecmp(currLine->name, "__type")) {
+               if (currLine->cb.cb)
+                  (*currLine->cb.cb)("__type", paramsLcl, data,
+                              currLine->cb.p1, currLine->cb.p2);
+               break;
+            }
          }
       }
    }
 
    while((more = NextLine(ctx)) ) {
       obj = ctx->buff;
+
       if (obj[0] == '<' && obj[1] == '/')  {
+         if (ctx->accum)
+            accumulate_line(ctx);
          obj[strlen(obj) - 1] = 0;
          if (strlen(obj) < 3 || strcasecmp(&obj[2], objLcl)) {
             DBG_print(DBG_LEVEL_WARN, "Warning: Malformed end object line in "
@@ -276,11 +343,17 @@ static void *ParseObject(struct CFG_Context *ctx, struct CFG_ParseObj *parObj,
       }
 
       if (obj[0] == '<') {
+         buffer_obj = ctx->allow_buffering;
+         ctx->allow_buffering = 1;
          data = ParseObject(ctx, child, data);
+         ctx->allow_buffering = buffer_obj;
          continue;
       }
 
-      data = processKeyValueLine(ctx, child ? child->keys : NULL, data);
+      if (!ctx->accum)
+         data = processKeyValueLine(ctx, child ? child->keys : NULL, data);
+      else
+         accumulate_line(ctx);
    }
    if (!more) {
       DBG_print(DBG_LEVEL_WARN, "Warning: permature end of config file\n");
@@ -290,17 +363,63 @@ static void *ParseObject(struct CFG_Context *ctx, struct CFG_ParseObj *parObj,
       data = (*child->finiCb.cb)(objLcl, paramsLcl, data,
             child->finiCb.p1, child->finiCb.p2);
 
+   if (obj_buff) {
+      if (child)
+         obj_buff->parsed_cfg = data;
+      else {
+         obj_buff->len = ctx->used;
+         obj_buff->buff = ctx->accum;
+         ctx->accum = NULL;
+         ctx->len = ctx->used = 0;
+      }
+      data = obj_buff;
+   }
+
    free(objLcl);
    if (paramsLcl)
       free(paramsLcl);
 
-   if (child && curr && curr->cb.cb)
+   if (curr && curr->cb.cb)
       data = (*curr->cb.cb)(curr->name, data, parData,
             curr->cb.p1, curr->cb.p2);
    else
       data = parData;
 
    return data;
+}
+
+void *CFG_cfg_for_object_buffer(struct CFG_buffered_obj *obj)
+{
+   struct CFG_ParseObj fake_root;
+   struct CFG_ParseValue fake_keys[2];
+   struct CFG_Context ctx;
+
+   if (!obj)
+      return NULL;
+
+   if (obj->parsed_cfg)
+      return obj->parsed_cfg;
+
+   memset(&ctx, 0, sizeof(ctx));
+   memset(&fake_root, 0, sizeof(fake_root));
+   memset(&fake_keys, 0, sizeof(fake_keys));
+   fake_keys[0] = obj->val;
+   fake_root.keys = fake_keys;
+
+   fake_keys[0].cb.cb = &CFG_PtrCpyCB;
+   fake_keys[0].cb.p1 = NULL;
+   fake_keys[0].cb.p2 = NULL;
+
+   ctx.replay = obj->buff;
+
+   if (NextLine(&ctx)) {
+      ParseObject(&ctx, &fake_root, &obj->parsed_cfg);
+   }
+   if (obj->buff)
+      free(obj->buff);
+   obj->buff = NULL;
+
+   return obj->parsed_cfg;
 }
 
 void *CFG_parseFile(struct CFG_ParseObj *rootObj)
@@ -310,9 +429,11 @@ void *CFG_parseFile(struct CFG_ParseObj *rootObj)
 
 void *CFG_parseFileAtPath(struct CFG_ParseObj *rootObj, const char *path)
 {
-   struct CFG_Context ctx = { NULL, 0 };
+   struct CFG_Context ctx;
    void *data = NULL;
 
+   memset(&ctx, 0, sizeof(ctx));
+   ctx.allow_buffering = 1;
    if( !(ctx.file = fopen(path, "r")) ){
       ERRNO_WARN("Failed to fdopen config file '%s'", path);
       return NULL;
@@ -512,4 +633,30 @@ void CFG_freeArray(struct CFG_Array *arr, CFG_objFreeCb_t freeCb)
       arr->capacity = 0;
       arr->len = 0;
    }
+}
+
+struct CFG_ParseObj *CFG_static_obj(
+      const char *params, void *arg, int *buffer_obj)
+{
+   *buffer_obj = 0;
+   return (struct CFG_ParseObj*)arg;
+}
+
+struct CFG_ParseObj *CFG_static_arr_obj(
+      const char *params, void *arg, int *buffer_obj)
+{
+   *buffer_obj = 0;
+   struct CFG_ParseObj *result = NULL, **itr;
+
+   itr = (struct CFG_ParseObj**)arg;
+
+   while(*itr) {
+      if (!strcasecmp((*itr)->subtype, params)) {
+         result = *itr;
+         break;
+      }
+      itr++;
+   }
+
+   return result;
 }

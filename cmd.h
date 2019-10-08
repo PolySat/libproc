@@ -28,9 +28,20 @@
 #ifndef CMD_H
 #define CMD_H
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "ipc.h"
 
 /**
  * There are a few global command bytes
@@ -58,36 +69,34 @@ extern "C" {
 /// Maximum number of commands
 #define MAX_NUM_CMDS 256
 
+struct EventState;
+struct IPC_Command;
+struct ProcessData;
+struct CommandCbArg;
+struct XDR_StructDefinition;
+
 // Format for a command callback function
 typedef void (*CMD_handler_t)(int socket, unsigned char cmd, void *data,
    size_t dataLen, struct sockaddr_in *fromAddr);
+
+// Format for a XDR command callback function
+typedef void (*CMD_XDR_handler_t)(struct ProcessData *, struct IPC_Command *cmd,
+   struct sockaddr_in *fromAddr, void *arg, int fd);
 
 // Format for a multicast command callback function
 typedef void (*MCAST_handler_t)(void *arg, int socket, unsigned char cmd,
    void *data, size_t dataLen, struct sockaddr_in *fromAddr);
 
-struct Command {
-   CMD_handler_t cmd_cb;
-   uint32_t uid, group, prot;
-};
-
-struct MulticastCommandState;
-struct ProcessData;
-
-struct CommandCbArg {
-   struct Command *cmds;
-   struct McastCommandState *mcast;
-   struct ProcessData *proc;
-};
-
 // Initializes the command callbacks
-int cmd_handler_init(const char * process_name, struct CommandCbArg *cmds);
+int cmd_handler_init(const char * process_name, struct ProcessData *proc,
+      struct CommandCbArg **cmds);
 
 // The actual command handler callback for the event handler
 int cmd_handler_cb(int socket, char type, void *arg);
 
-void cmd_handler_cleanup(struct CommandCbArg *cmds);
+void cmd_handler_cleanup(struct CommandCbArg **cmds);
 
+//look here to subscribe to multicasts
 void cmd_set_multicast_handler(struct CommandCbArg *st,
    struct EventState *evt_loop, const char *service, int cmdNum,
    MCAST_handler_t handler, void *arg);
@@ -98,6 +107,80 @@ void cmd_remove_multicast_handler(struct CommandCbArg *st,
 void cmd_cleanup_cb_state(struct CommandCbArg *st, struct EventState *evt_loop);
 
 int tx_cmd_handler_cb(int socket, char type, void * arg);
+
+typedef void (*CMD_struct_itr)(uint32_t type, struct XDR_StructDefinition *,
+      char *buff, size_t len, void *arg1, int arg2, const char *parent);
+extern int CMD_iterate_structs(char *src, size_t len, CMD_struct_itr itr_cb,
+      void *arg1, int arg2);
+
+// Functions to send and receive commands
+struct CMD_MulticallInfo {
+   int (*func)(struct CMD_MulticallInfo *mc, const char *commandName, 
+         int argc, char **argv, const char *host);
+   const char *name;
+   const char *opt;
+   const char *help_description;
+   const char *help_param_summary;
+   const char *help_detail;
+};
+
+struct CMD_XDRCommandInfo {
+   uint32_t command;
+   uint32_t params;
+   const char *name;
+   const char *summary;
+   uint32_t *types;
+   struct XDR_StructDefinition *parameter;
+   CMD_XDR_handler_t handler;
+   void *arg;
+};
+
+#ifdef __cplusplus
+enum XDR_PRINT_STYLE : short;
+#else
+enum XDR_PRINT_STYLE;
+#endif
+
+extern void CMD_register_commands(struct CMD_XDRCommandInfo*, int);
+extern void CMD_register_command(struct CMD_XDRCommandInfo*, int);
+extern void CMD_set_xdr_cmd_handler(uint32_t num, CMD_XDR_handler_t cb,
+      void *arg);
+extern int CMD_xdr_cmd_help(struct CMD_XDRCommandInfo *command);
+extern int CMD_mc_cmd_help(struct CMD_MulticallInfo *command);
+extern int CMD_send_command_line_command(int argc, char **argv,
+      struct CMD_MulticallInfo *mc, struct ProcessData *proc,
+      IPC_command_callback cb, void *cb_arg, unsigned int timeout,
+      const char *destProc, enum XDR_PRINT_STYLE *styleOut);
+extern int CMD_send_command_line_command_blocking(int argc, char **argv,
+      struct CMD_MulticallInfo *mc,
+      IPC_command_callback cb, void *cb_arg, unsigned int timeout,
+      const char *destProc, enum XDR_PRINT_STYLE *styleOut);
+extern int CMD_resolve_callback(struct ProcessData *proc, IPC_command_callback cb,
+      void *arg, enum IPC_CB_TYPE cb_type, void *rxbuff, size_t rxlen);
+
+extern void CMD_print_response(struct ProcessData *proc, int timeout,
+      void *arg, char *resp_buff, size_t resp_len, enum IPC_CB_TYPE cb_type);
+
+struct CMD_ErrorInfo {
+   uint32_t id;
+   const char *name;
+   const char *description;
+};
+
+extern void CMD_register_error(struct CMD_ErrorInfo *errs);
+extern void CMD_register_errors(struct CMD_ErrorInfo *errs);
+extern const char *CMD_error_message(uint32_t id);
+extern struct IPC_OpaqueStruct CMD_struct_to_opaque_struct(void *src, uint32_t type);
+extern void CMD_add_response_cb(struct ProcessData *proc, uint32_t id,
+      struct sockaddr_in host,
+      IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout);
+
+extern int CMD_set_cmd_handler(struct CommandCbArg *cmd,
+            int cmdNum, CMD_handler_t handler, uint32_t uid,
+            uint32_t group, uint32_t protection);
+extern int CMD_loopback_cmd(struct CommandCbArg *cmds, int fd,
+            int cmdNum, void *data, size_t dataLen);
 
 #ifdef __cplusplus
 }

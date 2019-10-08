@@ -25,7 +25,7 @@
 #include <time.h>
 
 int ET_default_block(struct EventTimer *et, struct timeval *nextAwake,
-      ET_block_cb blockcb, void *arg)
+      int pauseWhileBlocking, ET_block_cb blockcb, void *arg)
 {
    struct timeval diffTime, curTime, *blockTime = NULL;
    
@@ -56,8 +56,8 @@ int ET_default_monotonic(struct EventTimer *et, struct timeval *tv)
 
    #ifdef __APPLE__
 
-   res = 0
-   gettimeofday(tv, NULL)
+   res = 0;
+   gettimeofday(tv, NULL);
 
    #else
 
@@ -94,6 +94,106 @@ struct EventTimer *ET_default_init()
    return et;
 }
 
+struct RTDebugEventTimer {
+   struct EventTimer et;
+   struct timeval offset;
+};
+
+int ET_rtdebug_block(struct EventTimer *timer, struct timeval *nextAwake,
+      int pauseWhileBlocking, ET_block_cb blockcb, void *arg)
+{
+   struct RTDebugEventTimer *et = (struct RTDebugEventTimer *)timer;
+   struct timeval diffTime, curTime, endTime, *blockTime = NULL;
+   int res;
+   
+   et->et.get_monotonic_time(&et->et, &curTime);
+   
+   // Set amount of time to block on select.
+   // If no events, block indefinetly. 
+   if (nextAwake) {
+      timersub(nextAwake, &curTime, &diffTime);
+      if (diffTime.tv_sec < 0 || diffTime.tv_usec < 0) {
+         memset(&diffTime, 0, sizeof(struct timeval));
+      }
+      blockTime = &diffTime;
+   }
+
+   res = blockcb(&et->et, blockTime, arg);
+
+   if (pauseWhileBlocking) {
+      et->et.get_monotonic_time(&et->et, &endTime);
+      timersub(&endTime, &curTime, &diffTime);
+      if (diffTime.tv_sec < 0 || diffTime.tv_usec < 0) {
+         memset(&diffTime, 0, sizeof(struct timeval));
+      }
+      curTime = et->offset;
+      timeradd(&diffTime, &curTime, &et->offset);
+   }
+
+   return res;
+}
+
+int ET_rtdebug_gmt(struct EventTimer *arg, struct timeval *tv)
+{
+   struct RTDebugEventTimer *et = (struct RTDebugEventTimer *)arg;
+   struct timeval now;
+
+   gettimeofday(&now, NULL);
+   timersub(&now, &et->offset, tv);
+
+   return 0;
+}
+
+int ET_rtdebug_monotonic(struct EventTimer *arg, struct timeval *tv)
+{
+   int res;
+   struct RTDebugEventTimer *et = (struct RTDebugEventTimer *)arg;
+   struct timeval now;
+
+   #ifdef __APPLE__
+
+   res = 0
+   gettimeofday(now, NULL)
+
+   #else
+
+   struct timespec tp;
+   res = clock_gettime(CLOCK_MONOTONIC, &tp);
+   now.tv_sec = tp.tv_sec;
+   now.tv_usec = (tp.tv_nsec + 500 ) / 1000;
+
+   #endif
+
+   timersub(&now, &et->offset, tv);
+
+   return res;
+}
+
+void ET_rtdebug_cleanup(struct EventTimer *arg)
+{
+   struct RTDebugEventTimer *et = (struct RTDebugEventTimer *)arg;
+
+   if (et)
+      free(et);
+}
+
+struct EventTimer *ET_rtdebug_init()
+{
+   struct RTDebugEventTimer *et;
+
+   et = malloc(sizeof(struct RTDebugEventTimer));
+   if (!et)
+      return NULL;
+   memset(et, 0, sizeof(struct RTDebugEventTimer));
+
+   et->et.block = &ET_rtdebug_block;
+   et->et.get_gmt_time = &ET_rtdebug_gmt;
+   et->et.get_monotonic_time = &ET_rtdebug_monotonic;
+   et->et.cleanup = &ET_rtdebug_cleanup;
+
+   return &et->et;
+}
+
 struct VirtualEventTimer {
    struct EventTimer et;
    struct timeval time;
@@ -101,7 +201,7 @@ struct VirtualEventTimer {
 };
 
 int ET_virt_block(struct EventTimer *et, struct timeval *nextAwake,
-      ET_block_cb blockcb, void *arg)
+      int pauseWhileBlocking, ET_block_cb blockcb, void *arg)
 {
    struct timeval diffTime, *blockTime = NULL;
    

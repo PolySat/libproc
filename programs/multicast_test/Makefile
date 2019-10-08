@@ -4,12 +4,12 @@ C=gcc
 CFLAGS=-Wall -pedantic -std=c99 -g
 LDFLAGS=-lproc -ldl
 
-all: $(SOURCES) multi_src multi_sink ex_r ex_t
+all: $(SOURCES) multicast_src multicast_dst ex_r ex_t
 
-multi_src: multi_src.c
+multicast_src: multicast_src.c
 	 $(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
-multi_sink: multi_sink.c
+multicast_dst: multicast_dst.c
 	 $(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
 ex_r: ex_r.c
@@ -19,5 +19,5 @@ ex_t: ex_t.c
 	 $(CC) $< -o $@
 
 clean:
-	rm -rf *.o multi_src multi_sink
+	rm -rf *.o multicast_src multicast_dst
 
