@@ -13,6 +13,7 @@
       ((c) >= 'A' && (c) <= 'F' ? (c) - 'A' + 10 : \
       ((c) >= 'a' && (c) <= 'f' ? (c) - 'a' + 10 : 0 ))) & 0xF)
 
+
 static struct HashTable *structHash = NULL;
 
 static size_t xdr_struct_hash_func(void *key)
@@ -116,6 +117,14 @@ int XDR_decode_byte_array(char *src, char **dst, size_t *used,
    return 0;
 }
 
+int XDR_decode_byte_arr_hashtable(char *src, struct XDR_Hashtable *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_hashtable_decoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_byte_array, 0, NULL);
+}
+
 int XDR_encode_byte_array(char **src, char *dst, size_t *used, size_t max,
       void *lenptr)
 {
@@ -142,9 +151,17 @@ int XDR_decode_int32_array(char *src, int32_t **dst,
    if (len)
       return XDR_array_decoder(src, (char*)dst, used, max, *(int32_t*)len,
             sizeof(uint32_t),
-            (XDR_Decoder)&XDR_decode_uint32, NULL);
+            (XDR_Decoder)&XDR_decode_int32, NULL);
 
    return 0;
+}
+
+int XDR_decode_int32_hashtable(char *src, struct XDR_Hashtable *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_hashtable_decoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_int32, sizeof(int32_t), NULL);
 }
 
 int XDR_decode_int32(char *src, int32_t *dst, size_t *inc, size_t max,
@@ -190,6 +207,14 @@ int XDR_decode_uint32_array(char *src, uint32_t **dst,
    return 0;
 }
 
+int XDR_decode_uint32_hashtable(char *src, struct XDR_Hashtable *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_hashtable_decoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_uint32, sizeof(uint32_t), NULL);
+}
+
 int XDR_decode_uint32(char *src, uint32_t *dst, size_t *inc, size_t max,
       void *len)
 {
@@ -223,6 +248,14 @@ int XDR_decode_int64_array(char *src, int64_t **dst, size_t *used,
             (XDR_Decoder)&XDR_decode_int64, NULL);
 
    return 0;
+}
+
+int XDR_decode_int64_hashtable(char *src, struct XDR_Hashtable *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_hashtable_decoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_int64, sizeof(int64_t), NULL);
 }
 
 int XDR_decode_int64(char *src, int64_t *dst, size_t *inc, size_t max,
@@ -263,6 +296,14 @@ int XDR_decode_uint64_array(char *src, uint64_t **dst, size_t *used,
    return 0;
 }
 
+int XDR_decode_uint64_hashtable(char *src, struct XDR_Hashtable *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_hashtable_decoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_uint64, sizeof(uint64_t), NULL);
+}
+
 int XDR_decode_uint64(char *src, uint64_t *dst, size_t *inc, size_t max,
       void *len)
 {
@@ -299,6 +340,14 @@ int XDR_decode_float_array(char *src, float **dst, size_t *used,
             (XDR_Decoder)&XDR_decode_float, NULL);
 
    return 0;
+}
+
+int XDR_decode_float_hashtable(char *src, struct XDR_Hashtable *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_hashtable_decoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_float, sizeof(float), NULL);
 }
 
 int XDR_decode_float(char *src, float *dst, size_t *inc, size_t max,
@@ -369,6 +418,14 @@ int XDR_decode_double_array(char *src, double **dst, size_t *used,
    return 0;
 }
 
+int XDR_decode_double_hashtable(char *src, struct XDR_Hashtable *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_hashtable_decoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_double, sizeof(double), NULL);
+}
+
 int XDR_decode_double(char *src, double *dst, size_t *inc, size_t max,
       void *len)
 {
@@ -391,6 +448,14 @@ int XDR_decode_union_array(char *src, struct XDR_Union **dst, size_t *used,
             (XDR_Decoder)&XDR_decode_union, NULL);
 
    return 0;
+}
+
+int XDR_decode_union_hashtable(char *src, struct XDR_Hashtable *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_hashtable_decoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_union, sizeof(struct XDR_Union), NULL);
 }
 
 int XDR_decode_union(char *src, struct XDR_Union *dst, size_t *inc, size_t max,
@@ -457,6 +522,14 @@ int XDR_decode_string_array(char *src, char **dst, size_t *inc,
    *inc += str_len + padding;
 
    return 0;
+}
+
+int XDR_decode_string_arr_hashtable(char *src, struct XDR_Hashtable *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_hashtable_decoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_string_array, 0, NULL);
 }
 
 int XDR_encode_string(const char *src, char *dst,
@@ -1525,6 +1598,7 @@ void XDR_array_field_printer(FILE *out, void *src_ptr,
    }
 }
 
+
 int XDR_array_encoder(char *src_ptr, void *dst, size_t *used, size_t max,
       int len, size_t increment, XDR_Encoder enc, void *enc_arg)
 {
@@ -1578,6 +1652,291 @@ int XDR_array_decoder(char *src, void *dst, size_t *used, size_t max,
    return 0;
 }
 
+// MurmurOAAT32
+int XDR_hash_bucket ( const char * key)
+{
+  uint32_t h = 3323198485ul;
+  for (;*key;++key) {
+    h ^= *key;
+    h *= 0x5bd1e995;
+    h ^= h >> 15;
+  }
+  return h % XDR_HASH_LEN;
+}
+
+struct XDR_Hashnode **XDR_hash_lookup_node(struct XDR_Hashtable *table, const char *key)
+{
+   int bucket;
+   struct XDR_Hashnode **itr;
+
+   if (!key)
+      return NULL;
+   bucket = XDR_hash_bucket(key);
+   for (itr = &table->node[bucket]; itr && *itr; itr = &(*itr)->next) {
+      if (!strcmp((*itr)->key, key))
+         return itr;
+   }
+
+   return NULL;
+}
+
+void *XDR_hash_lookup(struct XDR_Hashtable *table, const char *key)
+{
+   struct XDR_Hashnode **node = XDR_hash_lookup_node(table, key);
+
+   if (node)
+      return (*node)->data;
+   return NULL;
+}
+
+int XDR_hash_add(struct XDR_Hashtable *table, const char *key, void *value)
+{
+   struct XDR_Hashnode *node, **itr = NULL;
+   int bucket;
+
+   if (XDR_hash_lookup_node(table, key))
+      return -1;
+
+   node = (struct XDR_Hashnode*)malloc(sizeof(*node) + strlen(key));
+   if (!node)
+      return -2;
+
+   memset(node, 0, sizeof(*node));
+   strcpy(node->key, key);
+   node->data = value;
+   node->table = table;
+
+   // Sort keys in collision buckets to ensure identical output order
+   bucket = XDR_hash_bucket(node->key);
+   for (itr = &table->node[bucket]; itr && *itr; itr = &(*itr)->next)
+      if (strcmp(node->key, (*itr)->key) < 0)
+         break;
+
+   if (!itr) {
+      free(node);
+      return -3;
+   }
+   node->next = *itr;
+   *itr = node;
+   table->length++;
+
+   return 0;
+}
+
+void *XDR_hash_remove(struct XDR_Hashtable *table, const char *key)
+{
+   struct XDR_Hashnode **node = XDR_hash_lookup_node(table, key);
+   struct XDR_Hashnode *goner;
+   void *result;
+
+   if (!node)
+      return NULL;
+
+   goner = *node;
+   *node = goner->next;
+   result = goner->data;
+   free(goner);
+
+   table->length--;
+
+   return result;
+}
+
+int XDR_hash_remove_all(struct XDR_Hashtable *table, XDR_hashtable_itr_cb freeCB, void *arg)
+{
+   int bucket;
+   struct XDR_Hashnode *goner;
+
+   if (!table)
+      return -1;
+
+   for (bucket = 0; bucket < XDR_HASH_LEN; bucket++) {
+      while (table->node[bucket]) {
+         goner = table->node[bucket];
+         table->node[bucket] = goner->next;
+         if (freeCB)
+            freeCB(table, goner->key, goner->data, arg);
+         free(goner);
+      }
+   }
+
+   table->length = 0;
+
+   return 0;
+}
+
+void XDR_hash_iterate(struct XDR_Hashtable *table, XDR_hashtable_itr_cb cb, void *arg)
+{
+   int bucket;
+   struct XDR_Hashnode *curr;
+
+   if (!table)
+      return;
+
+   for (bucket = 0; bucket < XDR_HASH_LEN; bucket++) {
+      for (curr = table->node[bucket]; curr; curr = curr->next) {
+         if (cb(table, curr->key, curr->data, arg) < 0)
+            break;
+      }
+   }
+}
+
+char *XDR_hash_lookup_value(struct XDR_Hashtable *table, void *val)
+{
+   int bucket;
+   struct XDR_Hashnode *curr;
+
+   if (!table)
+      return NULL;
+
+   for (bucket = 0; bucket < XDR_HASH_LEN; bucket++) {
+      for (curr = table->node[bucket]; curr; curr = curr->next) {
+         if (curr->data == val)
+            return curr->key;
+      }
+   }
+
+   return NULL;
+}
+
+struct XDR_hashtable_params
+{
+   size_t enc_len;
+   void *dst;
+   size_t max;
+   XDR_Encoder enc;
+   int res;
+   void *enc_arg;
+};
+
+static int XDR_hashtable_encoder_itr(struct XDR_Hashtable *table,
+      const char *key, void *value, void *arg)
+{
+   struct XDR_hashtable_params *params = (struct XDR_hashtable_params*)arg;
+   size_t sz = 0;
+
+   if (!arg || !params->enc)
+      return -1;
+
+   if (params->dst && params->res >= 0) {
+      params->res = XDR_encode_string_array(&key, params->dst, &sz, params->max, NULL);
+      if (params->res < 0)
+         params->dst = NULL;
+      else {
+         params->dst += sz;
+         params->max -= sz;
+      }
+   }
+   else
+      XDR_encode_string((char*)key, NULL, &sz, params->max, NULL);
+
+   params->enc_len += sz;
+
+   sz = 0;
+   if (params->dst && params->res >= 0) {
+      params->res = params->enc(value, params->dst, &sz, params->max,
+            params->enc_arg);
+      if (params->res < 0)
+         params->dst = NULL;
+      else {
+         params->dst += sz;
+         params->max -= sz;
+      }
+   }
+   else
+      params->enc(value, NULL, &sz, params->max, params->enc_arg);
+
+   params->enc_len += sz;
+
+   return 0;
+}
+
+int XDR_hashtable_encoder(char *src, void *dst, size_t *used, size_t max,
+      XDR_Encoder enc, void *enc_arg)
+{
+   struct XDR_Hashtable *table = (struct XDR_Hashtable*)src;
+   struct XDR_hashtable_params params;
+   size_t sz = 0;
+
+   params.enc_len = 0;
+   params.dst = dst;
+   params.max = max;
+   params.res = 0;
+   params.enc = enc;
+   params.enc_arg = enc_arg;
+
+   if (!table)
+      return 0;
+
+   params.res = XDR_encode_uint32(&table->length, params.dst, &sz, params.max, NULL);
+   if (params.res < 0)
+      params.dst = NULL;
+   else {
+      params.dst += sz;
+      params.max -= sz;
+   }
+   params.enc_len += sz;
+
+   XDR_hash_iterate(table, &XDR_hashtable_encoder_itr, &params);
+
+   *used = params.enc_len;
+
+   return params.res;
+}
+
+int XDR_hashtable_decoder(char *src, struct XDR_Hashtable *table, size_t *used,
+      size_t max, XDR_Decoder dec, size_t ent_size, void *dec_arg)
+{
+   size_t sz = 0, dec_len = 0;
+   int res;
+   void *value;
+   uint32_t i, entries = 0;
+   char *key;
+
+   if (!table)
+      return -1;
+   if (!dec)
+      return -2;
+
+   res = XDR_decode_uint32(src, &entries, &sz, max, NULL);
+   if (res < 0)
+      return res;
+   dec_len += sz;
+
+   for (i = 0; i < entries; i++) {
+      sz = 0;
+      res = XDR_decode_string_array(src + dec_len, &key, &sz, max - dec_len, NULL);
+      if (res < 0)
+         return res;
+      dec_len += sz;
+
+      if (ent_size) {
+         value = malloc(ent_size);
+         if (!value) {
+            free(key);
+            return -3;
+         }
+         memset(value, 0, ent_size);
+      }
+      else
+         value = NULL;
+
+      sz = 0;
+      res = dec(src + dec_len, ent_size ? value : &value, &sz,
+            max - dec_len, dec_arg);
+      if (res < 0)
+         return res;
+      dec_len += sz;
+
+      XDR_hash_add(table, key, value);
+
+      free(key);
+   }
+   *used = dec_len;
+
+   return 0;
+}
+
 struct XDR_TypeFunctions xdr_float_functions = {
    (XDR_Decoder)&XDR_decode_float, (XDR_Encoder)&XDR_encode_float,
    &XDR_print_field_float, &XDR_scan_float,
@@ -1590,6 +1949,13 @@ struct XDR_TypeFunctions xdr_float_arr_functions = {
    &XDR_array_field_deallocator
 };
 
+struct XDR_TypeFunctions xdr_float_ht_functions = {
+   (XDR_Decoder)&XDR_decode_float_hashtable,
+   (XDR_Encoder)&XDR_encode_float_hashtable,
+   &XDR_print_field_float_hashtable, &XDR_scan_float_hashtable,
+   &XDR_hashtable_field_deallocator
+};
+
 struct XDR_TypeFunctions xdr_double_functions = {
    (XDR_Decoder)&XDR_decode_double, (XDR_Encoder)&XDR_encode_double,
    &XDR_print_field_double, &XDR_scan_double,
@@ -1600,6 +1966,13 @@ struct XDR_TypeFunctions xdr_double_arr_functions = {
    (XDR_Decoder)&XDR_decode_double_array, (XDR_Encoder)&XDR_encode_double_array,
    &XDR_print_field_double_array, &XDR_scan_double_array,
    &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_double_ht_functions = {
+   (XDR_Decoder)&XDR_decode_double_hashtable,
+   (XDR_Encoder)&XDR_encode_double_hashtable,
+   &XDR_print_field_double_hashtable, &XDR_scan_double_hashtable,
+   &XDR_hashtable_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_char_functions = {
@@ -1626,6 +1999,13 @@ struct XDR_TypeFunctions xdr_int32_arr_functions = {
    &XDR_array_field_deallocator
 };
 
+struct XDR_TypeFunctions xdr_int32_ht_functions = {
+   (XDR_Decoder)&XDR_decode_int32_hashtable,
+   (XDR_Encoder)&XDR_encode_int32_hashtable,
+   &XDR_print_field_int32_hashtable, &XDR_scan_int32_hashtable,
+   &XDR_hashtable_field_deallocator
+};
+
 struct XDR_TypeFunctions xdr_uint32_functions = {
    (XDR_Decoder)&XDR_decode_uint32, (XDR_Encoder)&XDR_encode_uint32,
    &XDR_print_field_uint32, &XDR_scan_uint32,
@@ -1636,6 +2016,12 @@ struct XDR_TypeFunctions xdr_uint32_arr_functions = {
    (XDR_Decoder)&XDR_decode_uint32_array, (XDR_Encoder)&XDR_encode_uint32_array,
    &XDR_print_field_uint32_array, &XDR_scan_uint32_array,
    &XDR_array_field_deallocator
+};
+struct XDR_TypeFunctions xdr_uint32_ht_functions = {
+   (XDR_Decoder)&XDR_decode_uint32_hashtable,
+   (XDR_Encoder)&XDR_encode_uint32_hashtable,
+   &XDR_print_field_uint32_hashtable, &XDR_scan_uint32_hashtable,
+   &XDR_hashtable_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_int64_functions = {
@@ -1650,6 +2036,13 @@ struct XDR_TypeFunctions xdr_int64_arr_functions = {
    &XDR_array_field_deallocator
 };
 
+struct XDR_TypeFunctions xdr_int64_ht_functions = {
+   (XDR_Decoder)&XDR_decode_int64_hashtable,
+   (XDR_Encoder)&XDR_encode_int64_hashtable,
+   &XDR_print_field_int64_hashtable, &XDR_scan_int64_hashtable,
+   &XDR_hashtable_field_deallocator
+};
+
 struct XDR_TypeFunctions xdr_uint64_functions = {
    (XDR_Decoder)&XDR_decode_uint64, (XDR_Encoder)&XDR_encode_uint64,
    &XDR_print_field_uint64, &XDR_scan_uint64,
@@ -1660,6 +2053,13 @@ struct XDR_TypeFunctions xdr_uint64_arr_functions = {
    (XDR_Decoder)&XDR_decode_uint64_array, (XDR_Encoder)&XDR_encode_uint64_array,
    &XDR_print_field_uint64_array, &XDR_scan_uint64_array,
    &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_uint64_ht_functions = {
+   (XDR_Decoder)&XDR_decode_uint64_hashtable,
+   (XDR_Encoder)&XDR_encode_uint64_hashtable,
+   &XDR_print_field_uint64_hashtable, &XDR_scan_uint64_hashtable,
+   &XDR_hashtable_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_string_functions = {
@@ -1674,10 +2074,24 @@ struct XDR_TypeFunctions xdr_string_arr_functions = {
    NULL
 };
 
+struct XDR_TypeFunctions xdr_string_arr_ht_functions = {
+   (XDR_Decoder)&XDR_decode_string_arr_hashtable,
+   (XDR_Encoder)&XDR_encode_string_arr_hashtable,
+   &XDR_print_field_string_arr_hashtable, &XDR_scan_string_arr_hashtable,
+   NULL
+};
+
 struct XDR_TypeFunctions xdr_byte_arr_functions = {
    (XDR_Decoder)&XDR_decode_byte_array, (XDR_Encoder)&XDR_encode_byte_array,
    &XDR_print_field_byte_array, &XDR_scan_byte_array,
    &XDR_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_byte_arr_ht_functions = {
+   (XDR_Decoder)&XDR_decode_byte_arr_hashtable,
+   (XDR_Encoder)&XDR_encode_byte_arr_hashtable,
+   &XDR_print_field_byte_arr_hashtable, &XDR_scan_byte_arr_hashtable,
+   &XDR_array_hashtable_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_union_functions = {
@@ -1690,6 +2104,13 @@ struct XDR_TypeFunctions xdr_union_arr_functions = {
    (XDR_Decoder)&XDR_decode_union, (XDR_Encoder)&XDR_encode_union,
    NULL, NULL,
    &XDR_union_array_field_deallocator
+};
+
+struct XDR_TypeFunctions xdr_union_ht_functions = {
+   (XDR_Decoder)&XDR_decode_union_hashtable,
+   (XDR_Encoder)&XDR_encode_union_hashtable,
+   NULL, NULL,
+   &XDR_union_hashtable_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_uint32_bitfield_functions = {
