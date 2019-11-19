@@ -1,5 +1,5 @@
-#include <polysat3/cmd.h>
-#include <polysat3/xdr.h>
+#include <polysat/cmd.h>
+#include <polysat/xdr.h>
 #include "test_schema.h"
 
 int main(int argc, char **argv)

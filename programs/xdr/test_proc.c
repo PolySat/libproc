@@ -26,8 +26,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
-#include <polysat3/polysat.h>
-#include <polysat3/cmd-pkt.h>
+#include <polysat/polysat.h>
+#include <polysat/cmd-pkt.h>
 #include "test_schema.h"
 
 struct ProcessData *gProc = NULL;
@@ -51,12 +51,20 @@ static void status_cmd_handler(struct ProcessData *proc, struct IPC_Command *cmd
 {
     //status struct to send back
    struct IPC_TEST_Status status;
+   int32_t val1 = 10, val2 = 143, val3 = 865;
 
+   memset(&status, 0, sizeof(status));
    status.foo = 123;
    status.bar = 464;
+
+   XDR_dict_add(&status.values, "key1", &val1);
+   XDR_dict_add(&status.values, "foobar", &val2);
+   XDR_dict_add(&status.values, "crab", &val3);
     
     //pass enum to associate with struct being sent
    IPC_response(proc, cmd, IPC_TEST_DATA_TYPES_STATUS, &status, fromAddr);
+
+   XDR_dict_remove_all(&status.values, NULL, NULL);
    printf("Status command!!\n");
 }
 

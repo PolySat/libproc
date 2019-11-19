@@ -117,11 +117,11 @@ int XDR_decode_byte_array(char *src, char **dst, size_t *used,
    return 0;
 }
 
-int XDR_decode_byte_arr_hashtable(char *src, struct XDR_Hashtable *dst,
+int XDR_decode_byte_arr_dictionary(char *src, struct XDR_Dictionary *dst,
       size_t *used, size_t max, void *len)
 {
    *used = 0;
-   return XDR_hashtable_decoder(src, dst, used, max,
+   return XDR_dictionary_decoder(src, dst, used, max,
             (XDR_Decoder)&XDR_decode_byte_array, 0, NULL);
 }
 
@@ -144,6 +144,14 @@ int XDR_encode_byte_array(char **src, char *dst, size_t *used, size_t max,
    return 0;
 }
 
+int XDR_encode_byte_arr_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_dictionary_encoder(src, dst, used, max,
+            (XDR_Encoder)&XDR_encode_byte_array, 0, NULL);
+}
+
 int XDR_decode_int32_array(char *src, int32_t **dst,
       size_t *used, size_t max, void *len)
 {
@@ -156,11 +164,11 @@ int XDR_decode_int32_array(char *src, int32_t **dst,
    return 0;
 }
 
-int XDR_decode_int32_hashtable(char *src, struct XDR_Hashtable *dst,
+int XDR_decode_int32_dictionary(char *src, struct XDR_Dictionary *dst,
       size_t *used, size_t max, void *len)
 {
    *used = 0;
-   return XDR_hashtable_decoder(src, dst, used, max,
+   return XDR_dictionary_decoder(src, dst, used, max,
             (XDR_Decoder)&XDR_decode_int32, sizeof(int32_t), NULL);
 }
 
@@ -207,11 +215,11 @@ int XDR_decode_uint32_array(char *src, uint32_t **dst,
    return 0;
 }
 
-int XDR_decode_uint32_hashtable(char *src, struct XDR_Hashtable *dst,
+int XDR_decode_uint32_dictionary(char *src, struct XDR_Dictionary *dst,
       size_t *used, size_t max, void *len)
 {
    *used = 0;
-   return XDR_hashtable_decoder(src, dst, used, max,
+   return XDR_dictionary_decoder(src, dst, used, max,
             (XDR_Decoder)&XDR_decode_uint32, sizeof(uint32_t), NULL);
 }
 
@@ -250,11 +258,11 @@ int XDR_decode_int64_array(char *src, int64_t **dst, size_t *used,
    return 0;
 }
 
-int XDR_decode_int64_hashtable(char *src, struct XDR_Hashtable *dst,
+int XDR_decode_int64_dictionary(char *src, struct XDR_Dictionary *dst,
       size_t *used, size_t max, void *len)
 {
    *used = 0;
-   return XDR_hashtable_decoder(src, dst, used, max,
+   return XDR_dictionary_decoder(src, dst, used, max,
             (XDR_Decoder)&XDR_decode_int64, sizeof(int64_t), NULL);
 }
 
@@ -296,11 +304,11 @@ int XDR_decode_uint64_array(char *src, uint64_t **dst, size_t *used,
    return 0;
 }
 
-int XDR_decode_uint64_hashtable(char *src, struct XDR_Hashtable *dst,
+int XDR_decode_uint64_dictionary(char *src, struct XDR_Dictionary *dst,
       size_t *used, size_t max, void *len)
 {
    *used = 0;
-   return XDR_hashtable_decoder(src, dst, used, max,
+   return XDR_dictionary_decoder(src, dst, used, max,
             (XDR_Decoder)&XDR_decode_uint64, sizeof(uint64_t), NULL);
 }
 
@@ -342,11 +350,11 @@ int XDR_decode_float_array(char *src, float **dst, size_t *used,
    return 0;
 }
 
-int XDR_decode_float_hashtable(char *src, struct XDR_Hashtable *dst,
+int XDR_decode_float_dictionary(char *src, struct XDR_Dictionary *dst,
       size_t *used, size_t max, void *len)
 {
    *used = 0;
-   return XDR_hashtable_decoder(src, dst, used, max,
+   return XDR_dictionary_decoder(src, dst, used, max,
             (XDR_Decoder)&XDR_decode_float, sizeof(float), NULL);
 }
 
@@ -384,6 +392,14 @@ int XDR_encode_float(float *src, char *dst, size_t *used, size_t max,
    return 0;
 }
 
+int XDR_encode_float_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_dictionary_encoder(src, dst, used, max,
+            (XDR_Encoder)&XDR_encode_float, sizeof(float), NULL);
+}
+
 int XDR_encode_double_array(double **src, char *dst,
       size_t *used, size_t max, void *len)
 {
@@ -406,6 +422,14 @@ int XDR_encode_double(double *src, char *dst, size_t *used, size_t max,
    return 0;
 }
 
+int XDR_encode_double_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_dictionary_encoder(src, dst, used, max,
+            (XDR_Encoder)&XDR_encode_double, sizeof(double), NULL);
+}
+
 int XDR_decode_double_array(char *src, double **dst, size_t *used,
       size_t max, void *len)
 {
@@ -418,11 +442,11 @@ int XDR_decode_double_array(char *src, double **dst, size_t *used,
    return 0;
 }
 
-int XDR_decode_double_hashtable(char *src, struct XDR_Hashtable *dst,
+int XDR_decode_double_dictionary(char *src, struct XDR_Dictionary *dst,
       size_t *used, size_t max, void *len)
 {
    *used = 0;
-   return XDR_hashtable_decoder(src, dst, used, max,
+   return XDR_dictionary_decoder(src, dst, used, max,
             (XDR_Decoder)&XDR_decode_double, sizeof(double), NULL);
 }
 
@@ -450,11 +474,11 @@ int XDR_decode_union_array(char *src, struct XDR_Union **dst, size_t *used,
    return 0;
 }
 
-int XDR_decode_union_hashtable(char *src, struct XDR_Hashtable *dst,
+int XDR_decode_union_dictionary(char *src, struct XDR_Dictionary *dst,
       size_t *used, size_t max, void *len)
 {
    *used = 0;
-   return XDR_hashtable_decoder(src, dst, used, max,
+   return XDR_dictionary_decoder(src, dst, used, max,
             (XDR_Decoder)&XDR_decode_union, sizeof(struct XDR_Union), NULL);
 }
 
@@ -524,11 +548,11 @@ int XDR_decode_string_array(char *src, char **dst, size_t *inc,
    return 0;
 }
 
-int XDR_decode_string_arr_hashtable(char *src, struct XDR_Hashtable *dst,
+int XDR_decode_string_arr_dictionary(char *src, struct XDR_Dictionary *dst,
       size_t *used, size_t max, void *len)
 {
    *used = 0;
-   return XDR_hashtable_decoder(src, dst, used, max,
+   return XDR_dictionary_decoder(src, dst, used, max,
             (XDR_Decoder)&XDR_decode_string_array, 0, NULL);
 }
 
@@ -567,6 +591,14 @@ int XDR_encode_string_array(const char **src_ptr, char *dst, size_t *used,
       memset(dst + str_len, 0, padding);
 
    return 0;
+}
+
+int XDR_encode_string_arr_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_dictionary_encoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_string_array, 0, NULL);
 }
 
 int XDR_encode_uint32_array(uint32_t **src, char *dst,
@@ -610,6 +642,14 @@ int XDR_encodebf_uint32(uint32_t *src, char *dstp, size_t *used, size_t max,
    return 0;
 }
 
+int XDR_encode_uint32_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_dictionary_encoder(src, dst, used, max,
+            (XDR_Decoder)&XDR_decode_uint32, sizeof(uint32_t), NULL);
+}
+
 int XDR_encode_int32_array(int32_t **src, char *dst,
       size_t *used, size_t max, void *len)
 {
@@ -639,6 +679,14 @@ int XDR_encode_int32(int32_t *src, char *dst, size_t *used, size_t max,
    memcpy(dst, &net, sizeof(net));
 
    return 0;
+}
+
+int XDR_encode_int32_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_dictionary_encoder(src, dst, used, max,
+            (XDR_Encoder)&XDR_encode_int32, sizeof(int32_t), NULL);
 }
 
 int XDR_encode_int64_array(int64_t **src, char *dst,
@@ -683,6 +731,14 @@ int XDR_encode_int64(int64_t *src, char *dst, size_t *used, size_t max,
    return 0;
 }
 
+int XDR_encode_int64_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_dictionary_encoder(src, dst, used, max,
+            (XDR_Encoder)&XDR_encode_int64, sizeof(int64_t), NULL);
+}
+
 int XDR_encode_uint64_array(uint64_t **src, char *dst,
       size_t *used, size_t max, void *len)
 {
@@ -725,6 +781,14 @@ int XDR_encode_uint64(uint64_t *src, char *dst, size_t *used, size_t max,
    return 0;
 }
 
+int XDR_encode_uint64_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_dictionary_encoder(src, dst, used, max,
+            (XDR_Encoder)&XDR_encode_uint64, sizeof(uint64_t), NULL);
+}
+
 int XDR_encode_union_array(struct XDR_Union **src, char *dst,
       size_t *used, size_t max, void *len)
 {
@@ -765,6 +829,14 @@ int XDR_encode_union(struct XDR_Union *src, char *dst,
       return -1;
 
    return 0;
+}
+
+int XDR_encode_union_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len)
+{
+   *used = 0;
+   return XDR_dictionary_encoder(src, dst, used, max,
+            (XDR_Encoder)&XDR_encode_union, sizeof(struct XDR_Union), NULL);
 }
 
 int XDR_struct_decoder(char *src, void *dst_void, size_t *inc,
@@ -885,6 +957,25 @@ void *XDR_malloc_allocator(struct XDR_StructDefinition *def)
    return result;
 }
 
+static int xdr_dict_free_cb(struct XDR_Dictionary *table, const char *key,
+      void *value, void *arg)
+{
+   if (value)
+      free(value);
+
+   return 0;
+}
+
+void XDR_dictionary_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field)
+{
+   struct XDR_Dictionary *table = (struct XDR_Dictionary*)goner;
+
+   if (!goner || !field)
+      return;
+   XDR_dict_remove_all(table, xdr_dict_free_cb, NULL);
+}
+
 void XDR_struct_field_deallocator(void **goner,
       struct XDR_FieldDefinition *field)
 {
@@ -985,6 +1076,13 @@ void XDR_print_field_double(FILE *out, void *data,
       fprintf(out, "%lf", *val);
 }
 
+void XDR_print_field_double_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *unused, int *line, int level)
+{
+   assert(0);
+}
+
 void XDR_print_field_float(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *unused, int *line, int level)
@@ -998,6 +1096,12 @@ void XDR_print_field_float(FILE *out, void *data,
       fprintf(out, "%lf", field->conversion(*val));
    else
       fprintf(out, "%f", *val);
+}
+
+void XDR_print_field_float_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *unused, int *line, int level)
+{
 }
 
 void XDR_print_field_float_array(FILE *out, void *data,
@@ -1059,6 +1163,14 @@ void XDR_print_field_int32_array(FILE *out, void *data,
          &XDR_print_field_int32, sizeof(int32_t), parent, line, level);
 }
 
+void XDR_print_field_int32_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *len, int *line, int level)
+{
+   XDR_dictionary_field_printer(out, data, field, style,
+         len, &XDR_print_field_int32, 0, parent, line, level);
+}
+
 void XDR_print_field_byte_array(FILE *out, void *data_ptr,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *len, int *line, int level)
@@ -1076,6 +1188,13 @@ void XDR_print_field_byte_array(FILE *out, void *data_ptr,
       fprintf(out, "%02X", data[i]);
 }
 
+void XDR_print_field_byte_arr_dictionary(FILE *out, void *data_ptr,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *len, int *line, int level)
+{
+   assert(0);
+}
+
 void XDR_print_field_string_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *unused, int *line, int level)
@@ -1084,6 +1203,13 @@ void XDR_print_field_string_array(FILE *out, void *data,
 
    if (*str)
       fprintf(out, "%s", *str);
+}
+
+void XDR_print_field_string_arr_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *unused, int *line, int level)
+{
+   assert(0);
 }
 
 void XDR_print_field_string(FILE *out, void *data,
@@ -1117,6 +1243,13 @@ void XDR_print_field_uint32_array(FILE *out, void *data,
          &XDR_print_field_uint32, sizeof(uint32_t), parent, line, level);
 }
 
+void XDR_print_field_uint32_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *unused, int *line, int level)
+{
+   assert(0);
+}
+
 void XDR_print_field_int64(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *unused, int *line, int level)
@@ -1138,6 +1271,13 @@ void XDR_print_field_int64_array(FILE *out, void *data,
 {
    XDR_array_field_printer(out, data, field, style, len, 
          &XDR_print_field_int64, sizeof(int64_t), parent, line, level);
+}
+
+void XDR_print_field_int64_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *unused, int *line, int level)
+{
+   assert(0);
 }
 
 void XDR_print_field_uint64(FILE *out, void *data,
@@ -1163,6 +1303,12 @@ void XDR_print_field_uint64_array(FILE *out, void *data,
          &XDR_print_field_uint64, sizeof(uint64_t), parent, line, level);
 }
 
+void XDR_print_field_uint64_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *unused, int *line, int level)
+{
+   assert(0);
+}
 void XDR_print_field_union(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *unused, int *line, int level)
@@ -1203,6 +1349,12 @@ void XDR_scan_float_array(const char *in, void *dst, void *arg, void *len,
       arg, sizeof(float), conv);
 }
 
+void XDR_scan_float_dictionary(const char *in, void *dst, void *arg,
+      void *unused, XDR_conversion_func conv)
+{
+   assert(0);
+}
+
 void XDR_scan_double(const char *in, void *dst, void *arg, void *unused,
       XDR_conversion_func conv)
 {
@@ -1217,6 +1369,12 @@ void XDR_scan_double_array(const char *in, void *dst, void *arg, void *len,
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_double,
       arg, sizeof(double), conv);
+}
+
+void XDR_scan_double_dictionary(const char *in, void *dst, void *arg,
+      void *unused, XDR_conversion_func conv)
+{
+   assert(0);
 }
 
 void XDR_scan_int32(const char *in, void *dst, void *arg, void *unused,
@@ -1238,6 +1396,12 @@ void XDR_scan_int32_array(const char *in, void *dst, void *arg,
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_int32,
       arg, sizeof(int32_t), conv);
+}
+
+void XDR_scan_int32_dictionary(const char *in, void *dst, void *arg,
+      void *unused, XDR_conversion_func conv)
+{
+   assert(0);
 }
 
 void XDR_scan_char(const char *in, void *dst, void *arg, void *unused,
@@ -1276,6 +1440,12 @@ void XDR_scan_uint32_array(const char *in, void *dst, void *arg,
       arg, sizeof(uint32_t), conv);
 }
 
+void XDR_scan_uint32_dictionary(const char *in, void *dst, void *arg,
+      void *unused, XDR_conversion_func conv)
+{
+   assert(0);
+}
+
 void XDR_scan_int64(const char *in, void *dst, void *arg, void *unused,
       XDR_conversion_func conv)
 {
@@ -1295,6 +1465,12 @@ void XDR_scan_int64_array(const char *in, void *dst, void *arg,
 {
    XDR_array_field_scanner(in, dst, arg, len, &XDR_scan_int64,
       arg, sizeof(int64_t), conv);
+}
+
+void XDR_scan_int64_dictionary(const char *in, void *dst, void *arg,
+      void *unused, XDR_conversion_func conv)
+{
+   assert(0);
 }
 
 void XDR_scan_uint64(const char *in, void *dst, void *arg, void *unused,
@@ -1318,6 +1494,12 @@ void XDR_scan_uint64_array(const char *in, void *dst, void *arg,
       arg, sizeof(uint64_t), conv);
 }
 
+void XDR_scan_uint64_dictionary(const char *in, void *dst, void *arg,
+      void *unused, XDR_conversion_func conv)
+{
+   assert(0);
+}
+
 void XDR_scan_string(const char *in, void *dst, void *arg, void *unused,
       XDR_conversion_func conv)
 {
@@ -1338,6 +1520,12 @@ void XDR_scan_string_array(const char *in, void *dst, void *arg,
       *str = strdup(in);
    else
       strcpy(*str, in);
+}
+
+void XDR_scan_string_arr_dictionary(const char *in, void *dst, void *arg,
+      void *unused, XDR_conversion_func conv)
+{
+   assert(0);
 }
 
 void XDR_scan_byte(const char *in, void *dst, void *arg, void *len,
@@ -1367,6 +1555,12 @@ void XDR_scan_byte_array(const char *in, void *dst_ptr, void *arg,
 
    for (i = 0; i < *len; i++, in += 2)
       dst[i] = (ASCII2HEX(in[0]) << 4) | ASCII2HEX(in[1]);
+}
+
+void XDR_scan_byte_arr_dictionary(const char *in, void *dst, void *arg,
+      void *unused, XDR_conversion_func conv)
+{
+   assert(0);
 }
 
 void XDR_print_structure(uint32_t type, struct XDR_StructDefinition *str,
@@ -1653,7 +1847,7 @@ int XDR_array_decoder(char *src, void *dst, size_t *used, size_t max,
 }
 
 // MurmurOAAT32
-int XDR_hash_bucket ( const char * key)
+int XDR_dict_bucket ( const char * key)
 {
   uint32_t h = 3323198485ul;
   for (;*key;++key) {
@@ -1664,14 +1858,14 @@ int XDR_hash_bucket ( const char * key)
   return h % XDR_HASH_LEN;
 }
 
-struct XDR_Hashnode **XDR_hash_lookup_node(struct XDR_Hashtable *table, const char *key)
+struct XDR_Dictnode **XDR_dict_lookup_node(struct XDR_Dictionary *table, const char *key)
 {
    int bucket;
-   struct XDR_Hashnode **itr;
+   struct XDR_Dictnode **itr;
 
    if (!key)
       return NULL;
-   bucket = XDR_hash_bucket(key);
+   bucket = XDR_dict_bucket(key);
    for (itr = &table->node[bucket]; itr && *itr; itr = &(*itr)->next) {
       if (!strcmp((*itr)->key, key))
          return itr;
@@ -1680,24 +1874,24 @@ struct XDR_Hashnode **XDR_hash_lookup_node(struct XDR_Hashtable *table, const ch
    return NULL;
 }
 
-void *XDR_hash_lookup(struct XDR_Hashtable *table, const char *key)
+void *XDR_dict_lookup(struct XDR_Dictionary *table, const char *key)
 {
-   struct XDR_Hashnode **node = XDR_hash_lookup_node(table, key);
+   struct XDR_Dictnode **node = XDR_dict_lookup_node(table, key);
 
    if (node)
       return (*node)->data;
    return NULL;
 }
 
-int XDR_hash_add(struct XDR_Hashtable *table, const char *key, void *value)
+int XDR_dict_add(struct XDR_Dictionary *table, const char *key, void *value)
 {
-   struct XDR_Hashnode *node, **itr = NULL;
+   struct XDR_Dictnode *node, **itr = NULL;
    int bucket;
 
-   if (XDR_hash_lookup_node(table, key))
+   if (XDR_dict_lookup_node(table, key))
       return -1;
 
-   node = (struct XDR_Hashnode*)malloc(sizeof(*node) + strlen(key));
+   node = (struct XDR_Dictnode*)malloc(sizeof(*node) + strlen(key));
    if (!node)
       return -2;
 
@@ -1707,7 +1901,7 @@ int XDR_hash_add(struct XDR_Hashtable *table, const char *key, void *value)
    node->table = table;
 
    // Sort keys in collision buckets to ensure identical output order
-   bucket = XDR_hash_bucket(node->key);
+   bucket = XDR_dict_bucket(node->key);
    for (itr = &table->node[bucket]; itr && *itr; itr = &(*itr)->next)
       if (strcmp(node->key, (*itr)->key) < 0)
          break;
@@ -1723,10 +1917,10 @@ int XDR_hash_add(struct XDR_Hashtable *table, const char *key, void *value)
    return 0;
 }
 
-void *XDR_hash_remove(struct XDR_Hashtable *table, const char *key)
+void *XDR_dict_remove(struct XDR_Dictionary *table, const char *key)
 {
-   struct XDR_Hashnode **node = XDR_hash_lookup_node(table, key);
-   struct XDR_Hashnode *goner;
+   struct XDR_Dictnode **node = XDR_dict_lookup_node(table, key);
+   struct XDR_Dictnode *goner;
    void *result;
 
    if (!node)
@@ -1742,10 +1936,10 @@ void *XDR_hash_remove(struct XDR_Hashtable *table, const char *key)
    return result;
 }
 
-int XDR_hash_remove_all(struct XDR_Hashtable *table, XDR_hashtable_itr_cb freeCB, void *arg)
+int XDR_dict_remove_all(struct XDR_Dictionary *table, XDR_dict_itr_cb freeCB, void *arg)
 {
    int bucket;
-   struct XDR_Hashnode *goner;
+   struct XDR_Dictnode *goner;
 
    if (!table)
       return -1;
@@ -1765,10 +1959,10 @@ int XDR_hash_remove_all(struct XDR_Hashtable *table, XDR_hashtable_itr_cb freeCB
    return 0;
 }
 
-void XDR_hash_iterate(struct XDR_Hashtable *table, XDR_hashtable_itr_cb cb, void *arg)
+void XDR_dict_iterate(struct XDR_Dictionary *table, XDR_dict_itr_cb cb, void *arg)
 {
    int bucket;
-   struct XDR_Hashnode *curr;
+   struct XDR_Dictnode *curr;
 
    if (!table)
       return;
@@ -1781,10 +1975,10 @@ void XDR_hash_iterate(struct XDR_Hashtable *table, XDR_hashtable_itr_cb cb, void
    }
 }
 
-char *XDR_hash_lookup_value(struct XDR_Hashtable *table, void *val)
+char *XDR_dict_lookup_value(struct XDR_Dictionary *table, void *val)
 {
    int bucket;
-   struct XDR_Hashnode *curr;
+   struct XDR_Dictnode *curr;
 
    if (!table)
       return NULL;
@@ -1799,7 +1993,7 @@ char *XDR_hash_lookup_value(struct XDR_Hashtable *table, void *val)
    return NULL;
 }
 
-struct XDR_hashtable_params
+struct XDR_dictionary_params
 {
    size_t enc_len;
    void *dst;
@@ -1809,10 +2003,10 @@ struct XDR_hashtable_params
    void *enc_arg;
 };
 
-static int XDR_hashtable_encoder_itr(struct XDR_Hashtable *table,
+static int XDR_dictionary_encoder_itr(struct XDR_Dictionary *table,
       const char *key, void *value, void *arg)
 {
-   struct XDR_hashtable_params *params = (struct XDR_hashtable_params*)arg;
+   struct XDR_dictionary_params *params = (struct XDR_dictionary_params*)arg;
    size_t sz = 0;
 
    if (!arg || !params->enc)
@@ -1851,11 +2045,11 @@ static int XDR_hashtable_encoder_itr(struct XDR_Hashtable *table,
    return 0;
 }
 
-int XDR_hashtable_encoder(char *src, void *dst, size_t *used, size_t max,
-      XDR_Encoder enc, void *enc_arg)
+int XDR_dictionary_encoder(struct XDR_Dictionary *table, void *dst,
+      size_t *used, size_t max,
+      XDR_Encoder enc, size_t ent_size, void *enc_arg)
 {
-   struct XDR_Hashtable *table = (struct XDR_Hashtable*)src;
-   struct XDR_hashtable_params params;
+   struct XDR_dictionary_params params;
    size_t sz = 0;
 
    params.enc_len = 0;
@@ -1877,14 +2071,14 @@ int XDR_hashtable_encoder(char *src, void *dst, size_t *used, size_t max,
    }
    params.enc_len += sz;
 
-   XDR_hash_iterate(table, &XDR_hashtable_encoder_itr, &params);
+   XDR_dict_iterate(table, &XDR_dictionary_encoder_itr, &params);
 
    *used = params.enc_len;
 
    return params.res;
 }
 
-int XDR_hashtable_decoder(char *src, struct XDR_Hashtable *table, size_t *used,
+int XDR_dictionary_decoder(char *src, struct XDR_Dictionary *table, size_t *used,
       size_t max, XDR_Decoder dec, size_t ent_size, void *dec_arg)
 {
    size_t sz = 0, dec_len = 0;
@@ -1928,13 +2122,56 @@ int XDR_hashtable_decoder(char *src, struct XDR_Hashtable *table, size_t *used,
          return res;
       dec_len += sz;
 
-      XDR_hash_add(table, key, value);
+      XDR_dict_add(table, key, value);
 
       free(key);
    }
    *used = dec_len;
 
    return 0;
+}
+
+struct xdr_dictionary_printer_params {
+   FILE *out;
+   enum XDR_PRINT_STYLE style;
+   const char *parent;
+   int *line;
+   int level;
+   XDR_print_field_func printer;
+   struct XDR_FieldDefinition *field;
+};
+
+static int XDR_dictionary_printer_itr(struct XDR_Dictionary *table,
+      const char *key, void *value, void *arg)
+{
+   struct xdr_dictionary_printer_params *params =
+                (struct xdr_dictionary_printer_params*)arg;
+
+   fprintf(params->out, "%s=", key);
+   params->printer(params->out, value, params->field, params->style,
+         params->parent,
+           NULL, params->line, params->level + 1);
+
+   return 0;
+}
+
+void XDR_dictionary_field_printer(FILE *out, void *src_ptr,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      void *len_ptr, XDR_print_field_func print, size_t increment,
+      const char *parent, int *line, int level)
+{
+   struct xdr_dictionary_printer_params params;
+
+   params.out = out;
+   params.style = style;
+   params.parent = parent;
+   params.line = line;
+   params.level = level;
+   params.printer = print;
+   params.field = field;
+
+   XDR_dict_iterate((struct XDR_Dictionary*)src_ptr,
+         &XDR_dictionary_printer_itr, &params);
 }
 
 struct XDR_TypeFunctions xdr_float_functions = {
@@ -1949,11 +2186,11 @@ struct XDR_TypeFunctions xdr_float_arr_functions = {
    &XDR_array_field_deallocator
 };
 
-struct XDR_TypeFunctions xdr_float_ht_functions = {
-   (XDR_Decoder)&XDR_decode_float_hashtable,
-   (XDR_Encoder)&XDR_encode_float_hashtable,
-   &XDR_print_field_float_hashtable, &XDR_scan_float_hashtable,
-   &XDR_hashtable_field_deallocator
+struct XDR_TypeFunctions xdr_float_dict_functions = {
+   (XDR_Decoder)&XDR_decode_float_dictionary,
+   (XDR_Encoder)&XDR_encode_float_dictionary,
+   &XDR_print_field_float_dictionary, &XDR_scan_float_dictionary,
+   &XDR_dictionary_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_double_functions = {
@@ -1968,11 +2205,11 @@ struct XDR_TypeFunctions xdr_double_arr_functions = {
    &XDR_array_field_deallocator
 };
 
-struct XDR_TypeFunctions xdr_double_ht_functions = {
-   (XDR_Decoder)&XDR_decode_double_hashtable,
-   (XDR_Encoder)&XDR_encode_double_hashtable,
-   &XDR_print_field_double_hashtable, &XDR_scan_double_hashtable,
-   &XDR_hashtable_field_deallocator
+struct XDR_TypeFunctions xdr_double_dict_functions = {
+   (XDR_Decoder)&XDR_decode_double_dictionary,
+   (XDR_Encoder)&XDR_encode_double_dictionary,
+   &XDR_print_field_double_dictionary, &XDR_scan_double_dictionary,
+   &XDR_dictionary_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_char_functions = {
@@ -1999,11 +2236,11 @@ struct XDR_TypeFunctions xdr_int32_arr_functions = {
    &XDR_array_field_deallocator
 };
 
-struct XDR_TypeFunctions xdr_int32_ht_functions = {
-   (XDR_Decoder)&XDR_decode_int32_hashtable,
-   (XDR_Encoder)&XDR_encode_int32_hashtable,
-   &XDR_print_field_int32_hashtable, &XDR_scan_int32_hashtable,
-   &XDR_hashtable_field_deallocator
+struct XDR_TypeFunctions xdr_int32_dict_functions = {
+   (XDR_Decoder)&XDR_decode_int32_dictionary,
+   (XDR_Encoder)&XDR_encode_int32_dictionary,
+   &XDR_print_field_int32_dictionary, &XDR_scan_int32_dictionary,
+   &XDR_dictionary_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_uint32_functions = {
@@ -2017,11 +2254,11 @@ struct XDR_TypeFunctions xdr_uint32_arr_functions = {
    &XDR_print_field_uint32_array, &XDR_scan_uint32_array,
    &XDR_array_field_deallocator
 };
-struct XDR_TypeFunctions xdr_uint32_ht_functions = {
-   (XDR_Decoder)&XDR_decode_uint32_hashtable,
-   (XDR_Encoder)&XDR_encode_uint32_hashtable,
-   &XDR_print_field_uint32_hashtable, &XDR_scan_uint32_hashtable,
-   &XDR_hashtable_field_deallocator
+struct XDR_TypeFunctions xdr_uint32_dict_functions = {
+   (XDR_Decoder)&XDR_decode_uint32_dictionary,
+   (XDR_Encoder)&XDR_encode_uint32_dictionary,
+   &XDR_print_field_uint32_dictionary, &XDR_scan_uint32_dictionary,
+   &XDR_dictionary_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_int64_functions = {
@@ -2036,11 +2273,11 @@ struct XDR_TypeFunctions xdr_int64_arr_functions = {
    &XDR_array_field_deallocator
 };
 
-struct XDR_TypeFunctions xdr_int64_ht_functions = {
-   (XDR_Decoder)&XDR_decode_int64_hashtable,
-   (XDR_Encoder)&XDR_encode_int64_hashtable,
-   &XDR_print_field_int64_hashtable, &XDR_scan_int64_hashtable,
-   &XDR_hashtable_field_deallocator
+struct XDR_TypeFunctions xdr_int64_dict_functions = {
+   (XDR_Decoder)&XDR_decode_int64_dictionary,
+   (XDR_Encoder)&XDR_encode_int64_dictionary,
+   &XDR_print_field_int64_dictionary, &XDR_scan_int64_dictionary,
+   &XDR_dictionary_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_uint64_functions = {
@@ -2055,11 +2292,11 @@ struct XDR_TypeFunctions xdr_uint64_arr_functions = {
    &XDR_array_field_deallocator
 };
 
-struct XDR_TypeFunctions xdr_uint64_ht_functions = {
-   (XDR_Decoder)&XDR_decode_uint64_hashtable,
-   (XDR_Encoder)&XDR_encode_uint64_hashtable,
-   &XDR_print_field_uint64_hashtable, &XDR_scan_uint64_hashtable,
-   &XDR_hashtable_field_deallocator
+struct XDR_TypeFunctions xdr_uint64_dict_functions = {
+   (XDR_Decoder)&XDR_decode_uint64_dictionary,
+   (XDR_Encoder)&XDR_encode_uint64_dictionary,
+   &XDR_print_field_uint64_dictionary, &XDR_scan_uint64_dictionary,
+   &XDR_dictionary_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_string_functions = {
@@ -2074,11 +2311,11 @@ struct XDR_TypeFunctions xdr_string_arr_functions = {
    NULL
 };
 
-struct XDR_TypeFunctions xdr_string_arr_ht_functions = {
-   (XDR_Decoder)&XDR_decode_string_arr_hashtable,
-   (XDR_Encoder)&XDR_encode_string_arr_hashtable,
-   &XDR_print_field_string_arr_hashtable, &XDR_scan_string_arr_hashtable,
-   NULL
+struct XDR_TypeFunctions xdr_string_arr_dict_functions = {
+   (XDR_Decoder)&XDR_decode_string_arr_dictionary,
+   (XDR_Encoder)&XDR_encode_string_arr_dictionary,
+   &XDR_print_field_string_arr_dictionary, &XDR_scan_string_arr_dictionary,
+   &XDR_dictionary_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_byte_arr_functions = {
@@ -2087,11 +2324,11 @@ struct XDR_TypeFunctions xdr_byte_arr_functions = {
    &XDR_array_field_deallocator
 };
 
-struct XDR_TypeFunctions xdr_byte_arr_ht_functions = {
-   (XDR_Decoder)&XDR_decode_byte_arr_hashtable,
-   (XDR_Encoder)&XDR_encode_byte_arr_hashtable,
-   &XDR_print_field_byte_arr_hashtable, &XDR_scan_byte_arr_hashtable,
-   &XDR_array_hashtable_field_deallocator
+struct XDR_TypeFunctions xdr_byte_arr_dict_functions = {
+   (XDR_Decoder)&XDR_decode_byte_arr_dictionary,
+   (XDR_Encoder)&XDR_encode_byte_arr_dictionary,
+   &XDR_print_field_byte_arr_dictionary, &XDR_scan_byte_arr_dictionary,
+   &XDR_dictionary_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_union_functions = {
@@ -2106,11 +2343,11 @@ struct XDR_TypeFunctions xdr_union_arr_functions = {
    &XDR_union_array_field_deallocator
 };
 
-struct XDR_TypeFunctions xdr_union_ht_functions = {
-   (XDR_Decoder)&XDR_decode_union_hashtable,
-   (XDR_Encoder)&XDR_encode_union_hashtable,
+struct XDR_TypeFunctions xdr_union_dict_functions = {
+   (XDR_Decoder)&XDR_decode_union_dictionary,
+   (XDR_Encoder)&XDR_encode_union_dictionary,
    NULL, NULL,
-   &XDR_union_hashtable_field_deallocator
+   &XDR_dictionary_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_uint32_bitfield_functions = {

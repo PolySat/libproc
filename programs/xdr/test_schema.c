@@ -1,6 +1,6 @@
 #include <stddef.h>
-#include <polysat3/cmd.h>
-#include <polysat3/cmd-pkt.h>
+#include <polysat/cmd.h>
+#include <polysat/cmd-pkt.h>
 #include "test_schema.h"
 
 void IPC_TEST_forcelink(void) {}
@@ -44,6 +44,15 @@ static struct XDR_FieldDefinition IPC_TEST_Status_Fields[] = {
    { &xdr_uint64_functions,
       offsetof(struct IPC_TEST_Status, bar),
       NULL, "Test 2", NULL,
+      NULL,
+      NULL,
+      0,
+      NULL,
+      0 },
+
+   { &xdr_int32_dict_functions,
+      offsetof(struct IPC_TEST_Status, values),
+      NULL, "test dict", NULL,
       NULL,
       NULL,
       0,

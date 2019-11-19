@@ -1,8 +1,8 @@
 #ifndef TEST_SCHEMA_H
 #define TEST_SCHEMA_H
 
-#include <polysat3/xdr.h>
-#include <polysat3/cmd.h>
+#include <polysat/xdr.h>
+#include <polysat/cmd.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -24,11 +24,13 @@ enum IPC_TEST_COMMANDS {
 enum IPC_TEST_STATUS_FIELDS {
    IPC_TEST_STATUS_FIELDS_FOO = 0,
    IPC_TEST_STATUS_FIELDS_BAR = 1,
+   IPC_TEST_STATUS_FIELDS_VALUES = 2,
 };
 
 struct IPC_TEST_Status {
    int32_t foo;
    uint64_t bar;
+   struct XDR_Dictionary values;
 };
 
 enum IPC_TEST_PTEST_FIELDS {
