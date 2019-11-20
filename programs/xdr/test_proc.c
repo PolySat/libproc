@@ -51,15 +51,37 @@ static void status_cmd_handler(struct ProcessData *proc, struct IPC_Command *cmd
 {
     //status struct to send back
    struct IPC_TEST_Status status;
-   int32_t val1 = 10, val2 = 143, val3 = 865;
+   struct IPC_TEST_DictTest val1, val2, val3;
+   int ival1 = 987, ival2 = 654, ival3 = 321, ival4 = 12345;
 
    memset(&status, 0, sizeof(status));
    status.foo = 123;
    status.bar = 464;
 
-   XDR_dict_add(&status.values, "key1", &val1);
-   XDR_dict_add(&status.values, "foobar", &val2);
-   XDR_dict_add(&status.values, "crab", &val3);
+   val1.field1 = 234;
+   val1.field2 = 345;
+   val1.str = "hello world";
+
+   val2.field1 = 456;
+   val2.field2 = 567;
+   val2.str = "goodbye world";
+
+   val3.field1 = 678;
+   val3.field2 = 789;
+   val3.str = "polysat";
+
+   XDR_dict_add(&status.values, "zxcvbnm", &val1);
+   XDR_dict_add(&status.values, "asdfghjk", &val2);
+   XDR_dict_add(&status.values, "qwertyui", &val3);
+
+   XDR_dict_add(&status.intdict, "aaaabbbbccccdddd", &ival1);
+   XDR_dict_add(&status.intdict, "eeeeffffgggghhhh", &ival2);
+   XDR_dict_add(&status.intdict, "iiiijjjjkkkkllll", &ival3);
+   XDR_dict_add(&status.intdict, "mmmmnnnnoooopppp", &ival4);
+
+   status.test.field1 = 3333;
+   status.test.field2 = 999999;
+   status.test.str = "go mustangs";
     
     //pass enum to associate with struct being sent
    IPC_response(proc, cmd, IPC_TEST_DATA_TYPES_STATUS, &status, fromAddr);

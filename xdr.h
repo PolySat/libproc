@@ -450,6 +450,8 @@ extern int XDR_dict_add(struct XDR_Dictionary *table, const char *key, void *val
 extern void XDR_dict_iterate(struct XDR_Dictionary *table, XDR_dict_itr_cb cb, void *arg);
 extern char *XDR_dict_lookup_value(struct XDR_Dictionary *table, void *val);
 extern int XDR_dict_bucket(const char * key);
+int XDR_dictionary_free_cb(struct XDR_Dictionary *table, const char *key,
+      void *value, void *arg);
 
 extern struct XDR_TypeFunctions xdr_float_functions;
 extern struct XDR_TypeFunctions xdr_float_arr_functions;

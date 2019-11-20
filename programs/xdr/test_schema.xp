@@ -4,13 +4,29 @@ const BASE = 0x200;
 
 enum data_types {
    STATUS = BASE + 1,
-   PTEST = BASE + 2
+   PTEST = BASE + 2,
+   DICT_STR = BASE + 3
 };
 
 enum Commands {
    STATUS = BASE + 1,
    PTEST = BASE + 2,
 };
+
+struct DictTest {
+   int field1 {
+      name "Int1";
+      key int1;
+   };
+   string str<128> {
+      name "Test String";
+      key test_str;
+   };
+   int field2 {
+      name "Int2";
+      key int2;
+   };
+} = data_types::DICT_STR;
 
 struct Status {
    int foo {
@@ -22,8 +38,17 @@ struct Status {
    unsigned hyper bar {
       name "Test 2";
    };
-   dictionary int values {
+   dictionary DictTest values {
       name "test dict";
+      key test_dict;
+   };
+   dictionary int intdict {
+      name "test int dict";
+      key int_dict;
+   };
+   DictTest test {
+      name "test structure";
+      key str_test;
    };
 } = data_types::STATUS;
 

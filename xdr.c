@@ -8,6 +8,7 @@
 #include "events.h"
 #include "hashtable.h"
 #include <inttypes.h>
+#include <stdarg.h>
 
 #define ASCII2HEX(c) ( ( (c) >= '0' && (c) <= '9' ? (c) - '0' : \
       ((c) >= 'A' && (c) <= 'F' ? (c) - 'A' + 10 : \
@@ -957,10 +958,17 @@ void *XDR_malloc_allocator(struct XDR_StructDefinition *def)
    return result;
 }
 
-static int xdr_dict_free_cb(struct XDR_Dictionary *table, const char *key,
+int XDR_dictionary_free_cb(struct XDR_Dictionary *table, const char *key,
       void *value, void *arg)
 {
-   if (value)
+   struct XDR_StructDefinition *str = (struct XDR_StructDefinition*)arg;
+
+   if (!value)
+      return 0;
+
+   if (str)
+      XDR_struct_free_deallocator(&value, str);
+   else
       free(value);
 
    return 0;
@@ -973,7 +981,7 @@ void XDR_dictionary_field_deallocator(void **goner,
 
    if (!goner || !field)
       return;
-   XDR_dict_remove_all(table, xdr_dict_free_cb, NULL);
+   XDR_dict_remove_all(table, &XDR_dictionary_free_cb, NULL);
 }
 
 void XDR_struct_field_deallocator(void **goner,
@@ -993,8 +1001,11 @@ void XDR_struct_field_deallocator(void **goner,
 void XDR_struct_array_field_deallocator(void **goner,
       struct XDR_FieldDefinition *field)
 {
-   // Needs to be written!!
-   assert(0);
+   if (!goner || !*goner || !field)
+      return;
+
+   free(*goner);
+   *goner = NULL;
 }
 
 void XDR_union_field_deallocator(void **goner,
@@ -1061,6 +1072,41 @@ void XDR_struct_free_deallocator(void **goner, struct XDR_StructDefinition *def)
    free(to_free);
 }
 
+static void format_output_line(FILE *out, struct XDR_FieldDefinition *field,
+      enum XDR_PRINT_STYLE style, const char *name, int *line, int level,
+      const char *fmt, ...)
+{
+   va_list ap;
+   int _line = 0;
+
+   if (!line)
+      line = &_line;
+   va_start(ap, fmt);
+
+   if (style == XDR_PRINT_CSV_DATA) {
+      vfprintf(out, fmt, ap);
+      fprintf(out, ",");
+   }
+   else if (style == XDR_PRINT_CSV_HEADER)
+      fprintf(out, "%s,", name);
+   else if (style == XDR_PRINT_KVP) {
+      fprintf(out, "%s=", name);
+      vfprintf(out, fmt, ap);
+      fprintf(out, "\n");
+   }
+   else if (style == XDR_PRINT_HUMAN) {
+      fprintf(out, "%03d: %*c%-*s", (*line)++, 1 + 3*level, ' ',
+               32 - 3*level, name);
+      vfprintf(out, fmt, ap);
+      if (field && field->unit)
+         fprintf(out, "    [%s]\n", field->unit);
+      else
+         fprintf(out, "\n");
+   }
+
+   va_end(ap);
+}
+
 void XDR_print_field_double(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *unused, int *line, int level)
@@ -1071,9 +1117,10 @@ void XDR_print_field_double(FILE *out, void *data,
       return;
 
    if (style == XDR_PRINT_HUMAN && field->conversion)
-      fprintf(out, "%lf", field->conversion(*val));
+      format_output_line(out, field, style, parent, line, level, "%lf",
+            field->conversion(*val));
    else
-      fprintf(out, "%lf", *val);
+      format_output_line(out, field, style, parent, line, level, "%lf", *val);
 }
 
 void XDR_print_field_double_dictionary(FILE *out, void *data,
@@ -1093,15 +1140,17 @@ void XDR_print_field_float(FILE *out, void *data,
       return;
 
    if (style == XDR_PRINT_HUMAN && field->conversion)
-      fprintf(out, "%lf", field->conversion(*val));
+      format_output_line(out, field, style, parent, line, level, "%lf",
+            field->conversion(*val));
    else
-      fprintf(out, "%f", *val);
+      format_output_line(out, field, style, parent, line, level, "%f", *val);
 }
 
 void XDR_print_field_float_dictionary(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *unused, int *line, int level)
 {
+   assert(0);
 }
 
 void XDR_print_field_float_array(FILE *out, void *data,
@@ -1129,7 +1178,7 @@ void XDR_print_field_char(FILE *out, void *data,
    if (!val)
       return;
 
-   fprintf(out, "%c", *val);
+   format_output_line(out, field, style, parent, line, level, "%c", *val);
 }
 
 void XDR_print_field_char_array(FILE *out, void *data,
@@ -1149,10 +1198,11 @@ void XDR_print_field_int32(FILE *out, void *data,
    if (!val)
       return;
 
-   if (style == XDR_PRINT_HUMAN && 0 != field->conversion)
-      fprintf(out, "%lf", field->conversion(*val));
+   if (style == XDR_PRINT_HUMAN && field->conversion)
+      format_output_line(out, field, style, parent, line, level, "%lf",
+            field->conversion(*val));
    else
-      fprintf(out, "%d", *val);
+      format_output_line(out, field, style, parent, line, level, "%d", *val);
 }
 
 void XDR_print_field_int32_array(FILE *out, void *data,
@@ -1199,10 +1249,15 @@ void XDR_print_field_string_array(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *unused, int *line, int level)
 {
-   char **str = (char **)data;
+   char *str;
 
-   if (*str)
-      fprintf(out, "%s", *str);
+   if (!data)
+      return;
+   str = *(char**)data;
+   if (!str)
+      str = "";
+
+   format_output_line(out, field, style, parent, line, level, "%s", str);
 }
 
 void XDR_print_field_string_arr_dictionary(FILE *out, void *data,
@@ -1230,9 +1285,10 @@ void XDR_print_field_uint32(FILE *out, void *data,
       return;
 
    if (style == XDR_PRINT_HUMAN && field->conversion)
-      fprintf(out, "%lf", field->conversion(*val));
+      format_output_line(out, field, style, parent, line, level, "%lf",
+            field->conversion(*val));
    else
-      fprintf(out, "%u", *val);
+      format_output_line(out, field, style, parent, line, level, "%u", *val);
 }
 
 void XDR_print_field_uint32_array(FILE *out, void *data,
@@ -1258,11 +1314,12 @@ void XDR_print_field_int64(FILE *out, void *data,
 
    if (!val)
       return;
-
    if (style == XDR_PRINT_HUMAN && field->conversion)
-      fprintf(out, "%lf", field->conversion(*val));
+      format_output_line(out, field, style, parent, line, level, "%lf",
+            field->conversion(*val));
    else
-      fprintf(out, "%"PRId64, *val);
+      format_output_line(out, field, style, parent, line, level,
+            "%"PRId64, *val);
 }
 
 void XDR_print_field_int64_array(FILE *out, void *data,
@@ -1290,9 +1347,11 @@ void XDR_print_field_uint64(FILE *out, void *data,
       return;
 
    if (style == XDR_PRINT_HUMAN && field->conversion)
-      fprintf(out, "%lf", field->conversion(*val));
+      format_output_line(out, field, style, parent, line, level, "%lf",
+            field->conversion(*val));
    else
-      fprintf(out, "%"PRIu64, *val);
+      format_output_line(out, field, style, parent, line, level,
+            "%"PRIu64, *val);
 }
 
 void XDR_print_field_uint64_array(FILE *out, void *data,
@@ -1581,9 +1640,6 @@ void XDR_print_structure(uint32_t type, struct XDR_StructDefinition *str,
    if (str->decoder(buff, data, &used, len, str->arg) >= 0)
       str->print_func((FILE*)arg, data, str->arg, parent, style, &line, 0);
 
-   if (style == XDR_PRINT_CSV_DATA || style == XDR_PRINT_CSV_HEADER)
-      fprintf((FILE*)arg, ",");
-
    str->deallocator(&data, str);
 }
 
@@ -1598,11 +1654,6 @@ void XDR_print_field_structure(FILE *out, void *data,
    str = XDR_definition_for_type(field->struct_id);
    if (!str || !str->print_func)
       return;
-
-   if (line) {
-      *line += 1;
-      printf("\n");
-   }
 
    str->print_func(out, data, str->arg, parent, style, line, level);
 }
@@ -1621,22 +1672,9 @@ void XDR_print_field_structure_array(FILE *out, void *src_ptr,
    if (!src)
       return;
 
-   if (style == XDR_PRINT_HUMAN)
-      fprintf(out, "\n%03d: %*c[", (*line)++, 1 + 3*level, ' ');
-
-   for (i = 0; i < len; i++) {
+   for (i = 0; i < len; i++)
       XDR_print_field_structure(out, src + i*increment, field, style,
             parent, NULL, line, level+1);
-      if (style == XDR_PRINT_HUMAN)
-         fprintf(out, "%03d:", *line);
-      if (i != (len-1) && (style == XDR_PRINT_CSV_DATA || style == XDR_PRINT_CSV_HEADER))
-         fprintf(out, ",");
-   }
-
-   if (style == XDR_PRINT_HUMAN) {
-      fprintf(out, " %*c]\n", 1 + 3*level, ' ');
-      (*line)++;
-   }
 }
 
 void XDR_print_fields_func(FILE *out, void *data_void, void *arg,
@@ -1647,12 +1685,13 @@ void XDR_print_fields_func(FILE *out, void *data_void, void *arg,
    char *data = (char*)data_void;
    const char *name;
    int _line = 0;
-   int prev_line;
    char key[1024];
 
    if (!line)
       line = &_line;
 
+   if (parents_key && *parents_key && style == XDR_PRINT_HUMAN)
+      format_output_line(out, NULL, style, parents_key, line, level, "");
    for (; fields && fields->funcs; fields++) {
       if (!fields->funcs->printer)
          continue;
@@ -1668,45 +1707,25 @@ void XDR_print_fields_func(FILE *out, void *data_void, void *arg,
       }
 
       if (style == XDR_PRINT_KVP && fields->key) {
-         if (fields->funcs->printer != &XDR_print_field_structure)
-            fprintf(out, "%s=", key);
          fields->funcs->printer(out, data + fields->offset, fields, style,
                key, data + fields->len_offset, 0, 0);
-         if (fields->funcs->printer != &XDR_print_field_structure)
-            fprintf(out, "\n");
       }
       if (style == XDR_PRINT_HUMAN && (fields->key || fields->name)) {
          name = fields->name;
          if (!name)
             name = key;
 
-         fprintf(out, "%03d: %*c%-*s", (*line)++, 1 + 3*level, ' ',
-               32 - 3*level, name);
-         prev_line = *line;
          fields->funcs->printer(out, data + fields->offset, fields, style,
-               key, data + fields->len_offset, line, level + 1);
-         if (fields->unit)
-            fprintf(out, "    [%s]\n", fields->unit);
-         else if (*line == prev_line)
-            fprintf(out, "\n");
+               name, data + fields->len_offset, line, level + 1);
       }
       if (style == XDR_PRINT_CSV_HEADER && fields->key &&
             fields->funcs->printer) {
-         if (fields->struct_id > 0) {
             fields->funcs->printer(out, data + fields->offset, fields, style,
                key, data + fields->len_offset, 0, 0);
-         } else {
-            fprintf(out, "%s", key);
-         }
-         if ((fields+1) && (fields+1)->funcs)
-            fprintf(out, ",");
       }
-      if (style == XDR_PRINT_CSV_DATA && fields->key && fields->funcs->printer){
+      if (style == XDR_PRINT_CSV_DATA && fields->key && fields->funcs->printer)
          fields->funcs->printer(out, data + fields->offset, fields, style,
                key, data + fields->len_offset, 0, 0);
-         if ((fields+1) && (fields+1)->funcs)
-            fprintf(out, ",");
-      }
    }
 }
 
@@ -2139,6 +2158,7 @@ struct xdr_dictionary_printer_params {
    int level;
    XDR_print_field_func printer;
    struct XDR_FieldDefinition *field;
+   int first;
 };
 
 static int XDR_dictionary_printer_itr(struct XDR_Dictionary *table,
@@ -2146,11 +2166,43 @@ static int XDR_dictionary_printer_itr(struct XDR_Dictionary *table,
 {
    struct xdr_dictionary_printer_params *params =
                 (struct xdr_dictionary_printer_params*)arg;
+   int _line = 0;
+   int *line = params->line;
+   char key_buff[1024], name_buff[1024];
 
-   fprintf(params->out, "%s=", key);
-   params->printer(params->out, value, params->field, params->style,
-         params->parent,
-           NULL, params->line, params->level + 1);
+   if (!line)
+      line = &_line;
+
+   if (!params->printer || !key)
+      return 0;
+
+   key_buff[0] = 0;
+   if (params->parent && params->parent[0]) {
+      snprintf(key_buff, sizeof(key_buff), "%s_%s", params->parent, key);
+      key_buff[sizeof(key_buff)-1] = 0;
+   }
+   else
+      strcpy(key_buff, key);
+
+   if (params->style == XDR_PRINT_KVP) {
+      params->printer(params->out, value, params->field, params->style,
+         key_buff, NULL, params->line, params->level + 1);
+   }
+   if (params->style == XDR_PRINT_HUMAN) {
+      params->first = 0;
+
+      name_buff[0] = 0;
+      strcpy(name_buff, key);
+      params->printer(params->out, value, params->field, params->style,
+         name_buff, NULL, line, params->level + 1);
+   }
+   if (params->style == XDR_PRINT_CSV_HEADER) {
+      fprintf(params->out, "%s,", key_buff);
+   }
+   if (params->style == XDR_PRINT_CSV_DATA) {
+      params->printer(params->out, value, params->field, params->style,
+               key_buff, NULL, 0, 0);
+   }
 
    return 0;
 }
@@ -2169,6 +2221,10 @@ void XDR_dictionary_field_printer(FILE *out, void *src_ptr,
    params.level = level;
    params.printer = print;
    params.field = field;
+   params.first = 1;
+
+   if (parent && *parent && style == XDR_PRINT_HUMAN)
+      format_output_line(out, NULL, style, parent, line, level, "");
 
    XDR_dict_iterate((struct XDR_Dictionary*)src_ptr,
          &XDR_dictionary_printer_itr, &params);
@@ -2308,7 +2364,7 @@ struct XDR_TypeFunctions xdr_string_functions = {
 struct XDR_TypeFunctions xdr_string_arr_functions = {
    (XDR_Decoder)&XDR_decode_string_array, (XDR_Encoder)&XDR_encode_string_array,
    &XDR_print_field_string_array, &XDR_scan_string_array,
-   NULL
+   &XDR_struct_array_field_deallocator
 };
 
 struct XDR_TypeFunctions xdr_string_arr_dict_functions = {
