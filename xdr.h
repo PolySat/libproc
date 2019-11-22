@@ -19,6 +19,8 @@ enum XDR_PRINT_STYLE { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
    XDR_PRINT_CSV_DATA };
 #endif
 
+struct XDR_Dictionary;
+
 typedef int (*XDR_Decoder)(char *src, void *dst, size_t *inc, size_t max,
       void *len);
 typedef int (*XDR_Encoder)(char *src, void *dst, size_t *inc, size_t max,
@@ -33,6 +35,9 @@ typedef void (*XDR_field_scanner)(const char *in, void *dst, void *arg,
       void *len, XDR_conversion_func conv);
 typedef void (*XDR_tx_struct)(void *data, void *arg, uint32_t error);
 typedef void (*XDR_populate_struct)(void *arg, XDR_tx_struct cb, void *cb_arg);
+typedef int (*XDR_dict_itr_cb)(struct XDR_Dictionary *table, const char *key, void *value, void *arg);
+
+#define XDR_HASH_LEN 29
 
 struct XDR_Union {
    uint32_t type;
@@ -45,6 +50,18 @@ struct XDR_TypeFunctions {
    XDR_print_field_func printer;
    XDR_field_scanner scanner;
    void (*field_dealloc)(void **, struct XDR_FieldDefinition *field);
+};
+
+struct XDR_Dictnode {
+   void *data;
+   struct XDR_Dictnode *next;
+   struct XDR_Dictionary *table;
+   char key[2];
+};
+
+struct XDR_Dictionary {
+   uint32_t length;
+   struct XDR_Dictnode *node[XDR_HASH_LEN];
 };
 
 struct XDR_FieldDefinition {
@@ -104,6 +121,14 @@ extern void XDR_array_field_scanner(const char *in, void *dst_ptr, void *arg,
 extern void XDR_print_fields_func(FILE *out, void *data, void *arg,
       const char*, enum XDR_PRINT_STYLE style, int *line, int level);
 
+extern int XDR_dictionary_encoder(struct XDR_Dictionary *src, void *dst,
+     size_t *used, size_t max, XDR_Encoder enc, size_t ent_size, void *enc_arg);
+extern int XDR_dictionary_decoder(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, XDR_Decoder dec, size_t ent_size, void *dec_arg);
+extern void XDR_dictionary_field_printer(FILE *out, void *src_ptr,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      void *len_ptr, XDR_print_field_func print, size_t increment,
+      const char *parent, int *line, int level);
 
 // All decoder functions take the exact same set of parameters to
 //  permit more efficient, generic parsing code
@@ -162,6 +187,26 @@ extern int XDR_decode_union_array(char *src, struct XDR_Union **dst,
 extern int XDR_decode_string_array(char *src, char **dst,
       size_t *used, size_t max, void *len);
 
+extern int XDR_decode_uint32_dictionary(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_decode_int32_dictionary(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_decode_int64_dictionary(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_decode_uint64_dictionary(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_decode_float_dictionary(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_decode_double_dictionary(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_decode_union_dictionary(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, void *len);
+
+extern int XDR_decode_byte_arr_dictionary(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_decode_string_arr_dictionary(char *src, struct XDR_Dictionary *dst,
+      size_t *used, size_t max, void *len);
+
 // Encode functions
 extern int XDR_encodebf_uint32(uint32_t *src, char *dst,
       size_t *used, size_t max, void *len);
@@ -201,6 +246,27 @@ extern int XDR_encode_double_array(double **src, char *dst,
 extern int XDR_encode_string_array(const char **src, char *dst,
       size_t *used, size_t max, void *len);
 
+extern int XDR_encode_uint32_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_encode_int32_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_encode_int64_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_encode_uint64_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_encode_union_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_encode_float_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_encode_double_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len);
+
+extern int XDR_encode_byte_arr_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len);
+extern int XDR_encode_string_arr_dictionary(struct XDR_Dictionary *src, char *dst,
+      size_t *used, size_t max, void *len);
+
+
 extern void *XDR_malloc_allocator(struct XDR_StructDefinition*);
 extern void XDR_free_deallocator(void **goner, struct XDR_StructDefinition *);
 extern void XDR_struct_free_deallocator(void **goner,
@@ -214,6 +280,8 @@ extern void XDR_array_field_deallocator(void **goner,
 extern void XDR_union_field_deallocator(void **goner,
       struct XDR_FieldDefinition *field);
 extern void XDR_union_array_field_deallocator(void **goner,
+      struct XDR_FieldDefinition *field);
+extern void XDR_dictionary_field_deallocator(void **goner,
       struct XDR_FieldDefinition *field);
 extern void XDR_free_union(struct XDR_Union *goner);
 
@@ -248,6 +316,40 @@ extern void XDR_print_field_double(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
       const char *parent, void *, int *line, int level);
 extern void XDR_print_field_structure(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *len, int *line, int level);
+
+extern void XDR_print_field_int32_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_uint32_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_int64_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_uint64_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_union_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_string_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_float_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_double_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style, 
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_structure_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *len, int *line, int level);
+extern void XDR_print_field_byte_arr_dictionary(FILE *out, void *data,
+      struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
+      const char *parent, void *, int *line, int level);
+extern void XDR_print_field_string_arr_dictionary(FILE *out, void *data,
       struct XDR_FieldDefinition *field, enum XDR_PRINT_STYLE style,
       const char *parent, void *len, int *line, int level);
 
@@ -304,6 +406,23 @@ extern void XDR_scan_string(const char *in, void *dst, void *arg, void *len,
 extern void XDR_scan_byte(const char *in, void *dst, void *arg, void *len,
       XDR_conversion_func conv);
 
+extern void XDR_scan_float_dictionary(const char *in, void *dst, void *arg,
+      void *len, XDR_conversion_func conv);
+extern void XDR_scan_double_dictionary(const char *in, void *dst, void *arg,
+      void *len, XDR_conversion_func conv);
+extern void XDR_scan_int32_dictionary(const char *in, void *dst, void *arg,
+      void *len, XDR_conversion_func conv);
+extern void XDR_scan_uint32_dictionary(const char *in, void *dst, void *arg,
+      void *len, XDR_conversion_func conv);
+extern void XDR_scan_int64_dictionary(const char *in, void *dst, void *arg,
+      void *len, XDR_conversion_func conv);
+extern void XDR_scan_uint64_dictionary(const char *in, void *dst, void *arg,
+      void *len, XDR_conversion_func conv);
+extern void XDR_scan_string_arr_dictionary(const char *in, void *dst, void *arg,
+      void *len, XDR_conversion_func conv);
+extern void XDR_scan_byte_arr_dictionary(const char *in, void *dst, void *arg,
+      void *len, XDR_conversion_func conv);
+
 extern void XDR_scan_float_array(const char *in, void *dst, void *arg,
       void *len, XDR_conversion_func conv);
 extern void XDR_scan_double_array(const char *in, void *dst, void *arg,
@@ -323,25 +442,45 @@ extern void XDR_scan_string_array(const char *in, void *dst, void *arg,
 extern void XDR_scan_byte_array(const char *in, void *dst, void *arg,
       void *len, XDR_conversion_func conv);
 
+extern struct XDR_Dictnode **XDR_dict_lookup_node(struct XDR_Dictionary *table, const char *key);
+extern void *XDR_dict_lookup(struct XDR_Dictionary *table, const char *key);
+extern void *XDR_dict_remove(struct XDR_Dictionary *table, const char *key);
+extern int XDR_dict_remove_all(struct XDR_Dictionary *table, XDR_dict_itr_cb freeCB, void *arg);
+extern int XDR_dict_add(struct XDR_Dictionary *table, const char *key, void *value);
+extern void XDR_dict_iterate(struct XDR_Dictionary *table, XDR_dict_itr_cb cb, void *arg);
+extern char *XDR_dict_lookup_value(struct XDR_Dictionary *table, void *val);
+extern int XDR_dict_bucket(const char * key);
+int XDR_dictionary_free_cb(struct XDR_Dictionary *table, const char *key,
+      void *value, void *arg);
+
 extern struct XDR_TypeFunctions xdr_float_functions;
 extern struct XDR_TypeFunctions xdr_float_arr_functions;
+extern struct XDR_TypeFunctions xdr_float_dict_functions;
 extern struct XDR_TypeFunctions xdr_double_functions;
 extern struct XDR_TypeFunctions xdr_double_arr_functions;
+extern struct XDR_TypeFunctions xdr_double_dict_functions;
 extern struct XDR_TypeFunctions xdr_char_functions;
 extern struct XDR_TypeFunctions xdr_char_arr_functions;
 extern struct XDR_TypeFunctions xdr_int32_functions;
 extern struct XDR_TypeFunctions xdr_int32_arr_functions;
+extern struct XDR_TypeFunctions xdr_int32_dict_functions;
 extern struct XDR_TypeFunctions xdr_uint32_functions;
 extern struct XDR_TypeFunctions xdr_uint32_arr_functions;
+extern struct XDR_TypeFunctions xdr_uint32_dict_functions;
 extern struct XDR_TypeFunctions xdr_int64_functions;
 extern struct XDR_TypeFunctions xdr_int64_arr_functions;
+extern struct XDR_TypeFunctions xdr_int64_dict_functions;
 extern struct XDR_TypeFunctions xdr_uint64_functions;
 extern struct XDR_TypeFunctions xdr_uint64_arr_functions;
+extern struct XDR_TypeFunctions xdr_uint64_dict_functions;
 extern struct XDR_TypeFunctions xdr_string_functions;
 extern struct XDR_TypeFunctions xdr_string_arr_functions;
+extern struct XDR_TypeFunctions xdr_string_arr_dict_functions;
 extern struct XDR_TypeFunctions xdr_byte_arr_functions;
+extern struct XDR_TypeFunctions xdr_byte_arr_dict_functions;
 extern struct XDR_TypeFunctions xdr_union_functions;
 extern struct XDR_TypeFunctions xdr_union_arr_functions;
+extern struct XDR_TypeFunctions xdr_union_dict_functions;
 extern struct XDR_TypeFunctions xdr_int32_bitfield_functions;
 extern struct XDR_TypeFunctions xdr_uint32_bitfield_functions;
 
