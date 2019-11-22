@@ -557,7 +557,7 @@ int ipc_write_buffer_sync(int fd, struct IPCBuffer *buffer)
       written = write(fd, &buffer->data[sent], buffer->dataLen - sent);
       if (written < 0 && errno != EAGAIN)
          return -1;
-      else
+      else if (written > 0)
          sent += written;
    }
 
