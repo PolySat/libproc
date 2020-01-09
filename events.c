@@ -1531,9 +1531,9 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
          "      \"time_remaining\":%s%ld.%06ld,\n"
          "      \"awake_time\":%ld.%06ld,\n"
          "      \"scheduled_time\":%ld.%06ld,\n",
-         rem_sign, remain.tv_sec, remain.tv_usec, data->nextAwake.tv_sec,
-         data->nextAwake.tv_usec, data->scheduleTime.tv_sec,
-         data->scheduleTime.tv_usec );
+         rem_sign, remain.tv_sec,(long) remain.tv_usec, data->nextAwake.tv_sec,
+         (long)data->nextAwake.tv_usec, data->scheduleTime.tv_sec,
+         (long)data->scheduleTime.tv_usec );
 
    ipc_printf_buffer(json,
          "      \"event_length\":%ld.%06ld,\n"
@@ -1541,7 +1541,7 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
          "      \"event_count\":%u\n"
          "    }",
          data->timeStep.tv_sec,
-         data->timeStep.tv_usec, (uintptr_t)data->arg, data->count);
+         (long)data->timeStep.tv_usec, (uintptr_t)data->arg, data->count);
 }
 
 static void edbg_report_timed_events(struct IPCBuffer *json, EVTHandler *ctx,
@@ -1681,7 +1681,7 @@ static void edbg_report_state(EVTHandler *ctx, uint8_t full_format)
    }
 
    ipc_printf_buffer(ctx->dbgBuffer, "  \"current_time\": %ld.%06ld\n}",
-                   curr_time.tv_sec, curr_time.tv_usec);
+                   curr_time.tv_sec, (long)curr_time.tv_usec);
 
    // Send the data out to all clients
    zmql_broadcast_buffer(ctx->dbgServer, ctx->dbgBuffer);
