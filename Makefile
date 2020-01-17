@@ -15,7 +15,7 @@ MINOR_VERS=0.1
 INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h eventTimer.h telm_dict.h zmqlite.h critical.h xdr.h cmd-pkt.h plugin.h
 
 # Build Variables
-override CFLAGS+=$(SYMBOLS) -Wall -Werror -std=gnu99 -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS)
+override CFLAGS+=$(SYMBOLS) -Wno-format-truncation -Werror -std=gnu99 -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS)
 override LDFLAGS+= -ldl
 SRC_PATH=.
 
