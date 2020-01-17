@@ -1,3 +1,3 @@
 SO_EXT=so
-SO_CFLAGS=-fPIC -O -Wno-error=unused-result -Wno-error=deprecated-declarations
+SO_CFLAGS=-fPIC -O
 SO_LDFLAGS=-shared -fPIC -Wl,-soname,$(SO_NAME)
