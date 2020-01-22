@@ -103,7 +103,10 @@ struct XDR_CommandHandlers {
  */
 ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
       struct XDR_CommandHandlers *handlers);
+ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMode,
+      struct XDR_CommandHandlers *handlers, int sz);
 ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode);
+ProcessData *PROC_init_hashsize(const char *procName, enum WatchdogMode wdMode, int hashsize);
 
 /**
  * Registers the process with the software watchdog.

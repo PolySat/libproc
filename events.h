@@ -74,6 +74,8 @@ typedef struct EventState EVTHandler;
  * @return The event handler.
  */
 EVTHandler *EVT_create_handler(EVT_debug_state_cb debug_cb, void *arg);
+struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
+        void *arg);
 
 /**
  * Free an event handler.
