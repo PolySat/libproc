@@ -9,14 +9,19 @@
 
 struct XDR_FieldDefinition;
 
+#ifndef XDR_PRINT_STYLE_ENUM
+#define XDR_PRINT_STYLE_ENUM
 #ifdef __cplusplus
-enum XDR_PRINT_STYLE : short { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
-   XDR_PRINT_CSV_DATA };
-
-extern "C" {
+enum XDR_PRINT_STYLE : short { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEA
+DER, XDR_PRINT_CSV_DATA };
 #else
 enum XDR_PRINT_STYLE { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
    XDR_PRINT_CSV_DATA };
+#endif
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 struct XDR_Dictionary;
