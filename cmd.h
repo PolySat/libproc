@@ -135,10 +135,16 @@ struct CMD_XDRCommandInfo {
    void *arg;
 };
 
+#ifndef XDR_PRINT_STYLE_ENUM
+#define XDR_PRINT_STYLE_ENUM
 #ifdef __cplusplus
-enum XDR_PRINT_STYLE : short;
+enum XDR_PRINT_STYLE : short { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
+   XDR_PRINT_CSV_DATA };
+
 #else
-enum XDR_PRINT_STYLE;
+enum XDR_PRINT_STYLE { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
+   XDR_PRINT_CSV_DATA };
+#endif
 #endif
 
 extern void CMD_register_commands(struct CMD_XDRCommandInfo*, int);

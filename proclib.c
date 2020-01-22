@@ -164,12 +164,23 @@ static void PROC_debugger_state(struct IPCBuffer *buff, void *arg)
 
 ProcessData *PROC_init(const char *procName, enum WatchdogMode wdMode)
 {
-   return PROC_init_xdr(procName, wdMode, NULL);
+   return PROC_init_xdr_hashsize(procName, wdMode, NULL, 19);
+}
+
+ProcessData *PROC_init_hashsize(const char *procName, enum WatchdogMode wdMode, int sz)
+{
+   return PROC_init_xdr_hashsize(procName, wdMode, NULL, sz);
+}
+
+ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
+      struct XDR_CommandHandlers *handlers)
+{
+   return PROC_init_xdr_hashsize(procName, wdMode, handlers, 19);
 }
 
 //Initializes a ProcessData object
-ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
-      struct XDR_CommandHandlers *handlers)
+ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMode,
+      struct XDR_CommandHandlers *handlers, int hashsize)
 {
    ProcessData *proc;
    char filepath[80];
@@ -273,8 +284,9 @@ ProcessData *PROC_init_xdr(const char *procName, enum WatchdogMode wdMode,
          "Failed to open TX socket for %s\n", procName);
 
    // Initialize event handler and return it
-   proc->evtHandler = EVT_create_handler(PROC_debugger_state, proc);
-   EVT_set_debugger_port(proc->evtHandler, socket_get_addr_by_name(proc->name));
+   proc->evtHandler = EVT_initWithSize(hashsize, PROC_debugger_state, proc);
+   EVT_set_debugger_port(proc->evtHandler, proc->name ?
+           socket_get_addr_by_name(proc->name) : 12345);
    //set up sigPipe to take signals. Signals will be treated as an event with cb 'signal_fd_cb'
    setup_signal_fd(proc);
 

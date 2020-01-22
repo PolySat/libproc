@@ -172,7 +172,7 @@ int UTIL_cleanup_dir(const char *dirname, int max_entries, int ignore_hidden,
 {
    DIR *dir = NULL;
    struct dirent *prev_ent = NULL;
-   pqueue_t *queue = NULL;
+   ps_pqueue_t *queue = NULL;
    struct CleanupState *cleanup_records = NULL, *next_rec = NULL;
    int res = 0;
    char *path_buff = NULL;
@@ -201,7 +201,7 @@ int UTIL_cleanup_dir(const char *dirname, int max_entries, int ignore_hidden,
 
    // Pre-allocate a pqueue (efficient data structure for keeping entries
    //  sorted) to hold max + 5 entries
-   queue = pqueue_init(max_entries + 5, cmp_pri_cleanup_state,
+   queue = ps_pqueue_init(max_entries + 5, cmp_pri_cleanup_state,
       get_pri_cleanup_state, set_pri_cleanup_state,
       get_pos_cleanup_state, set_pos_cleanup_state);
 
@@ -262,13 +262,13 @@ int UTIL_cleanup_dir(const char *dirname, int max_entries, int ignore_hidden,
       }
 
       // Add the file into our queue
-      pqueue_insert(queue, next_rec);
+      ps_pqueue_insert(queue, next_rec);
 
       // If the queue is too big (> max_entries), dequeue oldest entry,
       //  delete it, and reuse entry storage for next iteration through
       //  the readdir() loop
-      if (pqueue_size(queue) > max_entries) {
-         next_rec = pqueue_pop(queue);
+      if (ps_pqueue_size(queue) > max_entries) {
+         next_rec = ps_pqueue_pop(queue);
          if (!next_rec) {
             ERR_REPORT(DBG_LEVEL_WARN, "pqueue internal error.  pop on non-empty queue didn't return record\n");
             res = -1;
@@ -319,7 +319,7 @@ cleanup:
       closedir(dir);
 
    if (queue)
-      pqueue_free(queue);
+      ps_pqueue_free(queue);
 
    if (cleanup_records)
       free(cleanup_records);
