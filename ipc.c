@@ -93,7 +93,8 @@ int socket_named_init(const char * service)
       DBG_print(DBG_LEVEL_INFO, "Binding socket on port %u\n", portNum);
       fd = socket_init(portNum);
    } else {
-      DBG_print(DBG_LEVEL_WARN, "Failed to look up %s port number\n", service);
+      DBG_print(DBG_LEVEL_FATAL, "FATAL: Failed to look up %s port number\n", service);
+      exit(4);
    }
 
    return fd;
