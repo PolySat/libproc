@@ -93,7 +93,7 @@ void *CFG_PtrArrayAppendCB(const char *key, const char *value, void *data,
 #define CFG_OBJLIST(n, objlist, str, field) { n, &CFG_static_arr_obj, objlist, { &CFG_PtrCpyCB, (void*)offsetof(str,field), NULL } }
 #define CFG_OBJARR(n, obj, str, field) { n, &CFG_static_obj, obj, { &CFG_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
 
-#define CFG_OBJLISTARR(n, objlist, str, field) { n, &CFG_static_obj, objlist, { &CFG_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
+#define CFG_OBJLISTARR(n, objlist, str, field) { n, &CFG_static_arr_obj, objlist, { &CFG_PtrArrayAppendCB, (void*)offsetof(str,field), NULL } }
 
 #define CFG_OBJCB(n, obj, cb) { n, &CFG_static_obj, obj, { &cb, NULL, NULL } }
 #define CFG_STRDUP(n, str, field) { n, NULL, NULL, { &CFG_StrdupCB, (void*)offsetof(str,field), NULL } }
