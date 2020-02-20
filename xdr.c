@@ -1054,22 +1054,31 @@ void XDR_free_deallocator(void **goner, struct XDR_StructDefinition *def)
 
 void XDR_struct_free_deallocator(void **goner, struct XDR_StructDefinition *def)
 {
-   struct XDR_FieldDefinition *fields;
    char *to_free;
 
    if (!goner || !*goner || !def)
       return;
-   fields = (struct XDR_FieldDefinition*)def->arg;
    to_free = (char*)*goner;
+
+   XDR_struct_free_fields(goner, def);
+
+   *goner = NULL;
+   free(to_free);
+}
+
+void XDR_struct_free_fields(void **goner, struct XDR_StructDefinition *def)
+{
+   struct XDR_FieldDefinition *fields;
+
+   if (!goner || !*goner || !def)
+      return;
+   fields = (struct XDR_FieldDefinition*)def->arg;
 
    for (; fields && fields->funcs; fields++) {
       if (!fields->funcs->field_dealloc)
          continue;
-      fields->funcs->field_dealloc( (void**)(to_free + fields->offset), fields);
+      fields->funcs->field_dealloc( (void**)(*goner + fields->offset), fields);
    }
-
-   *goner = NULL;
-   free(to_free);
 }
 
 static void format_output_line(FILE *out, struct XDR_FieldDefinition *field,

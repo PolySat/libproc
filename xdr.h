@@ -276,6 +276,8 @@ extern void *XDR_malloc_allocator(struct XDR_StructDefinition*);
 extern void XDR_free_deallocator(void **goner, struct XDR_StructDefinition *);
 extern void XDR_struct_free_deallocator(void **goner,
       struct XDR_StructDefinition *def);
+extern void XDR_struct_free_fields(void **goner,
+      struct XDR_StructDefinition *def);
 extern void XDR_struct_field_deallocator(void **goner,
       struct XDR_FieldDefinition *field);
 extern void XDR_struct_array_field_deallocator(void **goner,
