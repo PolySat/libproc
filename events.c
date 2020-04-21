@@ -508,7 +508,7 @@ char EVT_fd_add_with_cleanup(EVTHandler *ctx, int fd, int event,
    if (!curr->cb[event])
       ctx->eventCnt[event]++;
    else {
-      fprintf(stderr, "Warning: Only one event handler can be registered for a "
+      DBG_print(DBG_LEVEL_WARN, "Warning: Only one event handler can be registered for a "
             "fd at a time.  Overwriting event %d on fd %d\n", event, curr->fd);
       if (curr->cleanup[event] && curr->arg[event] != p)
          (*curr->cleanup[event])(-1, event, curr->arg[event]);
