@@ -780,6 +780,7 @@ char EVT_start_loop(EVTHandler *ctx)
    int fd_paused = 0;
    int real_event;
 
+   ctx->keepGoing = 1;
    ctx->break_on_next = ctx->initialDebuggerState == EDBG_STOPPED;
    edbg_init(ctx);
 
