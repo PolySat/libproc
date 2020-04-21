@@ -262,7 +262,6 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    int i;
    const char *dbg_state;
 
-   printf("INIT!!!\n");
    res = (struct EventState*)malloc(
          sizeof(struct EventState) + hashSize * sizeof(EventCBPtr));
    if (!res)
@@ -277,7 +276,6 @@ struct EventState *EVT_initWithSize(int hashSize, EVT_debug_state_cb debug_cb,
    dbg_state = getenv(EDBG_ENV_VAR);
    res->initialDebuggerState = EDBG_DISABLED;
    res->debuggerState = EDBG_DISABLED;
-   printf("dbg_state %p\n", dbg_state);
    if (dbg_state) {
       if (!strcasecmp(dbg_state, "ENABLED"))
          res->initialDebuggerState = EDBG_ENABLED;
