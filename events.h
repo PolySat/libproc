@@ -146,6 +146,17 @@ void EVT_fd_set_name(EVTHandler *handler, int fd, const char *fmt, ...)
                      __attribute__ ((format (printf, 3, 4)));
 
 /**
+ * Sets the critical flag for a fd event.  Non-critical events don't
+ * count for event loop auto-exit criteria.
+ *
+ * @param handler The event handler.
+ * @param fd The file descriptor to flag.
+ * @param critical A boolean flag for the critical status.
+ */
+void EVT_fd_set_critical(EVTHandler *handler, int fd, int critical);
+
+
+/**
   * Convert a millisecond value into a timeval suitable for registering
   * events.
   *
@@ -237,6 +248,31 @@ char EVT_sched_update_partial_credit(EVTHandler *handler, void *eventId, struct 
  */
 void EVT_sched_set_name(void *eventId, const char *fmt, ...)
                      __attribute__ ((format (printf, 2, 3)));
+
+/**
+ * Sets the critical flag for a scheduled event.  Non-critical events don't
+ * count for event loop auto-exit criteria.
+ *
+ * @param handler The event handler.
+ * @param event The event to flag.
+ * @param critical A boolean flag for the critical status.
+ */
+void EVT_sched_set_critical(EVTHandler *handler, void *eventId, int critical);
+
+/**
+ * Starts the main event loop.  Control of the program is given to the
+ * event handler, which will block until an event occurs, and call the
+ * appropriate callback.
+ *
+ * @param handler The event handler.
+ * @param auto_exit A bit field that controls when the loop exits.
+ *
+ * @return 0 on an successfuly exit, -1 if an error occurs in the main loop.
+ */
+#define EVT_NEVER_EXIT 0
+#define EVT_EXIT_FD 1
+#define EVT_EXIT_SCHED 2
+char EVT_start_loop_auto_exit(EVTHandler *handler, int auto_exit);
 
 /**
  * Starts the main event loop.  Control of the program is given to the

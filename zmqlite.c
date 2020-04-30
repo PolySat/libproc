@@ -225,6 +225,7 @@ int zmql_accept_cb(int fd, char type, void *arg)
          zmql_client_read_cb, client);
    EVT_fd_set_name(server->evt, client->socket, "ZMQ Client %s:%u",
          inet_ntoa(client->addr.sin_addr), ntohs(client->addr.sin_port));
+   EVT_fd_set_critical(server->evt, client->socket, 0);
 
    zmql_client_raw_write(client, ZMQ_SIGNATURE_DATA, ZMQ_SIGNATURE_LEN);
 
@@ -256,6 +257,7 @@ struct ZMQLServer *zmql_create_tcp_server(EVTHandler *evt, int port,
 
    EVT_fd_add(evt, server->socket, EVENT_FD_READ, zmql_accept_cb, server);
    EVT_fd_set_name(evt, server->socket, "ZMQ Server port %d", port);
+   EVT_fd_set_critical(evt, server->socket, 0);
 
    return server;
 }

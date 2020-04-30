@@ -292,6 +292,7 @@ void cmd_set_multicast_handler(struct CommandCbArg *st,
       EVT_fd_add(evt_loop, state->fd, EVENT_FD_READ, multicast_cmd_handler_cb,
                      state);
       EVT_fd_set_name(evt_loop, state->fd, "Multicast Listener");
+      EVT_fd_set_critical(evt_loop, state->fd, 0);
       state->next = st->mcast;
       st->mcast = state;
    }

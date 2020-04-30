@@ -61,6 +61,7 @@ typedef struct _ScheduleCB
    ps_pqueue_t *queue;
    uint32_t count;
    char breakpoint;
+   char critical;
    char name[128];
 } ScheduleCB;
 
@@ -73,6 +74,7 @@ typedef struct EventCB
    uint32_t counts[EVENT_MAX];
    char breakpoint[EVENT_MAX];
    char pausable;
+   char critical;
    int fd;                           // The file descriptor which will launch the event 
    char name[128];
    struct EventCB *next;            // The next signal callback
@@ -129,6 +131,7 @@ struct EventState
    void *dump_evt;
    void *breakpoint_evt;
    ScheduleCB null_evt;
+   long critical_sched_count, critical_fd_count;
    uint8_t break_on_next:1;
    uint8_t dump_every_loop:1;
    uint8_t full_dump_format:1;
@@ -405,6 +408,9 @@ static int EVT_remove_internal(struct EventState *ctx, struct EventCB **curr,
    }
 
    if (deleteIt) {
+      if (tmp->critical)
+         ctx->critical_fd_count--;
+
       *curr = tmp->next;
       free(tmp);
    }
@@ -500,10 +506,12 @@ char EVT_fd_add_with_cleanup(EVTHandler *ctx, int fd, int event,
          return -1;
 
       memset(curr, 0, sizeof(*curr));
+      curr->critical = 1;
       curr->pausable = 1;
       curr->fd = fd;
       curr->next = ctx->events[fd % ctx->hashSize];
       ctx->events[fd % ctx->hashSize] = curr;
+      ctx->critical_fd_count++;
    }
    if (!curr->cb[event])
       ctx->eventCnt[event]++;
@@ -695,6 +703,9 @@ static int evt_process_timed_event(EVTHandler *ctx,
          &curProc->timeStep, &curProc->nextAwake);
       ps_pqueue_insert(curProc->queue, curProc);
    } else {
+      if (curProc->critical)
+         ctx->critical_sched_count--;
+
       if (curProc != &ctx->null_evt) {
          free(curProc);
       }
@@ -764,6 +775,11 @@ static int select_event_loop_cb(struct EventTimer *et,
 
 char EVT_start_loop(EVTHandler *ctx)
 {
+   return EVT_start_loop_auto_exit(ctx, EVT_NEVER_EXIT);
+}
+
+char EVT_start_loop_auto_exit(EVTHandler *ctx, int auto_exit)
+{
    fd_set eventSets[EVENT_MAX];
    struct EVT_select_cb_args args;
    int i;
@@ -777,6 +793,7 @@ char EVT_start_loop(EVTHandler *ctx)
    int time_paused = 0;
    int fd_paused = 0;
    int real_event;
+   int remaining_work;
 
    ctx->keepGoing = 1;
    ctx->break_on_next = ctx->initialDebuggerState == EDBG_STOPPED;
@@ -784,6 +801,7 @@ char EVT_start_loop(EVTHandler *ctx)
 
    while(ctx->keepGoing) {
       real_event = 0;
+      remaining_work = 0;
       // Process any single-step events
       if (ctx->dbg_step && ctx->next_timed_event) {
          ctx->evt_timer->get_monotonic_time(ctx->evt_timer, &curTime);
@@ -829,7 +847,18 @@ char EVT_start_loop(EVTHandler *ctx)
       curProc = ps_pqueue_peek(ctx->dbg_queue);
       if (curProc)
          args.mono_to = &curProc->nextAwake;
+
+      // Check to see if we need to auto-stop the event loop
+      if (ctx->critical_sched_count > 0)
+         remaining_work |= EVT_EXIT_SCHED;
+      if (ctx->critical_fd_count > 0)
+         remaining_work |= EVT_EXIT_FD;
       
+      if (auto_exit && !(auto_exit & remaining_work)) {
+         ctx->keepGoing = 0;
+         break;
+      }
+
       // Call blocking function of event timer
       retval = ctx->evt_timer->block(ctx->evt_timer, nextAwake, time_paused,
                      &select_event_loop_cb, &args);
@@ -950,8 +979,10 @@ void *EVT_sched_add(EVTHandler *handler, struct timeval time,
    newSchedCB->name[0] = 0;
    newSchedCB->breakpoint = 0;
    newSchedCB->count = 0;
+   newSchedCB->critical = 1;
 
    if (0 == ps_pqueue_insert(newSchedCB->queue, newSchedCB)){
+     handler->critical_sched_count++;
      return newSchedCB;
    }
 
@@ -988,13 +1019,29 @@ void *EVT_sched_add_with_timestep(EVTHandler *handler, struct timeval time,
    newSchedCB->queue = handler->queue;
    newSchedCB->name[0] = 0;
    newSchedCB->breakpoint = 0;
+   newSchedCB->critical = 1;
 
    if (0 == ps_pqueue_insert(newSchedCB->queue, newSchedCB)){
+      handler->critical_sched_count++;
       return newSchedCB;
    }
 
    free(newSchedCB);
    return NULL;
+}
+
+void EVT_sched_set_critical(EVTHandler *handler, void *eventId, int critical)
+{
+   ScheduleCB *evt = (ScheduleCB*)eventId;
+   if (!evt)
+      return;
+
+   if (evt->critical && !critical)
+      handler->critical_sched_count--;
+   else if (!evt->critical && critical)
+      handler->critical_sched_count++;
+
+   evt->critical = critical;
 }
 
 /**
@@ -1011,6 +1058,9 @@ void *EVT_sched_remove(EVTHandler *handler, void *eventId)
    void *result = NULL;
    if (!evt)
       return NULL;
+
+   if (evt->critical)
+      handler->critical_sched_count--;
 
    if (handler->next_timed_event == evt)
       handler->next_timed_event = &handler->null_evt;
@@ -1084,6 +1134,9 @@ char EVT_sched_move_to_mono(EVTHandler *handler, void *eventId)
    timeradd(&evt->scheduleTime, &evt->timeStep, &evt->nextAwake);
    evt->queue = handler->dbg_queue;
    ps_pqueue_insert(evt->queue, evt);
+   if (evt->critical)
+      handler->critical_sched_count--;
+   evt->critical = 0;
 
    return 0;
 }
@@ -1132,6 +1185,21 @@ void EVT_sched_set_name(void *eventId, const char *fmt, ...)
    vsnprintf(evt->name, sizeof(evt->name), fmt, ap);
    va_end(ap);
    evt->name[sizeof(evt->name) - 1] = 0;
+}
+
+void EVT_fd_set_critical(EVTHandler *ctx, int fd, int critical)
+{
+   struct EventCB *curr;
+
+   for (curr = ctx->events[fd % ctx->hashSize]; curr; curr = curr->next) {
+      if (curr->fd == fd) {
+         if (curr->critical && !critical)
+            ctx->critical_fd_count--;
+         else if (!curr->critical && critical)
+            ctx->critical_fd_count++;
+         curr->critical = critical;
+      }
+   }
 }
 
 void EVT_fd_set_name(EVTHandler *ctx, int fd, const char *fmt, ...)
@@ -1264,6 +1332,7 @@ static int setup_gpio_intr(EVTHandler *handler, struct GPIOInterruptDesc *intr, 
       intr->fd = 0;
    }
    EVT_fd_set_name(handler, intr->fd, "GPIO");
+   EVT_fd_set_critical(handler, intr->fd, 0);
 
    return 0;
 }
@@ -1353,6 +1422,7 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
                &edbg_breakpoint_cb, ctx);
          EVT_sched_make_breakpoint(ctx, ctx->breakpoint_evt);
          EVT_sched_set_name(ctx->breakpoint_evt, "Debug Breakpoint");
+         EVT_sched_set_critical(ctx, ctx->breakpoint_evt, 0);
       }
    }
    else if (!strcasecmp(cmd, "stop")) {
@@ -1388,6 +1458,7 @@ static int edbg_client_msg(struct ZMQLClient *client, const void *data,
                &edbg_dump_cb, ctx);
          EVT_sched_move_to_mono(ctx, ctx->dump_evt);
          EVT_sched_set_name(ctx->dump_evt, "Debug State Dump");
+         EVT_sched_set_critical(ctx, ctx->dump_evt, 0);
       }
    }
    else if (!strcasecmp(cmd, "set_fd_breakpoint") || 
@@ -1460,7 +1531,8 @@ static void edbg_init(EVTHandler *ctx)
 {
    struct EventTimer *et;
 
-   if (ctx->initialDebuggerState == EDBG_DISABLED || !ctx->dbgPort)
+   if (ctx->initialDebuggerState == EDBG_DISABLED || !ctx->dbgPort ||
+         ctx->dbgServer)
       return;
 
    if (!ctx->custom_timer) {
@@ -1521,10 +1593,11 @@ static void edbg_report_timed_event(struct IPCBuffer *json, ScheduleCB *data,
          "    {\n"
          "      \"id\":%"PRIdPTR",\n"
          "      \"name\":\"%s\",\n"
-         "      \"function\":\"%s\",\n",
+         "      \"function\":\"%s\",\n"
+         "      \"critical\":%d,\n",
          (uintptr_t)data,
          data->name[0] ? data->name : get_function_name((void *)data->callback),
-         get_function_name((void *)data->callback));
+         get_function_name((void *)data->callback), data->critical);
 
    ipc_printf_buffer(json,
          "      \"time_remaining\":%s%ld.%06ld,\n"
@@ -1603,10 +1676,12 @@ static void edbg_report_fd_event(struct IPCBuffer *json, struct EventCB *data,
 
    ipc_printf_buffer(json,
          "      \"pausable\":%s,\n"
+         "      \"critical\":%d,\n"
          "      \"read_breakpoint\":%s,\n"
          "      \"write_breakpoint\":%s,\n"
          "      \"error_breakpoint\":%s,\n",
          json_bool(data->pausable),
+         data->critical,
          json_bool(data->breakpoint[EVENT_FD_READ]),
          json_bool(data->breakpoint[EVENT_FD_WRITE]),
          json_bool(data->breakpoint[EVENT_FD_ERROR]));
@@ -1654,10 +1729,12 @@ static void edbg_report_state(EVTHandler *ctx, uint8_t full_format)
    ipc_reset_buffer(ctx->dbgBuffer);
    ipc_printf_buffer(ctx->dbgBuffer,
          "{\n  \"loop_steps\": %llu,\n  \"dbg_state\": \"%s\",\n  "
-         "\"port\":%u,\n  \"timed_events\":%llu,\n  \"fd_events\":%llu,\n",
+         "\"port\":%u,\n  \"timed_events\":%llu,\n  \"fd_events\":%llu,\n"
+         "  \"critical_sched_count\":%ld,  \"critical_fd_count\":%ld,\n",
          ctx->loop_counter, 
          ctx->debuggerState == EDBG_STOPPED ? "stopped" : "running",
-         ctx->dbgPort, ctx->timed_event_counter, ctx->fd_event_counter);
+         ctx->dbgPort, ctx->timed_event_counter, ctx->fd_event_counter,
+         ctx->critical_sched_count, ctx->critical_fd_count);
 
    if (ctx->debuggerStateCB)
       ctx->debuggerStateCB(ctx->dbgBuffer, ctx->debuggerStateArg);

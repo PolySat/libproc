@@ -300,9 +300,11 @@ ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMo
    //Event for when something (probably a command) appears on the fd
    EVT_fd_add(proc->evtHandler, proc->cmdFd, EVENT_FD_READ, cmd_handler_cb, proc);
    EVT_fd_set_name(proc->evtHandler, proc->cmdFd, "UDP Command Socket");
+   EVT_fd_set_critical(proc->evtHandler, proc->cmdFd, 0);
    //Event for when something (probably a command response) appears on the fd
    EVT_fd_add(proc->evtHandler, proc->txFd, EVENT_FD_READ, tx_cmd_handler_cb, proc);
    EVT_fd_set_name(proc->evtHandler, proc->txFd, "UDP Request Socket");
+   EVT_fd_set_critical(proc->evtHandler, proc->txFd, 0);
    //Set up SIGCHLD signal handler
    PROC_signal(proc, SIGCHLD, &sigchld_handler, proc);
 
@@ -526,6 +528,7 @@ static int setup_signal_fd(ProcessData *proc)
    res = EVT_fd_add(proc->evtHandler, proc->sigPipe[0],
          EVENT_FD_READ, signal_fd_cb, proc);
    EVT_fd_set_name(proc->evtHandler, proc->sigPipe[0], "Signal Pipe");
+   EVT_fd_set_critical(proc->evtHandler, proc->sigPipe[0], 0);
    return res;
 }
 
@@ -900,6 +903,7 @@ char CHLD_ignore_stderr(ProcChild *child)
          EVENT_FD_READ, dump_child_data, child);
    EVT_fd_set_name(child->parentData->evtHandler, child->stderr_fd,
          "child %u stderr dump", child->procId);
+   EVT_fd_set_critical(child->parentData->evtHandler, child->stderr_fd,0);
    return res;
 }
 
@@ -918,6 +922,7 @@ char CHLD_ignore_stdout(ProcChild *child)
          EVENT_FD_READ, dump_child_data, child);
    EVT_fd_set_name(child->parentData->evtHandler, child->stdout_fd,
          "child %u stdout dump", child->procId);
+   EVT_fd_set_critical(child->parentData->evtHandler, child->stdout_fd, 0);
    return res;
 }
 
