@@ -428,6 +428,8 @@ void EVT_free_handler(EVTHandler *ctx)
 
    if (ctx->dbgBuffer)
       ipc_destroy_buffer(&ctx->dbgBuffer);
+   if (ctx->dbgServer)
+      zmql_destroy_tcp_server(&ctx->dbgServer);
 
    if (ctx->evt_timer)
       ctx->evt_timer->cleanup(ctx->evt_timer);
