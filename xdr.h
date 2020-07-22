@@ -80,6 +80,8 @@ struct XDR_FieldDefinition {
    uint32_t struct_id;
    const char *description;
    size_t len_offset;
+   const char *true_label;
+   const char *false_label;
 };
 
 struct XDR_StructDefinition {
