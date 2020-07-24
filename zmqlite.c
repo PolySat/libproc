@@ -35,9 +35,10 @@ static char ZMQ_HANDSHAKE_DATA[] = { 0x04, 0x1A, 0x05, 'R', 'E', 'A', 'D', 'Y',
 #define ZMQ_LONG_SIZE 0x2
 #define ZMQ_COMMAND 0x4
 
+#ifndef __APPLE__
 #define htonll(x) ((1==htonl(1)) ? (x) : ((uint64_t)htonl((x) & 0xFFFFFFFF) << 32) | htonl((x) >> 32))
 #define ntohll(x) ((1==ntohl(1)) ? (x) : ((uint64_t)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))
-
+#endif
 
 struct ZMQLClient {
    int socket;
@@ -201,7 +202,7 @@ int zmql_accept_cb(int fd, char type, void *arg)
       return EVENT_KEEP;
    memset(client, 0, sizeof(*client));
 
-   client->socket = accept(fd, &client->addr, &len);
+   client->socket = accept(fd, (struct sockaddr*) &client->addr, &len);
    if (client->socket == -1) {
       DBG_print(DBG_LEVEL_WARN, "Failed to accept zmql client.");
       free(client);
