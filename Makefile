@@ -18,7 +18,7 @@ MINOR_VERS=0.4
 INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h eventTimer.h telm_dict.h zmqlite.h critical.h xdr.h cmd-pkt.h plugin.h pseudo_threads.h proctest.h json.hpp zhelpers.hpp
 
 # Build Variables
-override CFLAGS+=$(SYMBOLS) -Wall -Werror -Wno-unknown-warning-option -Wno-format-truncation -Wno-deprecated-declarations -std=gnu99 -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS)
+override CFLAGS+=$(SYMBOLS) -Wall -Werror $(CFLAG_WARNS) -Wno-deprecated-declarations -std=gnu99 -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS)
 override CXXFLAGS+=$(SYMBOLS) -Wall -Werror -Wno-format-truncation -Wno-deprecated-declarations -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS)
 override LDFLAGS+= -ldl
 SRC_PATH=.

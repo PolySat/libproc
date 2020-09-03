@@ -9,6 +9,7 @@ ifeq ($(TARGET),arm)
 	LOCAL_BIN_PATH=$(ARM_TOOLCHAIN_PATH)/etc
 	INST_STRIP=$(STRIP)
 	SYMBOLS=
+   CFLAG_WARNS=
 else
 	LIB_PATH=/usr/local/lib
 	INC_PATH=/usr/local/include
@@ -18,4 +19,5 @@ else
 	STRIP=strip
 	INST_STRIP=echo
 	SYMBOLS=-g
+   CFLAG_WARNS=-Wno-format-truncation -Wno-deprecated-declarations
 endif
