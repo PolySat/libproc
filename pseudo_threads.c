@@ -35,9 +35,7 @@ void PT_init(struct EventState *evt)
 {
    memset(&state, 0, sizeof(state));
    state.evt = evt;
-#ifdef __UCLIBC__
-   assert(0);
-#else
+#ifndef __UCLIBC__
    getcontext(&state.main_ctx);
 #endif
    state.main_ctx.uc_link = &state.main_ctx;
