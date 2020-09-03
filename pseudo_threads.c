@@ -35,7 +35,11 @@ void PT_init(struct EventState *evt)
 {
    memset(&state, 0, sizeof(state));
    state.evt = evt;
+#ifdef __UCLIBC__
+   assert(0);
+#else
    getcontext(&state.main_ctx);
+#endif
    state.main_ctx.uc_link = &state.main_ctx;
 }
 
@@ -114,7 +118,11 @@ int PT_block(void *arg)
 
    dequeue_thread(self);
    enqueue_thread(self, &state.blocked);
+#ifndef __UCLIBC__
    swapcontext (&self->ctx, &state.main_ctx);
+#else
+   assert(0);
+#endif
    return 0;
 }
 
@@ -138,7 +146,11 @@ static ssize_t pt_rw_int(int fd, void *buff, size_t len, unsigned int timeout,
       EVT_fd_add(state.evt, fd, EVENT_FD_READ, &fd_evt_cb, self);
       dequeue_thread(self);
       enqueue_thread(self, &state.blocked);
+#ifndef __UCLIBC__
       swapcontext (&self->ctx, &state.main_ctx);
+#else
+      assert(0);
+#endif
       // Once swapcontext has returned the event triggered
       assert(state.curr == self);
       if (timeout > 0 && self->sched_evt == NULL)
@@ -178,10 +190,15 @@ void PT_wait(unsigned int msecs)
          &timed_evt_cb, self);
    dequeue_thread(self);
    enqueue_thread(self, &state.blocked);
+#ifndef __UCLIBC__
    swapcontext (&self->ctx, &state.main_ctx);
+#else
+   assert(0);
+#endif
    assert(self == state.curr);
 }
 
+#ifndef __UCLIBC__
 static void tmain_wrapper(struct PThread *self)
 {
    self->func(self->arg);
@@ -193,6 +210,7 @@ static void tmain_wrapper(struct PThread *self)
       self->sched_evt = NULL;
    }
 }
+#endif
 
 void *PT_create(PT_entry_point_t tmain, void *arg)
 {
@@ -205,6 +223,7 @@ void *PT_create(PT_entry_point_t tmain, void *arg)
    thread->arg = arg;
    thread->stack = malloc(DEFAULT_STACK_SIZE);
 
+#ifndef __UCLIBC__
    getcontext (&thread->ctx);
    thread->ctx.uc_link = &state.main_ctx;
    thread->ctx.uc_stack.ss_sp = thread->stack;
@@ -212,6 +231,9 @@ void *PT_create(PT_entry_point_t tmain, void *arg)
    makecontext (&thread->ctx, (void (*) (void)) &tmain_wrapper, 1, thread);
 
    enqueue_thread(thread, &state.ready);
+#else
+   assert(0);
+#endif
 
    return thread;
 }
@@ -231,7 +253,11 @@ void PT_destroy(void *thread)
    if (self == state.curr) {
       dequeue_thread(self);
       state.goner = self;
+#ifndef __UCLIBC__
       swapcontext (&self->ctx, &state.main_ctx);
+#else
+      assert(0);
+#endif
    }
    else {
       dequeue_thread(self);
@@ -247,7 +273,11 @@ void PT_run_all(void)
    while ((next = state.ready)) {
       dequeue_thread(next);
       enqueue_thread(next, &state.curr);
+#ifndef __UCLIBC__
       swapcontext (&state.main_ctx, &state.curr->ctx);
+#else
+      assert(0);
+#endif
       assert(state.curr == NULL);
 
       if (state.goner) {
