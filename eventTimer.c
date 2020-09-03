@@ -158,8 +158,9 @@ int ET_rtdebug_monotonic(struct EventTimer *arg, struct timeval *tv)
 
    #ifdef __APPLE__
 
-   res = 0
-   gettimeofday(now, NULL)
+   res = 0;
+   // WARNING: Not a monotonic clock, simply a stub for Apple devices.
+   gettimeofday(&now, NULL);
 
    #else
 

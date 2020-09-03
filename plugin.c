@@ -142,7 +142,10 @@ static void configure_set(struct PluginSet *set)
    set->data = data;
    data->set = set;
    c = data->name_lc = strdup(set->prefix);
-   while ((*c++ = tolower(*c)));
+
+   for(int i = 0; c[i]; i++){
+      c[i] = tolower(c[i]);
+   }
 
    if (set->initial_paths) {
       paths = strdup(set->initial_paths);
@@ -215,7 +218,10 @@ static struct PluginList *find_plugin(struct PluginSet *set, const char *name,
    if (len >= sizeof(_name))
       c = name_lc = malloc(len + 1);
    strcpy(name_lc, name);
-   while ((*c++ = tolower(*c)));
+
+   for(int i = 0; c[i]; i++){
+      c[i] = tolower(c[i]);
+   }
 
    for (dirs = set->data->dirs; dirs && dirs->dir; dirs = dirs->next) {
       snprintf(path, sizeof(path), "%s/%s-%s" PL_PLUGIN_SUFFIX, dirs->dir->path,
