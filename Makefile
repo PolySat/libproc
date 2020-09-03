@@ -12,14 +12,14 @@ TEST_SOURCES=proctest.cpp
 LIBRARY_NAME=proc
 TEST_LIBRARY_NAME=proctest
 MAJOR_VERS=3
-MINOR_VERS=0.5
+MINOR_VERS=0.6
 
 # Install Variables
 INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h eventTimer.h telm_dict.h zmqlite.h critical.h xdr.h cmd-pkt.h plugin.h pseudo_threads.h proctest.h json.hpp zhelpers.hpp
 
 # Build Variables
 override CFLAGS+=$(SYMBOLS) -Wall -Werror $(CFLAG_WARNS) -Wno-deprecated-declarations -std=gnu99 -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS)
-override CXXFLAGS+=$(SYMBOLS) -Wall -Werror -Wno-format-truncation -Wno-deprecated-declarations -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS)
+override CXXFLAGS+=$(SYMBOLS) -Wall -Werror -Wno-format-truncation -Wno-deprecated-declarations -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 $(SO_CFLAGS) -std=gnu++11
 override LDFLAGS+= -ldl
 SRC_PATH=.
 
@@ -36,7 +36,8 @@ TEST_SO_NAME=$(TEST_LIBRARY).$(SO_EXT).$(MAJOR_VERS)
 TEST_LIB_NAME=$(TEST_LIBRARY).$(SO_EXT).$(MAJOR_VERS).$(MINOR_VERS)
 TEST_SO_LDFLAGS=-shared -fPIC -Wl,-soname,$(TEST_SO_NAME)
 
-all: $(OBJECTS) $(LIBRARY) $(TEST_OBJECTS) $(TEST_LIBRARY)
+all: $(OBJECTS) $(LIBRARY)
+tests: $(TEST_OBJECTS) $(TEST_LIBRARY)
 
 $(LIBRARY): $(LIB_NAME)
 	 ln -sf $(LIB_NAME) $(LIBRARY).$(SO_EXT)
@@ -71,13 +72,15 @@ install: all
 	$(INST_STRIP) $(LIB_PATH)/$(LIB_NAME)
 	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY).$(SO_EXT)
 	ln -sf $(LIB_NAME) $(LIB_PATH)/$(LIBRARY).$(SO_EXT).$(MAJOR_VERS)
+	install -d $(INC_PATH)/polysat
+	cp $(INCLUDE) $(INC_PATH)/polysat
+#	ldconfig -linux-ld -n $(LIB_PATH)
+
+install_test:
 	cp $(TEST_LIB_NAME) $(LIB_PATH)
 	$(INST_STRIP) $(LIB_PATH)/$(TEST_LIB_NAME)
 	ln -sf $(TEST_LIB_NAME) $(LIB_PATH)/$(TEST_LIBRARY).$(SO_EXT)
 	ln -sf $(TEST_LIB_NAME) $(LIB_PATH)/$(TEST_LIBRARY).$(SO_EXT).$(MAJOR_VERS)
-	install -d $(INC_PATH)/polysat
-	cp $(INCLUDE) $(INC_PATH)/polysat
-#	ldconfig -linux-ld -n $(LIB_PATH)
 
 uninstall:
 	rm $(LIB_PATH)/$(LIBRARY)*
