@@ -7,7 +7,9 @@ const ERR_BASE =  0x02000100;
 enum Cmds {
    RESPONSE = CMD_BASE + 0,
    STATUS = CMD_BASE + 1,
-   DATA_REQ = CMD_BASE + 2
+   DATA_REQ = CMD_BASE + 2,
+   WD_REGISTER_STATIC = CMD_BASE + 3,
+   WD_REG_INFO = CMD_BASE + 4,
 };
 
 enum types {
@@ -20,6 +22,8 @@ enum types {
    RESPONSE_HDR = TYPE_BASE + 6,
    HEARTBEAT = TYPE_BASE + 7,
    POPULATOR_ERROR = TYPE_BASE + 8,
+   WD_PROC_NAME = TYPE_BASE + 9,
+   WD_REG_INFO = TYPE_BASE + 10,
 };
 
 command "proc-status" {
@@ -70,17 +74,47 @@ struct Heartbeat {
    };
 } = types::HEARTBEAT;
 
+struct WDProcName {
+   string name<128> {
+      key name;
+      name "Name";
+      description "The name of the process to query details about";
+   };
+} = types::WD_PROC_NAME;
+
+struct WDRegInfo {
+   string name<128> {
+      key name;
+      name "Name";
+      description "The name of the process being watched";
+   };
+
+   unsigned int pid {
+      key pid;
+      name "Process ID";
+      description "The system's process id for the process being watched";
+   };
+
+   bool watched {
+      key watched;
+      name "Watched";
+      description "Flag indicating that the process is being watched or not";
+   };
+} = types::WD_REG_INFO;
+
 enum ResultCode {
    SUCCESS = ERR_BASE + 0,
    INCORRECT_PARAMETER_TYPE = ERR_BASE + 1,
    UNSUPPORTED = ERR_BASE + 2,
-   ALLOCATION_ERR = ERR_BASE + 3
+   ALLOCATION_ERR = ERR_BASE + 3,
+   NO_SUCH_PROCESS = ERR_BASE + 4,
 };
 
 error ResultCode::SUCCESS = "No error - success";
 error ResultCode::INCORRECT_PARAMETER_TYPE = "Type of command parameter didn't match the expected type";
 error ResultCode::UNSUPPORTED = "The target process does not support the command sent";
 error ResultCode::ALLOCATION_ERR = "Failed to allocate heap memory";
+error ResultCode::NO_SUCH_PROCESS = "The requested process can not be found";
 
 struct DataReq {
    int length;

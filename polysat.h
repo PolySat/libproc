@@ -34,5 +34,7 @@
 #include <polysat/telm_dict.h>
 #include <polysat/plugin.h>
 #include <polysat/pseudo_threads.h>
+#include <polysat/xdr.h>
+#include <polysat/cmd-pkt.h>
 
 #endif

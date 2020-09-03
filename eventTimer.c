@@ -24,6 +24,12 @@
 #include <sys/select.h>
 #include <time.h>
 
+static void et_virt_inc_time(struct EventTimer *et, struct timeval *time);
+static void et_virt_set_time(struct EventTimer *et, struct timeval *time);
+static int et_virt_get_time(struct EventTimer *et, struct timeval *time);
+static void et_virt_set_pause(struct EventTimer *et, char pauseState);
+static char et_virt_get_pause(struct EventTimer *et);
+
 int ET_default_block(struct EventTimer *et, struct timeval *nextAwake,
       int pauseWhileBlocking, ET_block_cb blockcb, void *arg)
 {
@@ -203,12 +209,21 @@ struct VirtualEventTimer {
 int ET_virt_block(struct EventTimer *et, struct timeval *nextAwake,
       int pauseWhileBlocking, ET_block_cb blockcb, void *arg)
 {
-   struct timeval diffTime, *blockTime = NULL;
+   struct timeval diffTime, curTime, *blockTime = NULL;
    
    // Set amount of time to block on select.
-   // Block on select indefinetly id virtual clock is paused
-   if (nextAwake && ET_virt_get_pause(et) == VIRT_CLK_ACTIVE) {
-      ET_virt_set_time(et, nextAwake);
+   // Don't advance the virtual clock when time is paused while blocking
+   if (nextAwake && pauseWhileBlocking) {
+      et->get_monotonic_time(et, &curTime);
+      timersub(nextAwake, &curTime, &diffTime);
+      if (diffTime.tv_sec < 0 || diffTime.tv_usec < 0) {
+         memset(&diffTime, 0, sizeof(struct timeval));
+      }
+      blockTime = &diffTime;
+   }
+   // Block on select indefinetly if virtual clock is paused
+   else if (nextAwake && et_virt_get_pause(et) == VIRT_CLK_ACTIVE) {
+      et_virt_set_time(et, nextAwake);
       // If virt clk is active, don't block on select.
       memset(&diffTime, 0, sizeof(struct timeval));
       blockTime = &diffTime;
@@ -237,9 +252,14 @@ struct EventTimer *ET_virt_init(struct timeval *initTime)
    et->time = *initTime;
    et->paused = VIRT_CLK_ACTIVE;
    et->et.block = &ET_virt_block;
-   et->et.get_gmt_time = &ET_virt_get_time;
-   et->et.get_monotonic_time = &ET_virt_get_time;
+   et->et.get_gmt_time = &et_virt_get_time;
+   et->et.get_monotonic_time = &et_virt_get_time;
    et->et.cleanup = &ET_virt_cleanup;
+   et->et.virt_inc_time = &et_virt_inc_time;
+   et->et.virt_set_time = &et_virt_set_time;
+   et->et.virt_get_time = &et_virt_get_time;
+   et->et.virt_set_pause = &et_virt_set_pause;
+   et->et.virt_get_pause = &et_virt_get_pause;
 
    return (struct EventTimer *)et;
 }
@@ -250,7 +270,7 @@ struct EventTimer *ET_virt_init(struct timeval *initTime)
  * @param clk a Virtual EventTimer object.
  * @param time to increment the clock by.
  */
-void ET_virt_inc_time(struct EventTimer *et, struct timeval *time)
+void et_virt_inc_time(struct EventTimer *et, struct timeval *time)
 {
    struct VirtualEventTimer *clk = (struct VirtualEventTimer *)et;
 
@@ -265,7 +285,7 @@ void ET_virt_inc_time(struct EventTimer *et, struct timeval *time)
  * @param clk a Virtual EventTimer object.
  * @param time to set the clock to.
  */
-void ET_virt_set_time(struct EventTimer *et, struct timeval *time)
+void et_virt_set_time(struct EventTimer *et, struct timeval *time)
 {
    struct VirtualEventTimer *clk = (struct VirtualEventTimer *)et;
    
@@ -280,7 +300,7 @@ void ET_virt_set_time(struct EventTimer *et, struct timeval *time)
  *
  * @param clk a Virtual EventTimer object.
  */
-int ET_virt_get_time(struct EventTimer *et, struct timeval *time)
+int et_virt_get_time(struct EventTimer *et, struct timeval *time)
 {
    struct VirtualEventTimer *clk = (struct VirtualEventTimer *)et;
 
@@ -296,13 +316,14 @@ int ET_virt_get_time(struct EventTimer *et, struct timeval *time)
  * @param clk a Virtual EventTimer object.
  * @param pauseState ET_virt_PAUSED or CLK_ACTIVE.
  */
-void ET_virt_set_pause(struct EventTimer *et, char pauseState)
+void et_virt_set_pause(struct EventTimer *et, char pauseState)
 {
    struct VirtualEventTimer *clk = (struct VirtualEventTimer *)et;
 
    assert(et);
 
-   clk->paused = pauseState;
+   if (pauseState != VIRT_CLK_STOLEN)
+      clk->paused = pauseState;
 }
 
 /**
@@ -312,7 +333,7 @@ void ET_virt_set_pause(struct EventTimer *et, char pauseState)
  *
  * @return VIRT_CLK_PAUSED or VIRT_CLK_ACTIVE.
  */
-char ET_virt_get_pause(struct EventTimer *et)
+char et_virt_get_pause(struct EventTimer *et)
 {
    struct VirtualEventTimer *clk = (struct VirtualEventTimer *)et;
    

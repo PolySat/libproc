@@ -31,6 +31,9 @@
 #include <fcntl.h>
 #include "config.h"
 #include "debug.h"
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 struct CFG_buffered_obj
 {
@@ -581,6 +584,35 @@ void *CFG_InetAtonCB(const char *key, const char *value, void *data, void *p1,
       DBG_print(DBG_LEVEL_WARN,"value not converted correctly");
    }
    // ERRNO_WARN("inet_aton error");
+
+   return data;
+}
+
+void *CFG_InetDNSCB(const char *key, const char *value, void *data, void *p1,
+            void *p2)
+{
+   void *dest_v = data + (p1 - ((void*)0));
+   struct in_addr *dest = (struct in_addr*)dest_v;
+   struct addrinfo hint;
+   struct addrinfo *res = NULL, *curr;
+
+   memset(&hint, 0, sizeof(hint));
+   hint.ai_family = AF_INET;
+
+   if (!getaddrinfo(value, NULL, &hint, &res)) {
+      for (curr = res; curr; curr = curr->ai_next) {
+         if (curr->ai_family == AF_INET) {
+            *dest = ((struct sockaddr_in*)curr->ai_addr)->sin_addr;
+            break;
+         }
+      }
+
+      if (res)
+         freeaddrinfo(res);
+   }
+   else
+      DBG_print(DBG_LEVEL_WARN, "Failed to resolve hostname %s: %s", value,
+            strerror(errno));
 
    return data;
 }

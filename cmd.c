@@ -468,15 +468,13 @@ int cmd_handler_init(const char * procName, struct ProcessData *proc,
       sprintf(cfgFile, "./%s.cmd.cfg", procName);
 
       // Open the configuration file with the commands
-      if (!CFG_locateConfigFile(cfgFile)) {
+      if (!CFG_locateConfigFile(cfgFile))
          DBG_print(DBG_LEVEL_WARN, "No command configuration file found\n");
-         cmds->cmds = NULL;
-         return EXIT_SUCCESS;
+      else {
+         // Parse the commands
+         root = (struct CFG_Root*) CFG_parseFile(&CFG_OBJNAME(Root));
+         DBG_print(DBG_LEVEL_INFO, "%s found config file\n", procName);
       }
-      // Parse the commands
-      root = (struct CFG_Root*) CFG_parseFile(&CFG_OBJNAME(Root));
-
-      DBG_print(DBG_LEVEL_INFO, "%s found config file\n", procName);
    }
 
    cmds->cmds = (struct Command*)malloc(sizeof(struct Command)*MAX_NUM_CMDS);
@@ -515,6 +513,11 @@ int cmd_handler_init(const char * procName, struct ProcessData *proc,
    }
 
    return EXIT_SUCCESS;
+}
+
+int CMD_pending_responses(struct CommandCbArg *cmds)
+{
+   return cmds->resp != NULL;
 }
 
 static void cmd_handle_xdr_response(ProcessData *proc,
@@ -1165,8 +1168,10 @@ void CMD_set_xdr_cmd_handler(uint32_t num, CMD_XDR_handler_t cb, void *arg)
    struct CMD_XDRCommandInfo *cmd;
    
    cmd = CMD_xdr_cmd_by_number(num);
-   if (!cmd)
+   if (!cmd) {
+      DBG_print(DBG_LEVEL_WARN, "Missing XDR description for command %u, will not respond to command", num);
       return;
+   }
 
    cmd->handler = cb;
    cmd->arg = arg;

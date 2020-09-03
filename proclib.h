@@ -49,6 +49,8 @@ extern "C" {
 
 
 enum WatchdogMode {
+   /// Constant for enabling the XDR watchdog when initializing a process.
+   WD_XDR = 2,
    /// Constant for enabling the watchdog when initializing a process.
    WD_ENABLED = 1,
    /// Constant for disabling the watchdog when initializing a process.
@@ -71,6 +73,7 @@ typedef struct ProcessData {
    //cmds holds the parsed, .cmd.cfg file call backs along with other info
    struct CommandCbArg *cmds;
    struct CSState criticalState;
+   enum WatchdogMode wdMode;
 } ProcessData;
 
 /** Returns the EVTHandler context for the process.  Needed to directly call
@@ -88,7 +91,8 @@ struct XDR_CommandHandlers {
  * be used by the process to register callbacks.
  *
  * The watchdog mode controls watchdog behavior:
- * - If WD_ENABLED is used, libproc will register the process with the software process
+ * - If WD_XDR is used, libproc will register the process with the watchdog process using XDR commands
+ * - If WD_ENABLED is used, libproc will register the process with the watchdog process
  * - If WD_DISABLED is used, libproc will skip process watchdog initialization.
  *
  * @param procName The unique process name.
@@ -425,10 +429,18 @@ void CHLD_close_stdin(ProcChild *child);
   **/
 char CHLD_ignore_stderr(ProcChild *child);
 
+/** Prints all data a child writes to stderr to the parent's stdout. 
+  **/
+char CHLD_echo_stderr(ProcChild *child);
+
 /** Ignores all data a child writes to stdout.  Use this instead of closing
   *  the stdout file descriptor to avoid causing a SIGPIPE in the child.
   **/
 char CHLD_ignore_stdout(ProcChild *child);
+
+/** Prints all data a child writes to stderr to the parent's stdout. 
+  **/
+char CHLD_echo_stdout(ProcChild *child);
 
 /** Registers a death callback function for a child.  The function is called
   *  once, after the OS has notified the process of the child's death AND

@@ -71,6 +71,8 @@ void *CFG_StrdupCB(const char *key, const char *value, void *data, void *p1,
       void *p2);
 void *CFG_InetAtonCB(const char *key, const char *value, void *data, void *p1,
       void *p2);
+void *CFG_InetDNSCB(const char *key, const char *value, void *data, void *p1,
+      void *p2);
 void *CFG_uint32_CB(const char *key, const char *value, void *data, void *p1,
       void *p2);
 void *CFG_uint16_CB(const char *key, const char *value, void *data, void *p1,
@@ -103,10 +105,13 @@ void *CFG_PtrArrayAppendCB(const char *key, const char *value, void *data,
 #define CFG_INT16(n, str, field) { n, NULL, NULL, { &CFG_int16_CB, (void*)offsetof(str,field), NULL } }
 #define CFG_FLOAT(n, str, field) { n, NULL, NULL, { &CFG_float_CB, (void*)offsetof(str,field), NULL } }
 #define CFG_INET_ATON(n, str, field) { n, NULL, NULL, { &CFG_InetAtonCB, (void*)offsetof(str,field), NULL } }
+#define CFG_INET_DNS(n, str, field) { n, NULL, NULL, { &CFG_InetDNSCB, (void*)offsetof(str,field), NULL } }
 
 #define CFG_OBJNAME(x) CFG__##x##__obj
 #define CFG_VALNAME(x) CFG__##x##__keys
 #define CFG_SUBNAME(x) CFG__##x##__subtypes
+#define CFG_VALNAME_CPP(c,x) CFG__##c##_##x##__keys
+
 #define CFG_NEWOBJ_GBL(x, ini, fin, ...) static struct CFG_ParseValue CFG_VALNAME(x)[] = { __VA_ARGS__, CFG_NULLK }; \
 struct CFG_ParseObj CFG_OBJNAME(x) = { "", ini, fin, CFG_VALNAME(x) };
 #define CFG_NEWOBJ(x, ini, fin, ...) static struct CFG_ParseValue CFG_VALNAME(x)[] = { __VA_ARGS__, CFG_NULLK }; \
@@ -117,6 +122,11 @@ struct CFG_ParseObj CFG_OBJNAME(x) = { name, ini, fin, CFG_VALNAME(x) };
 #define CFG_EMPTYOBJ(x, ini, fin) static struct CFG_ParseValue CFG_VALNAME(x)[] = { CFG_NULLK }; \
 static struct CFG_ParseObj CFG_OBJNAME(x) = { "", ini, fin, CFG_VALNAME(x) };
 
+#define CFG_OBJ_CPPDECL(x) static struct CFG_ParseObj x
+#define CFG_NEWOBJ_CPP(c, x, ini, fin, ...) static struct CFG_ParseValue CFG_VALNAME_CPP(x,c)[] = { __VA_ARGS__, CFG_NULLK }; \
+struct CFG_ParseObj c::x = { "", ini, fin, CFG_VALNAME_CPP(x,c) };
+#define CFG_NEWSUBOBJ_CPP(c, x, name, ini, fin, ...) static struct CFG_ParseValue CFG_VALNAME_CPP(c,x)[] = { __VA_ARGS__, CFG_NULLK }; \
+struct CFG_ParseObj c::x = { name, ini, fin, CFG_VALNAME_CPP(c,x) };
 /**
  * \brief Get the path of the configuration file.
  * \returns The full POSIX path of the current configuration file.  If there is

@@ -29,6 +29,7 @@
 #include "debug.h"
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/resource.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -45,6 +46,7 @@
 #include <pthread.h>
 #include "ipc.h"
 #include "pseudo_threads.h"
+#include "cmd-pkt.h"
 
 #define READ_BUFF_MIN 4096
 #define READ_BUFF_MAX (READ_BUFF_MIN * 4)
@@ -129,6 +131,28 @@ static void watchdog_reg_info(int fd, unsigned char cmd, void *data,
       strlen(watchProc->name)+1, "watchdog");
 }
 
+static void watchdog_xdr_reg_info(struct ProcessData *proc, int timeout,
+      void *arg, char *resp_buff, size_t resp_len, enum IPC_CB_TYPE cb_type)
+{
+   if (timeout)
+      return;
+
+   // If our entry looks good, no further action is needed
+   struct IPC_Response *resp = (struct IPC_Response*)resp_buff;
+   struct IPC_WDRegInfo *data = (struct IPC_WDRegInfo*)resp->data.data;
+   if (resp->result == IPC_RESULTCODE_SUCCESS &&
+         0 == strcmp(proc->name, data->name) &&
+         getpid() == data->pid && data->watched)
+      return;
+
+   // Re-register!
+   struct IPC_WDProcName name;
+   name.name = proc->name;
+   IPC_command_local(proc, IPC_CMDS_WD_REGISTER_STATIC, &name,
+            IPC_TYPES_WD_PROC_NAME,
+            "watchdog", NULL, NULL, IPC_CB_TYPE_COOKED, 5000);
+}
+
 static int validate_watch_registration(void *arg)
 {
    ProcessData *proc = (ProcessData*)arg;
@@ -136,11 +160,22 @@ static int validate_watch_registration(void *arg)
    if (!proc || !proc->name)
       return EVENT_KEEP;
 
-   watchProc = proc;
-   PROC_cmd(proc, WATCHDOG_CMD_REG_INFO, (unsigned char*)proc->name,
-         strlen(proc->name)+1, "watchdog");
+   if (proc->wdMode == WD_ENABLED) {
+      watchProc = proc;
+      PROC_cmd(proc, WATCHDOG_CMD_REG_INFO, (unsigned char*)proc->name,
+            strlen(proc->name)+1, "watchdog");
+      return EVENT_KEEP;
+   }
+   else if (proc->wdMode == WD_XDR) {
+      struct IPC_WDProcName name;
+      name.name = proc->name;
+      IPC_command_local(proc, IPC_CMDS_WD_REG_INFO, &name,
+            IPC_TYPES_WD_PROC_NAME,
+            "watchdog", &watchdog_xdr_reg_info, proc, IPC_CB_TYPE_COOKED, 5000);
+      return EVENT_KEEP;
+   }
 
-   return EVENT_KEEP;
+   return EVENT_REMOVE;
 }
 
 void PROC_set_context(ProcessData *proc, void *ctx)
@@ -202,6 +237,7 @@ ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMo
    if (!proc)
       return NULL;
    memset(proc, 0, sizeof(*proc));
+   proc->wdMode = wdMode;
 
    // Allocate enough space for process name and terminating null byte
    if (procName) {
@@ -244,6 +280,7 @@ ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMo
 
       sprintf(filepath, "%s/%d.proc", PROC_FILE_PATH, getpid());
       fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 644);
+      chmod(filepath, 0644);
 
       if (fd != -1) {
          int len = strlen(procName);
@@ -261,6 +298,7 @@ ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMo
       // write .pid file (file processName.pid that contains the process id)
       sprintf(filepath, "%s/%s.pid", PID_FILE_PATH, procName);
       fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 644);
+      chmod(filepath, 0644);
 
       if (fd != -1) {
          // Re-purpose filepath variable here for pid
@@ -307,13 +345,13 @@ ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMo
    EVT_fd_add(proc->evtHandler, proc->txFd, EVENT_FD_READ, tx_cmd_handler_cb, proc);
    EVT_fd_set_name(proc->evtHandler, proc->txFd, "UDP Request Socket");
    EVT_fd_set_critical(proc->evtHandler, proc->txFd, 0);
+   EVT_set_cmds_pending(proc->evtHandler,
+         (int (*)(void*))&CMD_pending_responses, proc->cmds);
    //Set up SIGCHLD signal handler
    PROC_signal(proc, SIGCHLD, &sigchld_handler, proc);
 
    // Register process with the s/w watchdog (make sure to send null byte!)
-   if (procName && wdMode == WD_ENABLED) {
-      PROC_wd_enable(proc);
-   }
+   PROC_wd_enable(proc);
 
    critical_state_init(&proc->criticalState, proc->name);
 #if TIME_TEST
@@ -326,8 +364,13 @@ ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMo
 }
 
 void PROC_wd_enable(ProcessData *proc) {
-   PROC_set_cmd_handler(proc, WATCHDOG_CMD_REG_INFO_RESP, &watchdog_reg_info,
-      0, 0, 0);
+   if (!proc->name || proc->wdMode == WD_DISABLED)
+      return;
+
+   if (proc->wdMode == WD_ENABLED)
+      PROC_set_cmd_handler(proc, WATCHDOG_CMD_REG_INFO_RESP, &watchdog_reg_info,
+         0, 0, 0);
+
    EVT_sched_add_with_timestep(PROC_evt(proc), EVT_ms2tv(0),
       EVT_ms2tv(WATCHDOG_VALIDATE_SECS * 1000),
       &validate_watch_registration, proc);
@@ -857,6 +900,27 @@ static int dump_child_data(int fd, char type, void *arg)
    return EVENT_REMOVE;
 }
 
+// A callback that echos all data on a FD
+static int echo_child_data(int fd, char type, void *arg)
+{
+   ProcChild *child = (ProcChild*)arg;
+   char buff[4096];
+   int len;
+
+   len = read(fd, buff, sizeof(buff));
+   if (len > 0) {
+      if (write(1, buff, len)<0);
+      return EVENT_KEEP;
+   }
+
+   if (len < 0)
+      ERRNO_WARN("Child read error");
+   else
+      CHLD_close_fd(child, fd);
+
+   return EVENT_REMOVE;
+}
+
 void CHLD_close_stdin(ProcChild *child)
 {
    CHLD_close_fd(child, child->stdin_fd);
@@ -909,6 +973,25 @@ char CHLD_ignore_stderr(ProcChild *child)
    return res;
 }
 
+char CHLD_echo_stderr(ProcChild *child)
+{
+   int res;
+
+   if (!child)
+      return 0;
+   if (child->stderr_fd < 0)
+      return 0;
+   if (!child->parentData)
+      return 1;
+
+   res = EVT_fd_add(child->parentData->evtHandler, child->stderr_fd,
+         EVENT_FD_READ, echo_child_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stderr_fd,
+         "child %u stderr dump", child->procId);
+   EVT_fd_set_critical(child->parentData->evtHandler, child->stderr_fd,0);
+   return res;
+}
+
 char CHLD_ignore_stdout(ProcChild *child)
 {
    int res;
@@ -922,6 +1005,25 @@ char CHLD_ignore_stdout(ProcChild *child)
 
    res = EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
          EVENT_FD_READ, dump_child_data, child);
+   EVT_fd_set_name(child->parentData->evtHandler, child->stdout_fd,
+         "child %u stdout dump", child->procId);
+   EVT_fd_set_critical(child->parentData->evtHandler, child->stdout_fd, 0);
+   return res;
+}
+
+char CHLD_echo_stdout(ProcChild *child)
+{
+   int res;
+
+   if (!child)
+      return 0;
+   if (child->stdout_fd < 0)
+      return 0;
+   if (!child->parentData)
+      return 1;
+
+   res = EVT_fd_add(child->parentData->evtHandler, child->stdout_fd,
+         EVENT_FD_READ, echo_child_data, child);
    EVT_fd_set_name(child->parentData->evtHandler, child->stdout_fd,
          "child %u stdout dump", child->procId);
    EVT_fd_set_critical(child->parentData->evtHandler, child->stdout_fd, 0);

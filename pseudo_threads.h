@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-// PT_writ();
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 extern void PT_wait(unsigned int  msecs);
 ssize_t PT_read(int fd, void *buff, size_t len, unsigned int timeout);
@@ -19,5 +21,11 @@ extern void PT_destroy(void *thread);
 extern void PT_init(struct EventState *evt);
 extern void PT_run_all(void);
 
+extern int PT_block(void*);
+extern int PT_unblock(void*);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

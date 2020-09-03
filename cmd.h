@@ -147,6 +147,7 @@ enum XDR_PRINT_STYLE { XDR_PRINT_HUMAN, XDR_PRINT_KVP, XDR_PRINT_CSV_HEADER,
 #endif
 #endif
 
+extern int CMD_pending_responses(struct CommandCbArg *cmd);
 extern void CMD_register_commands(struct CMD_XDRCommandInfo*, int);
 extern void CMD_register_command(struct CMD_XDRCommandInfo*, int);
 extern void CMD_set_xdr_cmd_handler(uint32_t num, CMD_XDR_handler_t cb,

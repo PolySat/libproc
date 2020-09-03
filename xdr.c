@@ -74,6 +74,28 @@ void XDR_register_populator(XDR_populate_struct cb, void *arg, uint32_t type)
    def->populate_arg = arg;
 }
 
+void XDR_replace_populator(XDR_populate_struct cb, void *arg, uint32_t type,
+      XDR_populate_struct *cbOut, void **argOut)
+{
+   struct XDR_StructDefinition *def = NULL;
+
+   def = XDR_definition_for_type(type);
+   if (cbOut)
+      *cbOut = NULL;
+   if (argOut)
+      *argOut = NULL;
+   if (!def)
+      return;
+
+   if (cbOut)
+      *cbOut = def->populate;
+   if (argOut)
+      *argOut = def->populate_arg;
+
+   def->populate = cb;
+   def->populate_arg = arg;
+}
+
 void XDR_set_struct_print_function(XDR_print_func func, uint32_t type)
 {
    struct XDR_StructDefinition *def = NULL;
@@ -1016,7 +1038,7 @@ void XDR_union_field_deallocator(void **goner,
 
    if (!goner)
       return;
-   u = (struct XDR_Union*)*(struct XDR_Union**)goner;
+   u = (struct XDR_Union*)goner;
    def = XDR_definition_for_type(u->type);
    if (def && def->deallocator)
       def->deallocator(&u->data, def);

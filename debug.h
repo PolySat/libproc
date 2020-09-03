@@ -71,6 +71,15 @@ void DBG_setLevel(int newLevel);
  */
 void DBG_init(const char *procName);
 
+struct EventTimer;
+/**
+ * Provides a timer to use when timestamping debug messages.  Optional.
+ *
+ * @param   timer The timer to use for message timestamps.  Pass in NULL
+ *                to disable timestamps.
+ */
+void DBG_set_timer(struct EventTimer *timer);
+
 /**
  * Message logging utilizing the built in error messages associated with errno.
  *

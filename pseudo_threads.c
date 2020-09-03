@@ -62,6 +62,20 @@ static void enqueue_thread(struct PThread *self, struct PThread **q)
    *q = self;
 }
 
+int PT_unblock(void *arg)
+{
+   struct PThread *self = (struct PThread*)arg;
+
+   if (!self)
+      return -1;
+
+   dequeue_thread(self);
+   enqueue_thread(self, &state.ready);
+
+   return 0;
+}
+
+
 static int timed_evt_cb(void *arg)
 {
    struct PThread *self = (struct PThread*)arg;
@@ -87,6 +101,21 @@ static int fd_evt_cb(int fd, char type, void *arg)
    enqueue_thread(self, &state.ready);
 
    return EVENT_REMOVE;
+}
+
+int PT_block(void *arg)
+{
+   struct PThread *self = (struct PThread*)arg;
+
+   if (self != state.curr) {
+      errno = EINVAL;
+      return -1;
+   }
+
+   dequeue_thread(self);
+   enqueue_thread(self, &state.blocked);
+   swapcontext (&self->ctx, &state.main_ctx);
+   return 0;
 }
 
 static ssize_t pt_rw_int(int fd, void *buff, size_t len, unsigned int timeout,

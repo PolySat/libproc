@@ -29,17 +29,21 @@
 #include <stdio.h>
 #include <string.h>
 #include "debug.h"
+#include "eventTimer.h"
 
 /// Message buffer length
 #define MESSAGE_BUFF_LENGTH 1024
 
 /// Default level of debug message printing
 static int gDBGLevel = DBG_LEVEL_WARN;
+static struct EventTimer *gDBGTimer = NULL;
 
 // Debug output function
 void DBG_print(int level, const char *fmt, ...)
 {
    va_list ap;
+   char buff[MESSAGE_BUFF_LENGTH];
+   struct timeval now;
 
    if (level > gDBGLevel) {
       return;
@@ -47,7 +51,16 @@ void DBG_print(int level, const char *fmt, ...)
 
    // Read in the variable arguments and print the message to the log
    va_start(ap, fmt);
-   vsyslog(level, fmt, ap);
+   if (gDBGTimer) {
+      vsnprintf(&buff[0], sizeof(buff), fmt, ap);
+      buff[sizeof(buff)-1] = 0;
+
+      gDBGTimer->get_gmt_time(gDBGTimer, &now);
+      syslog(level, "%lu.%06lu: %s", now.tv_sec, now.tv_usec, buff);
+   }
+   else
+      vsyslog(level, fmt, ap);
+
    va_end(ap);
 }
 
@@ -64,11 +77,17 @@ void DBG_init(const char * procName)
    openlog(procName, LOG_CONS | LOG_PID | LOG_PERROR, LOG_USER);
 }
 
+void DBG_set_timer(struct EventTimer *timer)
+{
+   gDBGTimer = timer;
+}
+
 // Print out a message with the system error number message
 void DBG_syserr(unsigned long line, const char *func, const char *file,
       int level, const char *fmt, ...)
 {
    char buff[MESSAGE_BUFF_LENGTH];
+   struct timeval now;
    va_list ap;
 
    if (level > gDBGLevel) {
@@ -78,8 +97,15 @@ void DBG_syserr(unsigned long line, const char *func, const char *file,
    // Read in the variable arguments to the buffer
    va_start(ap, fmt);
    vsnprintf(&buff[0], sizeof(buff), fmt, ap);
+   buff[sizeof(buff)-1] = 0;
    va_end(ap);
 
-   syslog(level, "%m - %s in %s() at %s:%lu\n",
+   if (gDBGTimer) {
+      gDBGTimer->get_gmt_time(gDBGTimer, &now);
+      syslog(level, "%lu,%06lu: %m - %s in %s() at %s:%lu\n",
+            now.tv_sec, now.tv_usec, buff, func, file, line);
+   }
+   else
+      syslog(level, "%m - %s in %s() at %s:%lu\n",
          buff, func, file, line);
 }

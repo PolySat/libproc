@@ -830,6 +830,102 @@ int IPC_command(ProcessData *proc, uint32_t command, void *params,
          dest, cb, arg, cb_type, timeout);
 }
 
+int IPC_command_local(ProcessData *proc, uint32_t command, void *params,
+      uint32_t param_type,
+      const char *dest, IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout)
+{
+   if (!proc)
+      return -1;
+   struct sockaddr_in addr;
+   addr.sin_family = AF_INET;
+   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+   addr.sin_port = htons(socket_get_addr_by_name(dest));
+
+   return IPC_command_internal(proc, command, params, param_type,
+         addr, cb, arg, cb_type, timeout);
+}
+
+void IPC_fill_datareq_va(struct IPC_DataReq *req, va_list *va)
+{
+   int allocLen = 8;
+   int item;
+
+   req->length = 0;
+   req->reqs = NULL;
+
+   item = va_arg(*va, int);
+   while (item > 0) {
+      if (!req->reqs || req->length == allocLen) {
+         allocLen *= 2;
+         req->reqs = (uint32_t*)realloc(req->reqs, sizeof(*req->reqs)*allocLen);
+      }
+      req->reqs[req->length++] = item;
+      item = va_arg(*va, int);
+   }
+}
+
+void IPC_fill_datareq(struct IPC_DataReq *req, ...)
+{
+   va_list va;
+
+   va_start(va, req);
+   IPC_fill_datareq_va(req, &va);
+   va_end(va);
+}
+
+int IPC_data(struct ProcessData *proc,
+      struct sockaddr_in addr, IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout, ...)
+{
+   if (!proc)
+      return -1;
+   va_list va;
+   struct IPC_DataReq req;
+   int result = -1;
+
+   va_start(va, timeout);
+   IPC_fill_datareq_va(&req, &va);
+   va_end(va);
+
+   if (req.reqs) {
+      result =  IPC_command_internal(proc, IPC_CMDS_DATA_REQ, &req,
+            IPC_TYPES_DATAREQ, addr, cb, arg, cb_type, timeout);
+      free(req.reqs);
+   }
+
+   return result;
+}
+
+int IPC_data_local(struct ProcessData *proc,
+      const char *dest, IPC_command_callback cb, void *arg,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout, ...)
+{
+   if (!proc)
+      return -1;
+   struct sockaddr_in addr;
+   va_list va;
+   struct IPC_DataReq req;
+   int result = -1;
+
+   addr.sin_family = AF_INET;
+   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+   addr.sin_port = htons(socket_get_addr_by_name(dest));
+
+   va_start(va, timeout);
+   IPC_fill_datareq_va(&req, &va);
+   va_end(va);
+
+   if (req.reqs) {
+      result =  IPC_command_internal(proc, IPC_CMDS_DATA_REQ, &req,
+            IPC_TYPES_DATAREQ, addr, cb, arg, cb_type, timeout);
+      free(req.reqs);
+   }
+
+   return result;
+}
+
+
 void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
       uint32_t param_type, void *params, struct sockaddr_in *dest)
 {
@@ -862,6 +958,12 @@ void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
    }
 
    PROC_cmd_raw_sockaddr(proc, buff, len, dest);
+}
+
+void IPC_success(struct ProcessData *proc, struct IPC_Command *cmd,
+      struct sockaddr_in *dest)
+{
+   IPC_error(proc, cmd, IPC_RESULTCODE_SUCCESS, dest);
 }
 
 void IPC_error(struct ProcessData *proc, struct IPC_Command *cmd,

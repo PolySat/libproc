@@ -28,10 +28,12 @@ extern "C" {
 #define VIRT_CLK_ENABLED 1
 #define VIRT_CLK_DISABLED 0
 
+#define VIRT_CLK_STOLEN 2
 #define VIRT_CLK_PAUSED 1
 #define VIRT_CLK_ACTIVE 0
 
 
+struct EventTimer;
 /**
  * Function pointer callback to peform actual blocking operation (poll,
  * select, etc).  This allows separation of the underlying event API
@@ -73,6 +75,47 @@ struct EventTimer {
     * Cleanup the event timer.
     */
    void (*cleanup)(struct EventTimer *et);
+
+   /**
+    * Increment virtual clock time.
+    *
+    * @param clk a Virtual EventTimer object.
+    * @param time to increment the clock by.
+    */
+   void (*virt_inc_time)(struct EventTimer *et, struct timeval *time);
+
+   /**
+    * Set virtual clock time.
+    *
+    * @param clk a Virtual EventTimer object.
+    * @param time to set the clock to.
+    */
+   void (*virt_set_time)(struct EventTimer *et, struct timeval *time);
+
+   /**
+    * Get virtual clock time. Advanced usage only. Most applications 
+    * should use 'EVT_get_gmt_time' instead.
+    *
+    * @param clk a Virtual EventTimer object.
+    */
+   int (*virt_get_time)(struct EventTimer *et, struct timeval *time);
+
+   /**
+    * Set Virtual EventTimer pause state
+    *
+    * @param clk a Virtual EventTimer object.
+    * @param pauseState ET_virt_PAUSED or CLK_ACTIVE.
+    */
+   void (*virt_set_pause)(struct EventTimer *et, char pauseState);
+
+   /**
+    * Get Virtual EventTimer pause state
+    *
+    * @param clk a Virtual EventTimer object.
+    *
+    * @return VIRT_CLK_PAUSED or VIRT_CLK_ACTIVE.
+    */
+   char (*virt_get_pause)(struct EventTimer *et);
 };
 
 /**
@@ -95,45 +138,14 @@ struct EventTimer *ET_rtdebug_init();
 struct EventTimer *ET_virt_init(struct timeval *initTime);
 
 /**
- * Increment virtual clock time.
+ * Create a global virtual event manager, which executes timed events as fast
+ *  as possible and synchronizes this virtual clock between processes on the
+ *  same system.
  *
- * @param clk a Virtual EventTimer object.
- * @param time to increment the clock by.
+ * @param state_file The file to use for synchronizing clock state.
+ * @param pause_mode The initial pause mode of the timer
  */
-void ET_virt_inc_time(struct EventTimer *et, struct timeval *time);
-
-/**
- * Set virtual clock time.
- *
- * @param clk a Virtual EventTimer object.
- * @param time to set the clock to.
- */
-void ET_virt_set_time(struct EventTimer *et, struct timeval *time);
-
-/**
- * Get virtual clock time. Advanced usage only. Most applications 
- * should use 'EVT_get_gmt_time' instead.
- *
- * @param clk a Virtual EventTimer object.
- */
-int ET_virt_get_time(struct EventTimer *et, struct timeval *time);
-
-/**
- * Set Virtual EventTimer pause state
- *
- * @param clk a Virtual EventTimer object.
- * @param pauseState ET_virt_PAUSED or CLK_ACTIVE.
- */
-void ET_virt_set_pause(struct EventTimer *et, char pauseState);
-
-/**
- * Get Virtual EventTimer pause state
- *
- * @param clk a Virtual EventTimer object.
- *
- * @return VIRT_CLK_PAUSED or VIRT_CLK_ACTIVE.
- */
-char ET_virt_get_pause(struct EventTimer *et);
+struct EventTimer *ET_gvirt_init(const char *state_file, char pause_mode);
 
 
 #ifdef __cplusplus

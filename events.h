@@ -124,7 +124,10 @@ char EVT_fd_add_with_cleanup(EVTHandler *handler, int fd, int type,
       EVT_fd_cb cb, EVT_fd_cb cleanup_cb, void *arg);
 
 /**
- * Remove event callback for a file descriptor and event type.
+ * Remove event callback for a file descriptor and event type.  If this 
+ *  function is called while processing the event being removed the call
+ *  is ignored, giving preference to the return value from the event
+ *  handler.
  *
  * @param handler The event handler.
  * @param fd The file descriptor.
@@ -133,6 +136,20 @@ char EVT_fd_add_with_cleanup(EVTHandler *handler, int fd, int type,
  */
 
 void EVT_fd_remove(EVTHandler *handler, int fd, int type);
+
+/**
+ * Remove event callback for a file descriptor and event type.  If this
+ *  function is called while processing the event being removed this call
+ *  will override the return value from the event handler.  Subsequent calls
+ *  to add an event will override the effect of this function.
+ *
+ * @param handler The event handler.
+ * @param fd The file descriptor.
+ * @param type Type of file descriptor event (EVENT_FD_READ, EVENT_FD_WRITE,
+ * or EVENT_FD_ERROR).
+ */
+
+void EVT_fd_force_remove(EVTHandler *handler, int fd, int type);
 
 /**
  * Provide a debugging name for a file descriptor
@@ -260,6 +277,32 @@ void EVT_sched_set_name(void *eventId, const char *fmt, ...)
 void EVT_sched_set_critical(EVTHandler *handler, void *eventId, int critical);
 
 /**
+ * Add a deferred callback to the event loop.  Deferred callbacks always
+ *  happen at the end of the event loop.  They are guaranteed to be called
+ *  even if the loop is exiting.  There is no way to keep a deferred event
+ *  in the loop for the next iteration (EVENT_KEEP is ignored).  The event
+ *  is called from a context that is safe to modify both scheduled events
+ *  and FD events.
+ *
+ * @param handler The event handler.
+ * @param cb The event callback.
+ * @param arg The callback argument.
+ *
+ * @return An opaque key that can be used to cancel the event.
+ *
+ */
+void *EVT_defer_add(EVTHandler *handler, EVT_sched_cb cb, void *arg);
+
+/**
+ * Cancel a deferred callback.
+ *
+ * @param handler The event handler.
+ * @param arg The event to cancel, as returned from EVT_defer_add.
+ *
+ */
+void EVT_defer_cancel(EVTHandler *handler, void *arg);
+
+/**
  * Starts the main event loop.  Control of the program is given to the
  * event handler, which will block until an event occurs, and call the
  * appropriate callback.
@@ -328,6 +371,17 @@ int EVT_get_monotonic_time(EVTHandler *ctx, struct timeval *tv);
  * @param tv   A pointer to the timeval with the desired initial time.
  */
 char EVT_enable_virt(EVTHandler *ctx, struct timeval *initTime);
+
+/**
+ * Enable libproc global virtual clock. Sets EventTimer to a new
+ * instance of a GlobalVirtualEventTimer.
+ *
+ * @param ctx  EVTHandler struct
+ * @param path The file system path to the file used to synchronize between
+ *               processes
+ * @param pauseMode The pause mode to initialize the timer with
+ */
+char EVT_enable_gvirt(EVTHandler *ctx, const char *path, char pauseMode);
 
 /**
  * Get current libproc EventTimer.
@@ -403,6 +457,8 @@ void EVT_set_initial_debugger_state(EVTHandler *handler,
   * @param port The port number to use
   */
 void EVT_set_debugger_port(EVTHandler *handler, int port);
+
+extern void EVT_set_cmds_pending(struct EventState *state, int (*cb)(void*), void *arg);
 
 #ifdef __cplusplus
 }

@@ -30,6 +30,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <stdarg.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +38,7 @@ extern "C" {
 
 /// Maximum size of an IP packet
 #define MAX_IP_PACKET_SIZE 65535
+struct IPC_DataReq;
 
 /**
  * Gets a file descriptor for a socket based on a named service.
@@ -303,10 +305,24 @@ extern int IPC_command(struct ProcessData*, uint32_t command, void *params,
       uint32_t param_type,
       struct sockaddr_in dest, IPC_command_callback cb, void *,
       enum IPC_CB_TYPE cb_type, unsigned int timeout);
+extern int IPC_command_local(struct ProcessData*, uint32_t command,
+      void *params, uint32_t param_type,
+      const char *dest, IPC_command_callback cb, void *,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout);
+extern int IPC_data(struct ProcessData*,
+      struct sockaddr_in addr, IPC_command_callback cb, void *,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout, ...);
+extern int IPC_data_local(struct ProcessData*, 
+      const char *dest, IPC_command_callback cb, void *,
+      enum IPC_CB_TYPE cb_type, unsigned int timeout, ...);
 extern void IPC_response(struct ProcessData *proc, struct IPC_Command *cmd,
       uint32_t param_type, void *params, struct sockaddr_in *dest);
 extern void IPC_error(struct ProcessData *proc, struct IPC_Command *cmd,
       uint32_t error_code, struct sockaddr_in *dest);
+extern void IPC_success(struct ProcessData *proc, struct IPC_Command *cmd,
+      struct sockaddr_in *dest);
+extern void IPC_fill_datareq_va(struct IPC_DataReq *req, va_list *va);
+extern void IPC_fill_datareq(struct IPC_DataReq *req, ...);
 
 #ifdef __cplusplus
 }

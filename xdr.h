@@ -102,6 +102,8 @@ extern void XDR_register_structs(struct XDR_StructDefinition*);
 extern void XDR_register_struct(struct XDR_StructDefinition*);
 extern void XDR_register_populator(XDR_populate_struct cb,
       void *arg, uint32_t type);
+extern void XDR_replace_populator(XDR_populate_struct cb, void *arg,
+      uint32_t type, XDR_populate_struct *cbOut, void **argOut);
 extern struct XDR_StructDefinition *XDR_definition_for_type(uint32_t type);
 extern void XDR_set_struct_print_function(XDR_print_func func, uint32_t type);
 extern void XDR_set_field_print_function(XDR_print_field_func func,
