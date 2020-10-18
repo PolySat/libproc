@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <polysat/polysat.h>
 #include <string.h>
+#include <signal.h>
 
 #define BUF_LEN 2048
 
@@ -43,9 +44,13 @@ int main(int argc, char *argv[])
 {
    char buf[BUF_LEN+1];
 
-   gProc = PROC_init("test1");
+   gProc = PROC_init("test1", WD_DISABLED);
 
+   PROC_multi_cmd(gProc, 1, buf, 0); // sends multicast messages with the specified command
+   PROC_multi_cmd(gProc, 7, buf, 0);
    PROC_multi_cmd(gProc, 10, buf, 0);
+   PROC_multi_cmd(gProc, 11, buf, 0);
+   PROC_multi_cmd(gProc, 12, buf, 0);
 
    // Add a signal handler call back for SIGINT signal
    PROC_signal(gProc, SIGINT, &sigint_handler, gProc);

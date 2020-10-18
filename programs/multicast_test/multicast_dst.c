@@ -24,11 +24,9 @@
  * @author Greg Eddington
  */
 #include <stdio.h>
-#include <polysat3/polysat.h>
+#include <polysat/polysat.h>
 #include <string.h>
-#include <polysat3/cmd-pkt.h>
-#include "test_schema.h"
-
+#include <signal.h>
 
 #define BUF_LEN 2048
 
@@ -42,6 +40,12 @@ int sigint_handler(int signum, void *arg)
    return EVENT_KEEP;
 }
 
+static void mcast_handler_7_only(void *arg, int socket, unsigned char cmd,
+   void *data, size_t dataLen, struct sockaddr_in *fromAddr)
+{
+   printf("Multicast CMD only 7\n");
+}
+
 static void mcast_handler(void *arg, int socket, unsigned char cmd,
    void *data, size_t dataLen, struct sockaddr_in *fromAddr)
 {
@@ -50,21 +54,17 @@ static void mcast_handler(void *arg, int socket, unsigned char cmd,
 
 int main(int argc, char *argv[])
 {
-   gProc = PROC_init("test2",WD_DISABLED, handlers);
-
+   gProc = PROC_init("test2", WD_DISABLED);
 
    // Add a signal handler call back for SIGINT signal
    PROC_signal(gProc, SIGINT, &sigint_handler, gProc);
 
+   PROC_set_multicast_handler(gProc, "test1", -1, &mcast_handler, gProc); // handles all commands
+   PROC_set_multicast_handler(gProc, "test1", 7, &mcast_handler_7_only, gProc); // specifically handles command #7
+   /* PROC_set_multicast_handler(gProc, "test1", 10, &mcast_handler, gProc); */ // specifically handles command #10
+   /* PROC_set_multicast_handler(gProc, "test1", 11, &mcast_handler, gProc); */ // handles command #11
+
    EVT_start_loop(PROC_evt(gProc));
-
-/*
-   PROC_set_multicast_handler(gProc, "test1", -1, &mcast_handler, gProc);
-   PROC_set_multicast_handler(gProc, "test1", -1, &mcast_handler, gProc);
-   PROC_set_multicast_handler(gProc, "test1", 10, &mcast_handler, gProc);
-   PROC_set_multicast_handler(gProc, "test1", 11, &mcast_handler, gProc);
-
-   EVT_start_loop(PROC_evt(gProc));*/
 
    return 0;
 }
