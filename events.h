@@ -473,6 +473,12 @@ class EventManager
       EventManager(struct EventState *state) : ctx(state),
             free_state(false) {}
       virtual ~EventManager() { if (free_state) EVT_free_handler(ctx); }
+      void state(struct EventState *state, bool frees = false) {
+         if (free_state && ctx)
+            EVT_free_handler(ctx);
+         free_state = frees;
+         ctx = state;
+      }
 
       int EventLoop() { return EVT_start_loop(ctx); }
       void Exit() { EVT_exit_loop(ctx); }
@@ -482,7 +488,8 @@ class EventManager
       void RemoveWriteEvent(int fd) { RemoveEvent(fd, EVENT_FD_WRITE); }
       void RemoveErrorEvent(int fd) { RemoveEvent(fd, EVENT_FD_ERROR); }
 
-      struct EventState *state() { return ctx; }
+      EVTHandler *state() { return ctx; }
+      operator EVTHandler*() { return ctx; }
 
       void AddEvent(int fd, EVT_fd_cb cb, void *p, int event,
             EVT_fd_cb cleanup = NULL)

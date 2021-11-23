@@ -476,25 +476,27 @@ class Process
       Process(const char *name, enum WatchdogMode wdMode) : events(NULL)
          { process = PROC_init(name, wdMode); }
       virtual ~Process() {
-         delete events;
          if (process)
             PROC_cleanup(process);
       }
-      EventManager *event_manager() {
-         if (!events)
-            events = new EventManager(PROC_evt(process));
+      EventManager &event_manager() {
+         if (!events.state())
+            events.state(PROC_evt(process));
          return events;
       }
 
       int AddSignalEvent(int sigNum, PROC_signal_cb cb, void *p)
          { return PROC_signal(process, sigNum, cb, p); }
 
+      operator EVTHandler*() { return event_manager().state(); }
+      operator ProcessData*() { return process; }
+
       ProcessData *getProcessData(void) { return process; }
 
    private:
       Process() { process = NULL; }
       ProcessData *process;
-      EventManager *events;
+      EventManager events;
 };
 
 #endif
