@@ -36,6 +36,13 @@ static int xdr_struct_cmp_key(void *key1, void *key2)
    return 0;
 }
 
+static void XDR_cleanup(void)
+{
+   if (structHash)
+      HASH_free_table(structHash);
+   structHash = NULL;
+}
+
 void XDR_register_struct(struct XDR_StructDefinition *def)
 {
    if (!def)
@@ -46,6 +53,7 @@ void XDR_register_struct(struct XDR_StructDefinition *def)
             &xdr_struct_cmp_key, &xdr_struct_key_for_data);
       if (!structHash)
          return;
+      atexit(&XDR_cleanup);
    }
 
    HASH_add_data(structHash, def);

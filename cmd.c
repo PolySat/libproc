@@ -48,6 +48,7 @@ struct DatareqCmd {
 static struct HashTable *xdrCommandHash = NULL;
 static struct DatareqCmd *xdrDatareqList = NULL;
 static struct HashTable *xdrErrorHash = NULL;
+static int cleanup_reg = 0;
 
 /// Value in the PROT element in the CMD structure that indicates protected cmd
 #define CMD_PROTECTED 1
@@ -107,6 +108,25 @@ static void fakeStatusCommand(int socket, unsigned char cmd, void * data,
       size_t dataLen, struct sockaddr_in * src);
 
 static ProcessData *cmdGProc = NULL;
+
+static void CMD_hash_cleanup(void)
+{
+   struct DatareqCmd *node;
+   cleanup_reg = 0;
+
+   if (xdrCommandHash)
+      HASH_free_table(xdrCommandHash);
+   xdrCommandHash = NULL;
+
+   if (xdrErrorHash)
+      HASH_free_table(xdrErrorHash);
+   xdrErrorHash = NULL;
+
+   while((node = xdrDatareqList)) {
+      xdrDatareqList = node->next;
+      free(node);
+   }
+}
 
 void heartbeat_populator(void *arg, XDR_tx_struct cb, void *cb_args)
 {
@@ -1074,6 +1094,10 @@ void CMD_register_command(struct CMD_XDRCommandInfo *cmd, int override)
 
    if (cmd->command) {
       if (!xdrCommandHash) {
+         if (!cleanup_reg)
+            atexit(&CMD_hash_cleanup);
+         cleanup_reg = 1;
+
          xdrCommandHash = HASH_create_table(37, &xdr_cmd_hash_func,
             &xdr_cmd_cmp_key, &xdr_cmd_key_for_data);
          if (!xdrCommandHash)
@@ -1082,6 +1106,10 @@ void CMD_register_command(struct CMD_XDRCommandInfo *cmd, int override)
       table = xdrCommandHash;
    }
    else if (cmd->types) {
+      if (!cleanup_reg)
+         atexit(&CMD_hash_cleanup);
+      cleanup_reg = 1;
+
       node = malloc(sizeof(*node));
       if (!node)
          return;
@@ -1091,6 +1119,7 @@ void CMD_register_command(struct CMD_XDRCommandInfo *cmd, int override)
 
       if (cmd->params)
          cmd->parameter = XDR_definition_for_type(cmd->params);
+
       return;
    }
    else
@@ -1140,6 +1169,10 @@ void CMD_register_error(struct CMD_ErrorInfo *err)
       return;
 
    if (!xdrErrorHash) {
+      if (!cleanup_reg)
+         atexit(&CMD_hash_cleanup);
+      cleanup_reg = 1;
+
       xdrErrorHash = HASH_create_table(37, &xdr_err_hash_func,
             &xdr_err_cmp_key, &xdr_err_key_for_data);
       if (!xdrErrorHash)

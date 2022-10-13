@@ -133,13 +133,16 @@ void *HASH_remove_data(struct HashTable *table, void *data)
 void HASH_free_table(struct HashTable *table)
 {
    int i;
+   struct HashNode *node;
 
    if (!table)
       return;
 
    for(i = 0; i < table->hashSize; i++)
-      while(table->buckets[i])
-         HASH_remove_key(table, table->buckets[i]->key);
+      while((node = table->buckets[i])) {
+         table->buckets[i] = node->next;
+         free(node);
+      }
 
    free(table);
 }
