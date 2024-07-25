@@ -12,7 +12,7 @@ TEST_SOURCES=proctest.cpp
 LIBRARY_NAME=proc
 TEST_LIBRARY_NAME=proctest
 MAJOR_VERS=3
-MINOR_VERS=0.8
+MINOR_VERS=0.9-dev
 
 # Install Variables
 INCLUDE=proclib.h events.h ipc.h config.h debug.h cmd.h polysat.h hashtable.h util.h md5.h priorityQueue.h eventTimer.h telm_dict.h zmqlite.h critical.h xdr.h cmd-pkt.h plugin.h pseudo_threads.h proctest.h json.hpp zhelpers.hpp
