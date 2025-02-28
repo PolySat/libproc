@@ -21,10 +21,10 @@ class TestVirtClk : public ::testing::Test {
          state = ET_virt_init(&t1);
          ASSERT_TRUE(state != NULL);
 
-         ET_virt_get_time(state, &t2);
+         state->virt_get_time(state, &t2);
          EXPECT_EQ(t1.tv_sec, t2.tv_sec);
          EXPECT_EQ(t1.tv_usec, t2.tv_usec);
-         EXPECT_EQ(VIRT_CLK_ACTIVE, ET_virt_get_pause(state));
+         EXPECT_EQ(VIRT_CLK_ACTIVE, state->virt_get_pause(state));
       }
 
       virtual void TearDown() {
@@ -39,26 +39,26 @@ TEST_F(TestVirtClk, Set) {
    struct timeval t1, t2;
 
    t1 = EVT_ms2tv(20000);
-   ET_virt_set_time(state, &t1);
-   ET_virt_get_time(state, &t2);
+   state->virt_set_time(state, &t1);
+   state->virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t1 = EVT_ms2tv(-200);
-   ET_virt_set_time(state, &t1);
-   ET_virt_get_time(state, &t2);
+   state->virt_set_time(state, &t1);
+   state->virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t1 = EVT_ms2tv(130);
-   ET_virt_set_time(state, &t1);
-   ET_virt_get_time(state, &t2);
+   state->virt_set_time(state, &t1);
+   state->virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t1 = EVT_ms2tv(0);
-   ET_virt_set_time(state, &t1);
-   ET_virt_get_time(state, &t2);
+   state->virt_set_time(state, &t1);
+   state->virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
 }
@@ -67,26 +67,26 @@ TEST_F(TestVirtClk, Set) {
 TEST_F(TestVirtClk, Increment) {
    struct timeval t1, t2, t3;
 
-   ET_virt_get_time(state, &t1);
+   state->virt_get_time(state, &t1);
 
    t3 = EVT_ms2tv(33213);
    timeradd(&t1, &t3, &t1);
-   ET_virt_inc_time(state, &t3);
-   ET_virt_get_time(state, &t2);
+   state->virt_inc_time(state, &t3);
+   state->virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t3 = EVT_ms2tv(200);
    timeradd(&t1, &t3, &t1);
-   ET_virt_inc_time(state, &t3);
-   ET_virt_get_time(state, &t2);
+   state->virt_inc_time(state, &t3);
+   state->virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);
    
    t3 = EVT_ms2tv(40000);
    timeradd(&t1, &t3, &t1);
-   ET_virt_inc_time(state, &t3);
-   ET_virt_get_time(state, &t2);
+   state->virt_inc_time(state, &t3);
+   state->virt_get_time(state, &t2);
    EXPECT_EQ(t1.tv_sec, t2.tv_sec);
    EXPECT_EQ(t1.tv_usec, t2.tv_usec);   
 }
@@ -94,11 +94,11 @@ TEST_F(TestVirtClk, Increment) {
 // Test pause function
 TEST_F(TestVirtClk, Pause) {
 
-   ET_virt_set_pause(state, VIRT_CLK_PAUSED);
-   EXPECT_EQ(VIRT_CLK_PAUSED, ET_virt_get_pause(state));
+   state->virt_set_pause(state, VIRT_CLK_PAUSED);
+   EXPECT_EQ(VIRT_CLK_PAUSED, state->virt_get_pause(state));
    
-   ET_virt_set_pause(state, VIRT_CLK_ACTIVE);
-   EXPECT_EQ(VIRT_CLK_ACTIVE, ET_virt_get_pause(state));
+   state->virt_set_pause(state, VIRT_CLK_ACTIVE);
+   EXPECT_EQ(VIRT_CLK_ACTIVE, state->virt_get_pause(state));
 }
 
 /**
@@ -209,7 +209,9 @@ int start_pause(void *arg) {
    struct EventState *evt = PROC_evt(proc);
    struct itimerval itv;
 
-   ET_virt_set_pause(EVT_get_evt_timer(evt), VIRT_CLK_PAUSED);
+   struct EventTimer* eventTimer = EVT_get_evt_timer(evt);
+
+   eventTimer->virt_set_pause(eventTimer, VIRT_CLK_PAUSED);
 
    // Create timer to trigger end of pause after 1 second
    memset(&itv, 0, sizeof(struct itimerval));
