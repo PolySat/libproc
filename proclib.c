@@ -101,7 +101,7 @@ EVTHandler *PROC_evt(ProcessData *proc)
 
 struct CSState *proc_get_cs_state(ProcessData *proc)
 {
-   if (!proc)
+   if (!proc || proc->wdMode == WD_NOTSAT)
       return NULL;
    return &proc->criticalState;
 }
@@ -353,7 +353,8 @@ ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMo
    // Register process with the s/w watchdog (make sure to send null byte!)
    PROC_wd_enable(proc);
 
-   critical_state_init(&proc->criticalState, proc->name);
+   if (proc->wdMode != WD_NOTSAT)
+      critical_state_init(&proc->criticalState, proc->name);
 #if TIME_TEST
    gettimeofday(&endTime, NULL);
    timersub(&endTime, &startTime, &totalTime);
@@ -364,7 +365,7 @@ ProcessData *PROC_init_xdr_hashsize(const char *procName, enum WatchdogMode wdMo
 }
 
 void PROC_wd_enable(ProcessData *proc) {
-   if (!proc->name || proc->wdMode == WD_DISABLED)
+   if (!proc->name || proc->wdMode == WD_DISABLED || proc->wdMode == WD_NOTSAT)
       return;
 
    if (proc->wdMode == WD_ENABLED)
@@ -385,7 +386,8 @@ void PROC_cleanup(ProcessData *proc)
       return;
 
    cmd_cleanup_cb_state(proc->cmds, proc->evtHandler);
-   critical_state_cleanup(&proc->criticalState);
+   if (proc->wdMode != WD_NOTSAT)
+      critical_state_cleanup(&proc->criticalState);
 
    // Clear errno to prevent false errors
    errno = 0;

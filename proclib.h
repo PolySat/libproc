@@ -49,6 +49,8 @@ extern "C" {
 
 
 enum WatchdogMode {
+   /// Constant for disabling the watchdog and critical state
+   WD_NOTSAT = 3,
    /// Constant for enabling the XDR watchdog when initializing a process.
    WD_XDR = 2,
    /// Constant for enabling the watchdog when initializing a process.
